@@ -62,3 +62,15 @@ The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input pa
          Typically trials are created around an event of interest (button press, stimulus presentation etc.)
 - Simple event: Event that is just a mark in time - single timepoint.
 - Extended event: EVent that is a period of time, not just a timepoint
+
+
+
+
+## Example datasets
+
+Example datasets can be found at: ~/duke/temp/konstantinos
+
+
+## Help needed
+
+There is noone else working on this. Help is needed on the training of the datasets to optimize parameters.
