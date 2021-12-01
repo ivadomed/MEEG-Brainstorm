@@ -3,9 +3,7 @@
 Repository for training MEEG datasets with the [ivadomed](https://ivadomed.org) framework in Brainstorm.
 
 # General description of the project
-Brainstorm is a widely used analysis software for MEG/EEG/fNIRS/ECoG/Invasive neurophysiology. For installation, turorials etc. check https://neuroimage.usc.edu/brainstorm/Introduction
-
-It allows users to perform their entire analysis (importing of raw signals, preprocessing, analysis pipelines, visualizations, create paper figures etc.) without any programming skills needed. Everything is done with the usage of a user-friendly GUI.
+[Brainstorm](https://neuroimage.usc.edu/brainstorm/Introduction) is a widely used analysis software for MEG/EEG/fNIRS/ECoG/Invasive neurophysiology. Brainstorm allows users to perform their entire analysis (importing of raw signals, preprocessing, analysis pipelines, visualizations, create paper figures etc.) without any programming skills needed. Everything is done with the usage of a user-friendly GUI.
 
 The scope of this project is to create seemless interoperability between Brainstorm and Ivadomed.
 
@@ -55,7 +53,6 @@ The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input pa
 - `FSLeyes`: if `FSLEyes` is installed, it shows an image and its derivative for quality control.
 
 
-
 ## Definitions
 
 - Trial: Exerpt from an entire recording of an EEG and/or MEG experiment, across channels. Eg: (64 ch, 200 samples).
@@ -64,13 +61,11 @@ The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input pa
 - Extended event: EVent that is a period of time, not just a timepoint
 
 
-
-
 ## Example datasets
 
-Example datasets can be found at: ~/duke/temp/konstantinos
+Example datasets can be found at NeuroPoly's internal server: duke:temp/konstantinos
 
 
 ## Help needed
 
-There is noone else working on this. Help is needed on the training of the datasets to optimize parameters.
+Help is needed on the training of the datasets to optimize parameters.
