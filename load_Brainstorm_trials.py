@@ -9,6 +9,15 @@ channelMat = scipy.io.loadmat(channel_fname, chars_as_strings=1)
 # Get signals
 F = trial['F']  # mChannels x nSamples
 time = trial['Time']  # nTimeSamples
+epilepsy_events_time_stamps = trial['Events']
+
+# Get events information
+wanted_event_label = 'saw_EST_distant'  # This is the label that shows when the epileptologists marked the peak of an epileptic spike
+
+spikeTimepoints=[]
+for iEvent in range(len(trial['Events'])):
+    if wanted_event_label == trial['Events']['label'][0][iEvent]:
+        spikeTimepoints = trial['Events']['times'][0][iEvent]  # In seconds
 
 # Get channels information
 channelNames = []
@@ -19,25 +28,4 @@ for i in range(394):
     channelPositions.append(channelMat['Channel'][0, i]['Loc'])  # This holds the signal coordinates. Focus only on the EEG signals that have 3 coordinates
     channelTypes.append(channelMat['Channel'][0, i]['Type'].tolist()[0])  # This holds the information regarding the type of channels (e.g. EEG or MEG)
 
-trial = {'Data': F, 'Time': time, 'channelNames': channelNames, 'channelPositions': channelPositions, 'channelTypes': channelTypes}
-
-
-print(1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+trial = {'Data': F, 'Time': time, 'channelNames': channelNames, 'channelPositions': channelPositions, 'channelTypes': channelTypes, 'spikeTimepoints': spikeTimepoints}
