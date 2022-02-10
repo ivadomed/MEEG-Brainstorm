@@ -11,14 +11,15 @@ For this project, we are using a development version of Brainstorm (https://gith
 All changes are happening on the Brainstorm side, with the use of converters that create fake "BIDS" MRI datasets that are used as an input to Ivadomed. The term "fake" here refers just to the naming conventions that are used in the dataset and the fact that it is an MRI BIDS, not EEG or MEG BIDS. The dataset is comprised of NIFTI files.
 
 Changes on the Ivadomed side have been kept to the minimum. Users only need to deactivate the BIDS validator, to avoid issues with the naming conventions used:
-https://github.com/ivadomed/ivadomed/blob/master/ivadomed/loader/bids_dataframe.py#L105
+https://github.com/ivadomed/ivadomed/blob/master/ivadomed/loader/bids_dataframe.py#L105 (if the users install Ivadomed from Brainstorm's plugin manager, this step will be done automatically).
 (Change to:  `indexer = pybids.BIDSLayoutIndexer(force_index=force_index, validate=False)`)
 
 
 The general pipeline can be visualized by the following schematic:
 ![image](https://user-images.githubusercontent.com/23224563/144139372-d0592453-7f04-4ad7-a59e-ac5301f28757.png)
 
-1. Brainstorm users import and preprocess their EEG/MEG data as usual. The development version of Brainstorm that is linked above, enables a new entry (`Ivadomed Toolbox -> Create BIDS dataset`) in the Brainstorm processing list that allows users to take trials (see definition later in this readme), and convert them to a fake "BIDS" dataset. The created dataset is saved within the brainstorm_tmp folder (find it within `Matlab` by running the command: `bst_get('BrainstormTmpDir')`)
+1. Brainstorm users import and preprocess their EEG/MEG data as usual. The development version of Brainstorm that is linked above, enables a new entry (`Ivadomed Toolbox -> Create BIDS dataset`) in the Brainstorm processing list that allows users to take trials (see definition later in this readme), and convert them to a fake "BIDS" dataset. The created dataset is saved within the brainstorm_tmp folder (find it within `Matlab` by running the command: `bst_get('BrainstormTmpDir')`). 
+NOTE: The tmp folder will be emptied if you continue using Brainstorm after the dataset is created.
 2. The created dataset is used as an input to ivadomed. Typically, users have to copy the created dataset to a server with GPU power, and run the training on the server side. In case the machine that Brainstorm is installed has reasonable GPU power, the training can be run locally.
 Regarding the config file that contains the parameters, the BIDS dataset contains a template `config.json` file that is partially altered to account for entries that are unique to the trials converted (mostly naming conventions: input/output folders, annotation suffix, training/testing suffix etc.).
 Part of this project is also to optimize the parameters of the template `config.json` file.
