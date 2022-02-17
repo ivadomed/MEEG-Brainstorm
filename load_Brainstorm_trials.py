@@ -12,7 +12,7 @@ time = trial['Time']  # nTimeSamples
 epilepsy_events_time_stamps = trial['Events']
 
 # Get events information
-wanted_event_label = 'saw_EST_distant'  # This is the label that shows when the epileptologists marked the peak of an epileptic spike
+wanted_event_label = 'saw_EST'  # This is the label that shows when the epileptologists marked the peak of an epileptic spike
 
 spikeTimepoints=[]
 for iEvent in range(len(trial['Events'])):
