@@ -1,8 +1,8 @@
 #!/opt/anaconda3/bin/python
 
 """
-This script is used to visualize EEG and MEG signals.
-
+This script is used to visualize EEG and MEG signals. 
+Final visualization is done through the MNE framework `<https://mne.tools/stable/index.html>`
 Usage: type "from data_visualization import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
