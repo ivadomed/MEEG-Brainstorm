@@ -3,6 +3,7 @@
 """
 This script is used to visualize EEG and MEG signals. 
 Final visualization is done through the MNE framework `<https://mne.tools/stable/index.html>`
+
 Usage: type "from data_visualization import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
@@ -90,7 +91,8 @@ def mne_object(data, freq, channel_type):
         ch_types = ['eeg']*data.shape[-1]
     elif channel_type == ['MEG','MEG REF']:
         ch_types = ['ref_meg']*data.shape[-1]
-    info = mne.create_info(ch_names = list(data.columns), 
+    columns_name = list(map(str, data.columns))
+    info = mne.create_info(ch_names = columns_name, 
                          sfreq = freq, 
                          ch_types = ch_types)
 
@@ -104,20 +106,28 @@ def mne_object(data, freq, channel_type):
 
 
 
-def plot_signals_from_df(trial_df, spikeTimePoints, channel_type, wanted_event_label,\
+def plot_signals_from_df(trial_df, channel_type, spikeTimePoints, wanted_event_label,\
                          freq, n_channel, scaling, highpass, lowpass):
 
     """
     Plot EEG/MEG trial.
     
     Args:
-        trial_df (pd dataframe): EEG/MEG tria,
+        trial_df (pd dataframe): EEG/MEG trial,
+        channel_type (list): List of types of channels wanted,
+        spikeTimePoints (array) : Corresponding spike times,
+        wanted_event_label (str): Annotation of wanted event,
         freq (int): Sample rate of the data,
+        n_channel (in): Number of channels,
         scaling (float): zoom out of the plot,
         highpass (float): frequence for highpass filter,
         lowpass (float): frequence for lowpass filter.
 
     """
+    
+    # Transpose and remove columns that do not change value
+    trial_df = trial_df.T
+    trial_df = trial_df.loc[:, (trial_df != trial_df.iloc[0]).any()]
     
     raw = mne_object(trial_df,freq, channel_type)
     
@@ -149,7 +159,9 @@ def plot_signals_from_file(trial_fname, channel_fname, channel_type,\
         trial_fname (str): Path to trial file (matlab dictionnary),
         channel_fname (str): Path to channel file (matlab dictionnary),
         channel_type (list): List of types of channels wanted,
+        wanted_event_label (str): Annotation of wanted event,
         freq (int): Sample rate of the data,
+        n_channel (in): Number of channels,
         scaling (float): zoom out of the plot,
         highpass (float): frequence for highpass filter,
         lowpass (float): frequence for lowpass filter.
