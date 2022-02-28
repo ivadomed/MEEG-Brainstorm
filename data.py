@@ -3,7 +3,8 @@
 """
 This script is used to get raw and projected data with corresponding labels .
 
-Usage: type "from get_data import <function>" to use one of its functions.
+Usage: type "from model import <class>" to use one of its class.
+       type "from model import <function>" to use one of its function.
 
 Contributors: Ambroise Odonnat.
 """
@@ -19,7 +20,7 @@ from common_spatial_pattern import csp
 class Data:
     
     def __init__(self, folder, channel_fname, wanted_event_label,\
-                    list_channel_type, binary_classification, selected_rows):
+                 list_channel_type, binary_classification, selected_rows):
         
         """    
         Args:
@@ -51,7 +52,7 @@ class Data:
             wanted_channel_type (list): List of types of channels wanted.
 
         Returns:
-            tuple: data (array): Trial of size (n_channel)x(n_sample_points)),
+            tuple: data (array): Trial of size (n_channel x n_sample_points),
                    label (int): Number of seizures in the trial,
                    spikeTimePoints (array): Spike times,
                    times (array): Time points.
@@ -105,7 +106,7 @@ class Data:
                    allLabels (dictionnary): Keys are number of channels and values are array of corresponding labels,
                    allSpikeTimePoints (dictionnary): Keys are number of channels and values are array of corresponding spike times,
                    allTimes (dictionnary): Keys are number of channels and values are array of time points,
-                   Example: allData[50][0] is a trial of size 50x(n_sample_points),
+                   Example: allData[50][0] is a trial of size (50 x n_sample_points),
                             allLabels[50][0] is its corresponding label.
 
         """
@@ -163,7 +164,7 @@ class Data:
                                           instead of taking the number of seizures as label.
 
         Returns:
-            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials)x(Nr)x(n_sample_points),
+            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials x Nr x n_sample_points),
                    allLabels (array): Corresponding labels,
                    allSpikeTimePoints (array): Corresponding spike times,
                    allTimes (array): Time points.
@@ -201,7 +202,7 @@ class Data:
         Get dataset and labels after Common Spatial Pattern algorithm.
         All projected trials have same dimension (Nr)x(n_sample_points) with N = n_classes and r = selected_rows.
         Returns:
-            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials)x(Nr)x(n_sample_points),
+            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials x Nr x n_sample_points),
                    allLabels (array): Corresponding labels,
                    allSpikeTimePoints (array): Corresponding spike times,
                    allTimes (array): Time points.
