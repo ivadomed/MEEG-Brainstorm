@@ -29,7 +29,8 @@ class Data:
             wanted_event_label (str): Annotation of wanted event,
             list_channel_type (list): List of the types of channels we want ,
             binary_classification (bool): Labellize trials in two classes as seizure/no seizure 
-                                          instead of taking the number of seizures as label.
+                                          instead of taking the number of seizures as label,
+            selected_rows (int): Number of rows of each sub-spatial filter selected to create spatial filter.
         """
             
         self.folder = folder
