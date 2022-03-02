@@ -32,12 +32,16 @@ from Model import Transformer
 
 
 def weight_reset(model):
-    if isinstance(model, torch.nn.Conv2d) or isinstance(model, torch.nn.Linear):
-        model.reset_parameters()
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+            m.reset_parameters()
         
-def cross_validation(model_config, optimizer_config, train_set, n_split, batch_size,\
-                num_workers, balanced, n_epochs, mix_up, BETA):
+        
+def cross_validation(config, train_set, n_splits, check = False):
 
+    # Recover model, optimizer and training configuration
+    training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
+                                                             
     # Tensor format
     Tensor = torch.FloatTensor
     LongTensor = torch.LongTensor
@@ -59,20 +63,12 @@ def cross_validation(model_config, optimizer_config, train_set, n_split, batch_s
     # Define optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr = optimizer_config['lr'],\
                                           betas=(optimizer_config['b1'], optimizer_config['b2']))
-
-    """
-    if checkpoint_dir:
-        model_state, optimizer_state = torch.load(
-            os.path.join(checkpoint_dir, "checkpoint"))
-        net.load_state_dict(model_state)
-        optimizer.load_state_dict(optimizer_state)
-    """
     
     # Recover all data and labels
     allData, allLabels = train_set
     
     # Split the train_set into k parts to do k-fold cross-validation
-    kfold = KFold(n_splits=2)
+    kfold = KFold(n_splits = n_splits)
 
     # Initialize validation loss, accuracy and F1 score
     averLoss = 0.0
@@ -88,18 +84,26 @@ def cross_validation(model_config, optimizer_config, train_set, n_split, batch_s
         
         data_train = np.expand_dims(data_train, axis = 1)
         data_test = np.expand_dims(data_test, axis = 1)
-        
+
+        # Create dataloader
+        batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
         train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
         test_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
 
         # Reset the model parameters
         model.apply(weight_reset)
         
+        # Recover number of epochs
+        n_epochs = training_config['Epochs']
+        
         # loop over the dataset n_epochs times
+        mix_up = training_config["Mix-up"]
         for epoch in range(n_epochs):  
-            model.train()
             running_loss = 0.0
             epoch_steps = 0
+            
+            # Set training mode
+            model.train()
             
             # Train the model
             for i, (data, labels) in enumerate(train_dataloader):
@@ -107,7 +111,8 @@ def cross_validation(model_config, optimizer_config, train_set, n_split, batch_s
                 if mix_up:
                     
                     # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'
-
+                    BETA = training_config["BETA"]
+                    
                     # Roll a copy of the batch
                     roll_factor =  torch.randint(0, data.shape[0], (1,)).item()
                     rolled_data = torch.roll(data, roll_factor, dims=0)        
@@ -166,12 +171,14 @@ def cross_validation(model_config, optimizer_config, train_set, n_split, batch_s
                     epoch_steps += 1
 
             # Validation
-            model.eval()
             test_loss = 0.0
             test_steps = 0
             test_total = 0
             test_correct = 0
             test_F1_score = 0.0
+            
+            # Set evaluation mode
+            model.eval()
             
             for j, (test_data, test_labels) in enumerate(test_dataloader):
 
@@ -191,21 +198,25 @@ def cross_validation(model_config, optimizer_config, train_set, n_split, batch_s
                 test_correct += (test_y_pred == test_labels).sum().item()
                 test_F1_score += f1_score(test_labels, test_y_pred, average = 'macro')
 
-            
-            with tune.checkpoint_dir(epoch) as checkpoint_dir:
-                path = os.path.join(checkpoint_dir, "checkpoint")
-                torch.save((model.state_dict(), optimizer.state_dict()), path)
+            if check:
+                with tune.checkpoint_dir(epoch) as checkpoint_dir:
+                    path = os.path.join(checkpoint_dir, "checkpoint")
+                    torch.save((model.state_dict(), optimizer.state_dict()), path)
         
-            
+        
+        
         averLoss += (test_loss / test_steps)
         averAcc += (test_correct / test_total) * 100
         averF1 += (test_F1_score / test_steps)
 
-        tune.report(loss = (averLoss / n_split), accuracy = (averAcc / n_split), F1_score = (averF1 / n_split))
-        print("Finished Training k-fold: %s "%fold)
+    tune.report(loss = (averLoss / n_splits), accuracy = (averAcc / n_splits), F1_score = (averF1 / n_splits))
+    print("Finished Training") 
+
     
+def test_accuracy(config, model, test_set, device="cpu"):
     
-def test_accuracy(model, test_set, batch_size, num_workers, device="cpu"):
+    # Set evaluation mode
+    model.eval()
     
     # Recover test data and labels
     data_test, labels_test = test_set
@@ -215,30 +226,34 @@ def test_accuracy(model, test_set, batch_size, num_workers, device="cpu"):
     Tensor = torch.FloatTensor
     LongTensor = torch.LongTensor
     
+    # Create dataloader
+    training_config = config['Training']
+    batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
     test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, False)
+    
     correct = 0
     total = 0
     F1_score = 0.0
     steps = 0
-    with torch.no_grad():
-        for i, (data, labels) in enumerate(test_dataloader):
-            data = Variable(data.type(Tensor))
-            labels = Variable(labels.type(LongTensor))
-            data, labels = data.to(device), labels.to(device)
-            _, outputs = model(data)
-            predicted = torch.max(outputs, 1)[1]
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            F1_score += f1_score(labels, predicted, average = 'macro')
-            steps += 1
+    for _ in range(20):
+        with torch.no_grad():
+            for i, (data, labels) in enumerate(test_dataloader):
+                data = Variable(data.type(Tensor))
+                labels = Variable(labels.type(LongTensor))
+                data, labels = data.to(device), labels.to(device)
+                _, outputs = model(data)
+                predicted = torch.max(outputs, 1)[1]
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                F1_score += f1_score(labels, predicted, average = 'macro')
+                steps += 1
             
     accuracy = (correct / total) * 100
     F1_score /= steps
     return accuracy, F1_score
 
 
-def main(config, train_set, test_set, optimizer_config, n_split, batch_size,
-         num_workers, balanced, n_epochs, mix_up, BETA,\
+def main(config, train_set, test_set, n_splits, results_path,\
          num_samples = 10, max_num_epochs = 10, gpus_per_trial = 10):
     
     scheduler = ASHAScheduler(
@@ -248,30 +263,33 @@ def main(config, train_set, test_set, optimizer_config, n_split, batch_size,
         grace_period = 1,
         reduction_factor = 2)
     
-    reporter = CLIReporter(
-        # parameter_columns=["l1", "l2", "lr", "batch_size"],
-        metric_columns=["loss", "accuracy", "F1_score", "training_iteration"])
+    reporter = CLIReporter(metric_columns=["loss", "accuracy", "F1_score", "training_iteration"])
     
+    # Tune hyperparameters
     result = tune.run(
-        partial(cross_validation, optimizer_config = optimizer_config, train_set = train_set, n_split = n_split,\
-                batch_size = batch_size, num_workers = num_workers, balanced = balanced,\
-                n_epochs = n_epochs, mix_up = mix_up, BETA = BETA),
+        partial(cross_validation, train_set = train_set, n_splits = n_splits, check = True),
         resources_per_trial = {"cpu": 1, "gpu": gpus_per_trial},
         config = config,
         num_samples = num_samples,
         scheduler = scheduler,
         progress_reporter = reporter,
-        local_dir = "check_results")
+        local_dir = results_path)
 
     print('done')
     best_trial = result.get_best_trial("loss", "min", "last")
-    print("Best trial config: {}".format(best_trial.config))
+    print("Best trial config: {}".format(
+        best_trial.config))
     print("Best trial final validation loss: {}".format(
         best_trial.last_result["loss"]))
     print("Best trial final validation accuracy: {}".format(
         best_trial.last_result["accuracy"]))
-
-    best_trained_model = Transformer(**best_trial.config) 
+    print("Best trial final validation F1 score: {}".format(
+        best_trial.last_result["F1_score"]))
+    
+    best_model_config = best_trial.config['Model']
+    best_trained_model = Transformer(**best_model_config) 
+    
+    # Move model to gpu if available
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
@@ -279,12 +297,18 @@ def main(config, train_set, test_set, optimizer_config, n_split, batch_size,
             best_trained_model = nn.DataParallel(best_trained_model)
     best_trained_model.to(device)
 
+    # Recover model and optimizer parameters
     best_checkpoint_dir = best_trial.checkpoint.value
     model_state, optimizer_state = torch.load(os.path.join(best_checkpoint_dir, "checkpoint"))
     best_trained_model.load_state_dict(model_state)
 
-    test_acc, test_F1_score = test_accuracy(best_trained_model, test_set, batch_size, num_workers, device)
+    # Evaluate the best model on the test set
+    test_acc, test_F1_score = test_accuracy(best_trial.config, best_trained_model, test_set, device)
     print("Best trial test set accuracy: {}, best trial test set F1 score {}".format(test_acc,test_F1_score))
+
+    df = result.dataframe()
+    
+    return df, best_trial.config, model_state, optimizer_state
 
 
 """"
