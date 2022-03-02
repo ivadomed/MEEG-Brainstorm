@@ -156,9 +156,11 @@ class Trans():
         for e in range(n_epochs):
             
             # Train the model
-            self.model.train()
             correct, total = 0,0
             weighted_f1_train, f1_train = [],[]
+
+            # Set training mode
+            self.model.train()
             for i, (data, labels) in enumerate(self.train_dataloader):
                                 
                 if mix_up:
@@ -233,11 +235,13 @@ class Trans():
             train_info[e]["F1_score"] = np.mean(f1_train)
                 
             # Evaluate the model
-            self.model.eval()
             test_correct, test_total = 0,0
             weighted_f1_test, f1_test = [],[]
             Predictions = []
             Labels = []
+            
+            # Set evaluation mode
+            self.model.eval()
             
             for j, (test_data, test_labels) in enumerate(self.validation_dataloader):
 
@@ -338,6 +342,9 @@ class Trans():
             if torch.cuda.device_count() > 1:
                 model = nn.DataParallel(model)
         model.to(device)
+        
+        # Set evaluation mode
+        model.eval()
         
         # Load optimizer parameters
         optimizer = torch.optim.Adam(model.parameters(), lr = optimizer_config['lr'],\
