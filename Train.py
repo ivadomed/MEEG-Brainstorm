@@ -28,8 +28,7 @@ log = logging.getLogger(__name__)
 class Trans():
     
     def __init__(self, folder, channel_fname, wanted_event_label,list_channel_type, binary_classification, selected_rows,\
-                 train_size, validation_size, batch_size, num_workers, random_state, shuffle, balanced,\
-                 display_balance = True):
+                 train_size, validation_size, random_state, shuffle):
         
         """    
         Args:
@@ -42,12 +41,8 @@ class Trans():
             selected_rows (int): Number of rows of each sub-spatial filter selected to create spatial filter,
             train_size (int): Size of the train set before separation into train and validation set,
             validation_size (int): Size of the validation set,
-            batch_size (int): Batch size,
-            num_workers (int): Number of preprocessed batches to gain computation time (consumes memory),
             random_state (int): Seed to insure reproductibility during shuffle in train_test_split function,
-            shuffle (bool): Shuffle the data during train_test_split,
-            balanced (bool): Use a weighted sampler during creation of dataloaders (for training and validation),
-            display_balance (bool): Check that training and validation sets are balanced.
+            shuffle (bool): Shuffle the data during train_test_split.
                                     
                                           
         """
@@ -73,38 +68,26 @@ class Trans():
         data_train, labels_train, data_val, labels_val = train_test_dataset(data_train, labels_train,\
                                                                    new_train_size, shuffle, random_state)
         
-        data_train = np.expand_dims(data_train, axis = 1)
-        data_val = np.expand_dims(data_val, axis = 1)
-        data_test = np.expand_dims(data_test, axis = 1)
-        
-        self.train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
-        self.validation_dataloader = get_dataloader(data_val, labels_val, batch_size, num_workers, balanced)
-        self.test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, balanced = False)
-
-        # Check that train_loader is balanced
-        if display_balance:
-            log.info(' Check balance')
-            print(check_balance(self.train_dataloader, np.unique(labels_train).shape[0], 1, True))
-            print(check_balance(self.validation_dataloader, np.unique(labels_val).shape[0], 1, True))
-            print(check_balance(self.test_dataloader, np.unique(labels_test).shape[0], 1, True))
+        self.data_train = np.expand_dims(data_train, axis = 1)
+        self.data_val = np.expand_dims(data_val, axis = 1)
+        self.data_test = np.expand_dims(data_test, axis = 1)
+        self.labels_train = labels_train
+        self.labels_val = labels_val
+        self.labels_test= labels_test
         
 
-    def train(self, model_config, optimizer_config, n_epochs, mix_up, BETA,\
-              model_path, optimizer_path, config_model_path, config_optimizer_path, save):
+    def train(self, config, model_path, optimizer_path, config_path, save):
 
         """
         Train the model and keep accuracy and F1 scores on the validation set.
 
         Args:
-            model_config (dict): Dictionnary containing Transformer Model hyperparamaters,
-            optimizer_config (dict): Dictionnary containing optimizer paramaters,
-            n_eppchs (int): Number of epochs,
-            mix_up (boo): Apply a mix-up strategy to help the model generalize,
-            BETA (float): Parameter of the BETA law used in mix-up strategy,
+            config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
+                           and training configuration --> dataloaders parameters (batch size, number of workers),
+                           number of epochs, mix-up parameters,
             model_path (str): Path to save the model parameters,
             optimizer_path (str): Path to save the opimizer parameters,
-            config_model_path (str): Path to save the model_config,
-            config_optimizer_path (str): Path to save the optimizer_config,
+            config_path (str): Path to save the config,
             save (bool): Save information into the previous paths.
 
         Returns:
@@ -119,6 +102,17 @@ class Trans():
                    Y_true_F1 (array): labels corresponding to best F1 score,
                    Y_pred_F1 (array): prediciton corresponding to best F1 score.
         """
+        
+        # Recover model, optimizer and training configuration
+        training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
+        
+        # Create dataloader
+        batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
+        self.train_dataloader = get_dataloader(self.data_train, self.labels_train, batch_size, num_workers, balanced)
+        self.validation_dataloader = get_dataloader(self.data_val, self.labels_val, batch_size, num_workers, balanced)
+        
+        # Recover number of epochs
+        n_epochs = training_config['Epochs']
         
         # Define model
         self.model = Transformer(**model_config)
@@ -153,6 +147,7 @@ class Trans():
         Y_pred_F1 = []   
       
         # Loop over the dataset n_epochs times
+        mix_up = training_config["Mix-up"]
         for e in range(n_epochs):
             
             # Train the model
@@ -165,8 +160,9 @@ class Trans():
                                 
                 if mix_up:
                     
-                    # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'
-
+                    # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'        
+                    BETA = training_config["BETA"]
+                    
                     # Roll a copy of the batch
                     roll_factor =  torch.randint(0, data.shape[0], (1,)).item()
                     rolled_data = torch.roll(data, roll_factor, dims=0)        
@@ -296,8 +292,7 @@ class Trans():
         
         if save:
             log.info("Saving config files")
-            json.dump(model_config, open( config_model_path, 'w' ) )
-            json.dump(optimizer_config, open( config_optimizer_path, 'w' ) )
+            json.dump(config, open(config_path, 'w' ))
             
             log.info("Saving parameters")
             torch.save(self.model.state_dict(), model_path)
@@ -308,14 +303,13 @@ class Trans():
         return train_info, test_info, bestAcc, averAcc, bestF1, averF1, Y_true_acc, Y_pred_acc, Y_true_F1, Y_pred_F1
     
     
-    def evaluate(self, model_config_path, optimizer_config_path, model_path, optimizer_path):
+    def evaluate(self, config_path, model_path, optimizer_path):
 
         """
         Evaluate a model on test set.
 
         Args:
-            model_config_path (str): Path to recover model_config dictionnary,
-            optimizer_config_path (str): Path to recover optimizer_config dictionnary,
+            config_path (str): Path to recover config dictionnary,
             model_path (str): Path to recover model hyperparameters,
             optimizer_path (str): Path to recover optimizer parameters.
 
@@ -325,12 +319,16 @@ class Trans():
         """
         
         # Recover config files
-        with open(model_config_path) as f:
-            model_config = json.loads(f.read())
+        with open(config_path) as f:
+            config = json.loads(f.read())
             
-        with open(optimizer_config_path) as f:
-            optimizer_config = json.loads(f.read())
+        # Recover model, optimizer and training configuration
+        training_config, model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
             
+        # Create dataloader
+        batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
+        self.test_dataloader = get_dataloader(self.data_test, self.labels_test, batch_size, num_workers, balanced = False)
+        
         # Load model parameters
         model = Transformer(**model_config)
         model.load_state_dict(torch.load(model_path))
