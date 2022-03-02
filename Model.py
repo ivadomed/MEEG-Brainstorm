@@ -198,7 +198,8 @@ class MultiHeadAttention(nn.Module):
     
     def __init__(self, slice_size, num_heads, dropout):
         
-        """    
+        """   
+        Warning: num_heads must be a divider of slice_size !
         Args:
             slice_size (int): Size of slices,
             num_heads (int): Number of heads in mulit-head block,
