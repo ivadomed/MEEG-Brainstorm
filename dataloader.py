@@ -85,7 +85,7 @@ def get_dataloader(data, labels, batch_size, num_workers, balanced):
         data, labels = torch.from_numpy(data),torch.from_numpy(labels)    
         dataset = TensorDataset(data, labels)
         dataloader = DataLoader(dataset = dataset, batch_size = batch_size,\
-                            shuffle = True, num_workers = num_workers)
+                            shuffle = False, num_workers = num_workers)
 
     return dataloader
     
