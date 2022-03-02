@@ -5,8 +5,8 @@ This script contains the architecture of the neural network.
 Model inspired from:
 `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding " <https://arxiv.org/pdf/2106.11170.pdf>`.
 
-Usage: type "from Model import <class>" to use one of its class.
-       type "from Model import <function>" to use one of its function.
+Usage: type "from Model import <class>" to use one of its classes.
+       type "from Model import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
 """
