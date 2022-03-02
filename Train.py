@@ -2,8 +2,8 @@
 
 """
 This script is used to train and test the model. 
-Usage: type "from Train import <class>" to use one of its class.
-       type "from Train import <function>" to use one of its function.
+Usage: type "from Train import <class>" to use one of its classes.
+       type "from Train import <function>" to use one of its functions.
 Contributors: Ambroise Odonnat.
 """
 
@@ -152,6 +152,7 @@ class Trans():
         Y_true_F1 = []
         Y_pred_F1 = []   
       
+        # Loop over the dataset n_epochs times
         for e in range(n_epochs):
             
             # Train the model
