@@ -3,8 +3,8 @@
 """
 This script is used to get raw and projected data with corresponding labels .
 
-Usage: type "from model import <class>" to use one of its class.
-       type "from model import <function>" to use one of its function.
+Usage: type "from model import <class>" to use one of its classes.
+       type "from model import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
 """
