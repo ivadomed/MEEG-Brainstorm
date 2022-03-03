@@ -79,7 +79,7 @@ class Trans():
     def train(self, config, model_path, optimizer_path, config_path, save):
 
         """
-        Train the model and keep accuracy and F1 scores on the validation set.
+        Train the model and compute accuracy and F1 scores on the validation set.
 
         Args:
             config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
@@ -315,7 +315,7 @@ class Trans():
 
         Returns:
             tuple: accuracy (float): Average accuracy on the test set,
-                   F1 score (float): Average F1 score on the test set.
+                   F1_score (float): Average F1 score on the test set.
         """
         
         # Recover config files
