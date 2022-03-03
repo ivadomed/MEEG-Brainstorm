@@ -32,12 +32,34 @@ from Model import Transformer
 
 
 def weight_reset(model):
+    
+    """
+    Reset parameters of the model between folds in cross-validation process.
+
+    Args:
+        model: Deep Learning model (inherited from torch.nn.Modules).
+    """
+    
     for m in model.modules():
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
             m.reset_parameters()
         
         
 def cross_validation(config, train_set, n_splits, check = False):
+
+    """
+    Realise a cross-validation on the training set and send average validation loss to tune (imported from ray module)
+    to help tuning hyperparameters.
+
+    Args:
+        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
+                       and training configuration --> dataloaders parameters (batch size, number of workers),
+                       number of epochs, mix-up parameters,
+        train_set (array): Training set,
+        n_splits (int): Number of folds in the cross-validation process,
+        check (bool): Save model and optimizer state during training.
+
+    """
 
     # Recover model, optimizer and training configuration
     training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
@@ -215,6 +237,22 @@ def cross_validation(config, train_set, n_splits, check = False):
     
 def test_accuracy(config, model, test_set, device="cpu"):
     
+        """
+        Evaluate a model on test set.
+
+        Args:
+            config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
+                           and training configuration --> dataloaders parameters (batch size, number of workers),
+                           number of epochs, mix-up parameters,
+            model: Deep Learning model (inherited from torch.nn.Modules),
+            test_set (array): Test set,
+            device (str): Indicates the type of device used (gpu or cpu).
+
+        Returns:
+            tuple: accuracy (float): Average accuracy on the test set,
+                   F1_score (float): Average F1 score on the test set.
+        """
+        
     # Set evaluation mode
     model.eval()
     
@@ -253,9 +291,33 @@ def test_accuracy(config, model, test_set, device="cpu"):
     return accuracy, F1_score
 
 
-def main(config, train_set, test_set, n_splits, results_path,\
-         num_samples = 10, max_num_epochs = 10, gpus_per_trial = 10):
-    
+def main(config, train_set, test_set, n_splits, results_path,num_samples = 10,\
+         max_num_epochs = 10, gpus_per_trial = 10):
+
+    """
+    Use Ray Tune to tune hyperparameters.
+
+    Args:
+        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
+                       and training configuration --> dataloaders parameters (batch size, number of workers),
+                       number of epochs, mix-up parameters,
+        train_set (array): Training set,
+        test_set (array): Test set,
+        n_splits (int): Number of folds in the cross-validation process,
+        results_path (str): Path to save training information (model and optimizer states, hyperparameters, results),
+        num_samples (int): Number of data samples during hyperparameter search,
+        max_num_epochs (int): Max time units per trial (in the scheduler),
+        gpus_per_trial (int): Number of gpu to use per trial.
+
+    Returns:
+        tuple: df (dataframe): summary of results and hyperparameters on each of the num_samples sample,
+               best_trial.config (dict): Dictionnary of dictionnary containing best model hyperparamaters, optimizer parameters 
+                                         and training configuration --> dataloaders parameters (batch size, number of workers),
+                                         number of epochs, mix-up parameters,
+               model_state (dict): Best model state,
+               optimizer_state (dict): Best optimizer for best model.
+    """
+
     scheduler = ASHAScheduler(
         metric = "loss",
         mode = "min",
