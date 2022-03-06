@@ -13,6 +13,7 @@ import torch
 import pandas as pd
 import seaborn as sns
 
+from loguru import logger
 
 def get_class_distribution(label, display):
 
@@ -71,3 +72,26 @@ def check_balance(dataloader, n_classes, n_epochs, display):
         sns.barplot(data = pd.DataFrame.from_dict([acc]).melt(), x = "variable", y="value",)\
         .set_title("Class Distribution")
     return acc
+
+
+def define_device(gpu_id):
+    
+    """Define the device used for the process of interest.
+    Args:
+        gpu_id (int): GPU ID.
+    Returns:
+        Bool, device: True if cuda is available.
+    """
+    
+    device = torch.device("cuda:" + str(gpu_id) if torch.cuda.is_available() else "cpu")
+    cuda_available = torch.cuda.is_available()
+    if not cuda_available:
+        logger.info("Cuda is not available.")
+        logger.info("Working on {}.".format(device))
+    if cuda_available:
+        
+        # Set the GPU
+        gpu_id = int(gpu_id)
+        torch.cuda.set_device(gpu_id)
+        logger.info(f"Using GPU ID {gpu_id}")
+    return cuda_available, device
