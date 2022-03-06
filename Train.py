@@ -2,8 +2,10 @@
 
 """
 This script is used to train and test the model. 
+
 Usage: type "from Train import <class>" to use one of its classes.
        type "from Train import <function>" to use one of its functions.
+       
 Contributors: Ambroise Odonnat.
 """
 
@@ -12,17 +14,19 @@ import torch
 
 import numpy as np
 
-from torch.autograd import Variable
+from os import listdir
+from os.path import isfile, join
 from sklearn.metrics import f1_score
+from torch.autograd import Variable
 
 from data import Data
 from dataloader import train_test_dataset, get_dataloader
+from parser import get_parser
 from Model import Transformer
-from utils import check_balance
+from utils import check_balance, define_device
 
-import logging
-logging.getLogger().setLevel(logging.INFO)
-log = logging.getLogger(__name__)
+from loguru import logger
+
 
 
 class Trans():
@@ -52,13 +56,13 @@ class Trans():
         self.LongTensor = torch.LongTensor
         
         # Recover dataset
-        log.info(' Get Dataset')
+        logger.info("Get dataset")
         self.dataset = Data(folder,channel_fname,wanted_event_label, list_channel_type,binary_classification, selected_rows)
         self.allData, self.allLabels, self.allSpikeTimePoints, self.allTimes = self.dataset.csp_data()
         
         
         # Recover dataloader
-        log.info(' Get Dataloader')
+        logger.info("Get dataloader")
         
         # Split data and labels in train, validation and test sets
         data_train, labels_train, data_test, labels_test = train_test_dataset(self.allData, self.allLabels,\
@@ -76,7 +80,7 @@ class Trans():
         self.labels_test= labels_test
         
 
-    def train(self, config, model_path, optimizer_path, config_path, save):
+    def train(self, config, model_path, optimizer_path, config_path, gpu_id, save):
 
         """
         Train the model and compute accuracy and F1 scores on the validation set.
@@ -118,9 +122,8 @@ class Trans():
         self.model = Transformer(**model_config)
         
         # Move to gpu if available
-        device = "cpu"
-        if torch.cuda.is_available():
-            device = "cuda:0"
+        available, device = define_device(gpu_id)
+        if available:
             if torch.cuda.device_count() > 1:
                 self.model = nn.DataParallel(self.model)
         self.model.to(device)
@@ -285,25 +288,29 @@ class Trans():
         if num > 0:
             averAcc = averAcc / num
             averF1 = averF1 / num
+            
+        logger.info("Training finished")
         print('The average accuracy is:', averAcc)
         print('The best accuracy is:', bestAcc)
         print('The average F1 score is:', averF1)
         print('The best F1 score is:', bestF1)
         
         if save:
-            log.info("Saving config files")
+            logger.info("Saving config files")
             json.dump(config, open(config_path, 'w' ))
             
-            log.info("Saving parameters")
+            logger.info("Saving parameters")
             torch.save(self.model.state_dict(), model_path)
             torch.save(self.optimizer.state_dict(), optimizer_path)
             
-        
-        
+            print('Model state here:', model_path)
+            print('Optimizer state here:', optimizer_path)
+            print('Config file here:', config_path, '\n')
+                
         return train_info, test_info, bestAcc, averAcc, bestF1, averF1, Y_true_acc, Y_pred_acc, Y_true_F1, Y_pred_F1
     
     
-    def evaluate(self, config_path, model_path, optimizer_path):
+    def evaluate(self, config_path, model_path, optimizer_path, gpu_id):
 
         """
         Evaluate a model on test set.
@@ -334,9 +341,8 @@ class Trans():
         model.load_state_dict(torch.load(model_path))
         
         # Move to gpu if available
-        device = "cpu"
-        if torch.cuda.is_available():
-            device = "cuda:0"
+        available, device = define_device(gpu_id)
+        if available:
             if torch.cuda.device_count() > 1:
                 model = nn.DataParallel(model)
         model.to(device)
@@ -366,7 +372,73 @@ class Trans():
 
         accuracy = correct / total * 100
         F1_score = np.mean(f1_test)
+        
+        logger.info('Evaluation finished')
+        print("Accuracy on test set: {} \nF1 score on test set: {}".format(accuracy, F1_score))
+        
         return accuracy , F1_score
         
+
+def main(gpu_id = 0): 
+   
+    """
+    Train or evaluate model depending on args given in command line
+    """
+    
+    parser = get_parser()
+    args = parser.parse_args()
+    
+    # Recover data path
+    data_path = args.path_data
+    data_config_path = args.path_config_data
+    training_config_path = args.path_config_training
+    model_path = args.path_model
+    optimizer_path = args.path_optimizer
+    config_path = args.path_config
+
+    # Recover command
+    Train_bool = args.train
+    Test_bool = args.test
+    save = args.save
+    
+    # Recover data
+    folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
+
+    # Recover data config dictionnary
+    with open(data_config_path) as f:
+        data_config = json.loads(f.read())
+        
+    channel_fname = data_config['channel_fname']
+    wanted_event_label = data_config['wanted_event_label']
+    list_channel_type = data_config['channel_type']
+    binary_classification = data_config['binary_classification']
+    selected_rows = data_config['selected_rows']
+    train_size = data_config['train_size']
+    validation_size = data_config['validation_size']
+    random_state = data_config['random_state']
+    shuffle = data_config['shuffle']
+
+    # Initialize class Trans
+    trans = Trans(folder, channel_fname, wanted_event_label,list_channel_type, binary_classification, selected_rows,\
+                 train_size, validation_size, random_state, shuffle)
+        
+    # Train model
+    if Train_bool:
+        
+        # Recover training config dictionnary
+        with open(training_config_path) as f:
+            config = json.loads(f.read())
+            
+        save = args.save
+        train_results = trans.train(config, model_path, optimizer_path, config_path, gpu_id = gpu_id, save = save)
+        train_info, test_info, bestAcc, averAcc, bestF1, averF1, Y_true_acc, Y_pred_acc, Y_true_F1, Y_pred_F1 = train_results
+                  
+    # Evaluate model
+    if Test_bool:
+        accuracy, F1_score = trans.evaluate(config_path, model_path, optimizer_path, gpu_id)
         
         
+        
+
+if __name__ == "__main__":
+    main(gpu_id = 0)
