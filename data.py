@@ -1,7 +1,7 @@
 #!/opt/anaconda3/bin/python
 
 """
-This script is used to get raw and projected data with corresponding labels .
+This script is used to get raw and projected data with corresponding labels from .mat raw EEG/MEG files.
 
 Usage: type "from model import <class>" to use one of its classes.
        type "from model import <function>" to use one of its functions.
