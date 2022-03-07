@@ -63,6 +63,9 @@ def get_parser():
     
     optional_args.add_argument('-pc', '--path-config', dest = 'path_config', required = True, type = file_path,
                                help = 'Path to save training configuration file.')
+    
+    optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
+                               help = 'Id of the wanted gpu device.')
 
     return parser
 
@@ -90,6 +93,9 @@ def get_tune_parser():
     optional_args.add_argument('-pcd', '--path-config_data', dest = 'path_config_data', required = True, type = file_path,
                                help = 'Path to configuration dictionnary for data.')   
 
+    optional_args.add_argument('-ptc', '--path-tuning_config', dest = 'path_tuning_config', required = True, type = file_path,
+                               help = 'Path to tuning configuration dictionnary for hyperparameters tuning.') 
+
     optional_args.add_argument('-r', '--path-results', dest = 'path_results', required = True, type = dir_path,
                                help = 'Path to folder results.')
     
@@ -98,5 +104,8 @@ def get_tune_parser():
     
     optional_args.add_argument('-pc', '--path-best_config', dest = 'path_best_config', required = True, type = file_path,
                                help = 'Path to save best model configuration file.')
+    
+    optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
+                               help = 'Id of the wanted gpu device.')
 
     return parser
