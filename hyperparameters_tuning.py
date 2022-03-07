@@ -427,6 +427,7 @@ def main(n_splits = 8):
     # Tune hyperparameters
     result = tune.run(
         partial(cross_validation, train_set = train_set, n_splits = n_splits, gpu_id = gpu_id, check = True),
+        resources_per_trial={"cpu": 1, "gpu": 1},
         config = config,
         num_samples = num_samples,
         scheduler = scheduler,
