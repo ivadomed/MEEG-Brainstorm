@@ -379,7 +379,7 @@ class Trans():
         return accuracy , F1_score
         
 
-def main(gpu_id = 0): 
+def main(): 
    
     """
     Train or evaluate model depending on args given in command line
@@ -401,6 +401,9 @@ def main(gpu_id = 0):
     Test_bool = args.test
     save = args.save
     
+    # Recover gpu_id
+    gpu_id = args.gpu_id
+
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
 
@@ -438,7 +441,6 @@ def main(gpu_id = 0):
         accuracy, F1_score = trans.evaluate(config_path, model_path, optimizer_path, gpu_id)
         
         
-        
 
 if __name__ == "__main__":
-    main(gpu_id = 0)
+    main()
