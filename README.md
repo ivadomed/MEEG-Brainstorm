@@ -6,7 +6,7 @@ Learning for EEG Decoding](https://arxiv.org/pdf/2106.11170.pdf).
 ## Data
 
 ## Recover code
-Clone this github repository by running in terminal `git clone https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
+Clone this github repository by running in terminal `git clone -b ao/seizure_classification https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
 
 ## Virtual environment setup
 
