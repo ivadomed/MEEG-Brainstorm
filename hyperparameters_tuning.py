@@ -240,7 +240,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
     logger.info("Finished Training") 
 
     
-def test_accuracy(config, model, test_set, device="cpu"):
+def test_accuracy(config, model_state, test_set, gpu_id):
     
     """
     Evaluate a model on test set.
@@ -258,6 +258,16 @@ def test_accuracy(config, model, test_set, device="cpu"):
                F1_score (float): Average F1 score on the test set.
     """
     
+    model = Transformer(**config['Model']) 
+    model.load_state_dict(model_state)
+    
+    # Move model to gpu if available
+    available, device = define_device(gpu_id)
+    if available:
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+    model.to(device)
+
     # Set evaluation mode 
     model.eval()
     
@@ -296,107 +306,55 @@ def test_accuracy(config, model, test_set, device="cpu"):
     F1_score /= steps
     return accuracy, F1_score
 
-def get_config():
+def get_config(tuning_config_path):
     
     """
     Function to obtain the search domain for hyperparameters.
+    ! Warning! slice_size must be a multiple of num_heads.
+
+    Args:
+        tuning_config (dict): Dictionnary of dictionnary containing in list format search model for model hyperparamaters, optimizer parameters 
+                       and training configuration --> dataloaders parameters (batch size, number of workers),
+                       number of epochs, mix-up parameters.
+
+    Returns:
+            tuning_config (dict): Dictionnary of dictionnary containing in categorical format search model hyperparamaters, optimizer parameters 
+                    and training configuration --> dataloaders parameters (batch size, number of workers),
+                    number of epochs, mix-up parameters.
     """
     
-    # Channels
-    n_classes = 7
-    selected_rows = 2
-    n_channels = 2*n_classes*selected_rows
-
-    # Spatial transforming
-    normalized_shape = 201
-    linear_size = n_channels
-    vector_size = 201
-    attention_dropout = 0.3
-    attention_negative_slope = 1e-2
-    attention_kernel_size = 30
-    attention_stride = 30
-    spatial_dropout = 0.5
-
-    # Temporal block
-    out_channels = 2
-    position_kernel_size = 51
-    position_stride = 1
-    emb_negative_slope = 0.2
-    channel_kernel_size = n_channels
-    time_kernel_size = 5
-    time_stride = 5
-    slice_size = 5
-
-    # Transformer encoder
-    depth = 3
-    num_heads = 5
-    transformer_dropout = 0.5
-    forward_expansion = 4
-    forward_dropout = 0.5
-
-    # Optimizer
-    lr = 1e-3
-    b1 = 0.5
-    b2 = 0.9
-
-    # Train
-    batch_size = 32
-    num_workers = 0
-    balanced = True
-    n_epochs = 1
-    mix_up = True
-    BETA = 0.6
-
-
-    model_config = {
-    'normalized_shape': normalized_shape,
-    'linear_size': linear_size,
-    'vector_size': vector_size,
-    'attention_dropout': attention_dropout,
-    'attention_negative_slope': attention_negative_slope,
-    'attention_kernel_size': attention_kernel_size,
-    'attention_stride': attention_stride,
-    'spatial_dropout': spatial_dropout,
-    'out_channels': out_channels,
-    'position_kernel_size': tune.choice([21, 31, 51, 61]),
-    'position_stride': position_stride,
-    'emb_negative_slope': emb_negative_slope,
-    'channel_kernel_size': channel_kernel_size,
-    'time_kernel_size': time_kernel_size,
-    'time_stride': time_stride,
-    'slice_size': tune.choice([6, 12, 18]),
-    'depth': depth,
-    'num_heads': tune.choice([3,6]),
-    'transformer_dropout': transformer_dropout,
-    'forward_expansion': forward_expansion,
-    'forward_dropout': forward_dropout,
-    'n_classes': n_classes
-    }
-
-    optimizer_config = {
-    'lr': tune.choice([1e-2, 1e-3, 1e-4]),
-    'b1': tune.loguniform(0.3, 0.6),
-    'b2': tune.loguniform(0.5, 0.95)
-    }
-
-    training_config = {
-    'batch_size': tune.choice([8, 16, 32]),
-    'num_workers': 4,
-    'balanced': balanced,
-    'Epochs': n_epochs,
-    'Mix-up': mix_up,
-    'BETA': tune.choice([0.6,0.4])
-    }
-
-    config = {}
-    config['Model'] = model_config
-    config['Optimizer'] = optimizer_config
-    config['Training'] = training_config
+    # Recover tuning config dictionnary
+    with open(tuning_config_path) as f:
+        tuning_config = json.loads(f.read())
+        
+    config = tuning_config 
+    config['Model']['attention_dropout'] = tune.choice(tuning_config['Model']['attention_dropout'])
+    config['Model']['attention_negative_slope'] = tune.choice(tuning_config['Model']['attention_negative_slope'])
+    config['Model']['attention_kernel_size'] = tune.choice(tuning_config['Model']['attention_kernel_size'])
+    config['Model']['attention_stride'] = tune.choice(tuning_config['Model']['attention_stride'])
+    config['Model']['spatial_dropout'] = tune.choice(tuning_config['Model']['spatial_dropout'])
+    config['Model']['position_kernel_size'] = tune.choice(tuning_config['Model']['position_kernel_size'])
+    config['Model']['emb_negative_slope'] = tune.choice(tuning_config['Model']['emb_negative_slope'])
+    config['Model']['time_kernel_size'] = tune.choice(tuning_config['Model']['time_kernel_size'])
+    config['Model']['time_stride'] = tune.choice(tuning_config['Model']['time_stride'])
+    config['Model']['slice_size'] = tune.choice(tuning_config['Model']['slice_size']) # A multiple of each num_heads possible value
+    config['Model']['depth'] = tune.choice(tuning_config['Model']['depth'])
+    config['Model']['num_heads'] = tune.choice(tuning_config['Model']['num_heads']) # A divider of each slice_size possible value
+    config['Model']['transformer_dropout'] = tune.choice(tuning_config['Model']['transformer_dropout'])
+    config['Model']['forward_expansion'] = tune.choice(tuning_config['Model']['forward_expansion'])
+    config['Model']['forward_dropout'] = tune.choice(tuning_config['Model']['forward_dropout'])
+    
+    config['Optimizer']['lr'] = tune.choice(tuning_config['Optimizer']['lr'])
+    config['Optimizer']['b1'] = tune.choice(tuning_config['Optimizer']['b1'])
+    config['Optimizer']['b2'] = tune.choice(tuning_config['Optimizer']['b2'])
+    
+    config['Training']['batch_size'] = tune.choice(tuning_config['Training']['batch_size'])
+    config['Training']['BETA'] = tune.choice(tuning_config['Training']['BETA'])
     
     return config
 
 
-def main(n_splits = 2, num_samples = 10, max_num_epochs = 10, gpu_id = 0):
+def main(n_splits = 8, num_samples = 100, max_num_epochs = 100):
 
     """
     Use Ray Tune to tune hyperparameters.
@@ -428,10 +386,14 @@ def main(n_splits = 2, num_samples = 10, max_num_epochs = 10, gpu_id = 0):
     # Recover data path
     data_path = args.path_data
     data_config_path = args.path_config_data
+    tuning_config_path = args.path_tuning_config
     results_path = args.path_results
     best_states_path = args.path_best_states
     config_path = args.path_best_config
 
+    # Recover gpu_id
+    gpu_id = args.gpu_id
+    
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
     
@@ -459,7 +421,7 @@ def main(n_splits = 2, num_samples = 10, max_num_epochs = 10, gpu_id = 0):
     test_set = (data_test, labels_test)
     
     # Recover tuning config dictionnary
-    config = get_config()
+    config = get_config(tuning_config_path)
     
     scheduler = ASHAScheduler(
         metric = "loss",
@@ -490,23 +452,14 @@ def main(n_splits = 2, num_samples = 10, max_num_epochs = 10, gpu_id = 0):
     print("Best trial final validation F1 score: {}".format(
         best_trial.last_result["F1_score"]))
     
-    best_model_config = best_trial.config['Model']
-    best_trained_model = Transformer(**best_model_config) 
-    
-    # Move model to gpu if available
-    available, device = define_device(gpu_id)
-    if available:
-        if torch.cuda.device_count() > 1:
-            best_trained_model = nn.DataParallel(best_trained_model)
-    best_trained_model.to(device)
-
     # Recover model and optimizer parameters
     best_checkpoint_dir = best_trial.checkpoint.value
     model_state, optimizer_state = torch.load(os.path.join(best_checkpoint_dir, "checkpoint"))
-    best_trained_model.load_state_dict(model_state)
+    best_model_config = best_trial.config
 
     # Evaluate the best model on the test set
-    test_acc, test_F1_score = test_accuracy(best_trial.config, best_trained_model, test_set, device)
+    test_acc, test_F1_score = test_accuracy(best_model_config, model_state, test_set, gpu_id)
+    
     print("Best trial test set accuracy: {}, best trial test set F1 score {}".format(test_acc,test_F1_score))
 
     # Saving best configuration file
@@ -518,11 +471,9 @@ def main(n_splits = 2, num_samples = 10, max_num_epochs = 10, gpu_id = 0):
     print('Model and optimizer states here:', best_states_path)
     
     
-    return best_trial.config, model_state, optimizer_state
-
-
+    return best_model_config, model_state, optimizer_state
 
 
 
 if __name__ == "__main__":
-    main(n_splits = 2, num_samples = 1, max_num_epochs = 1, gpu_id = 0)
+    main(n_splits = 8, num_samples = 1, max_num_epochs = 1)
