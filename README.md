@@ -1,12 +1,12 @@
 # MEEG-classification 
 
-Repository for epileptic seizure classification based on [Transformer-based Spatial-Temporal Feature
+Repository for epileptic spike classification based on [Transformer-based Spatial-Temporal Feature
 Learning for EEG Decoding](https://arxiv.org/pdf/2106.11170.pdf).
 
 ## Data
 
 ## Recover code
-Clone this github repository by running in terminal `git clone [repository URL]`.  
+Clone this github repository by running in terminal `git clone https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
 
 ## Virtual environment setup
 
