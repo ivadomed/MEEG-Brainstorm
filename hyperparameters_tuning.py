@@ -354,26 +354,16 @@ def get_config(tuning_config_path):
     return config
 
 
-def main(n_splits = 8, num_samples = 100, max_num_epochs = 100):
+def main(n_splits = 8):
 
     """
     Use Ray Tune to tune hyperparameters.
 
     Args:
-        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
-                       and training configuration --> dataloaders parameters (batch size, number of workers),
-                       number of epochs, mix-up parameters,
-        train_set (array): Training set,
-        test_set (array): Test set,
-        n_splits (int): Number of folds in the cross-validation process,
-        results_path (str): Path to save training information (model and optimizer states, hyperparameters, results),
-        num_samples (int): Number of data samples during hyperparameter search,
-        max_num_epochs (int): Max time units per trial (in the scheduler),
-        gpus_per_trial (int): Number of gpu to use per trial.
+        n_splits (int): Number of folds in the cross-validation process.
 
     Returns:
-        tuple: df (dataframe): summary of results and hyperparameters on each of the num_samples sample,
-               best_trial.config (dict): Dictionnary of dictionnary containing best model hyperparamaters, optimizer parameters 
+        tuple: best_trial.config (dict): Dictionnary of dictionnary containing best model hyperparamaters, optimizer parameters 
                                          and training configuration --> dataloaders parameters (batch size, number of workers),
                                          number of epochs, mix-up parameters,
                model_state (dict): Best model state,
@@ -391,8 +381,10 @@ def main(n_splits = 8, num_samples = 100, max_num_epochs = 100):
     best_states_path = args.path_best_states
     config_path = args.path_best_config
 
-    # Recover gpu_id
-    gpu_id = args.gpu_id
+    # Recover gpu_id, num_samples and max_num_epochs
+    gpu_id = args.gpu_id  
+    num_samples = args.n_samples
+    max_num_epochs = args.max_n_epochs
     
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
@@ -476,4 +468,4 @@ def main(n_splits = 8, num_samples = 100, max_num_epochs = 100):
 
 
 if __name__ == "__main__":
-    main(n_splits = 8, num_samples = 1, max_num_epochs = 1)
+    main(n_splits = 8)

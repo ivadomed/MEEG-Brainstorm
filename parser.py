@@ -108,4 +108,10 @@ def get_tune_parser():
     optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
                                help = 'Id of the wanted gpu device.')
 
+    optional_args.add_argument('-n', '--n_samples', dest = 'n_samples', required = False, type = int,
+                               help = 'Number of samples per trial during hyperparameters search.')
+    
+    optional_args.add_argument('-me', '--max_n_epochs', dest = 'max_n_epochs', required = False, type = int,
+                               help = 'Maximum time iteration per trial.')
+    
     return parser
