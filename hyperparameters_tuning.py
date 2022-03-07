@@ -427,10 +427,17 @@ def main(n_splits = 8):
     
     reporter = CLIReporter(metric_columns=["loss", "accuracy", "F1_score", "training_iteration"])
     
+    available, device = define_device(gpu_id)
+    if available:
+        cpu = 0
+    else:
+        cpu = 1
+    gpu = 1-cpu
+    
     # Tune hyperparameters
     result = tune.run(
         partial(cross_validation, train_set = train_set, n_splits = n_splits, gpu_id = gpu_id, check = True),
-        resources_per_trial={"cpu": 1, "gpu": 1},
+        resources_per_trial={"cpu": cpu, "gpu": gpu},
         config = config,
         num_samples = num_samples,
         scheduler = scheduler,
