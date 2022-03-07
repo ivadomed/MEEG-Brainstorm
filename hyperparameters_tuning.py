@@ -169,8 +169,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
 
                     # forward + backward
                     _, mix_outputs = model(mix_data)
-                    print(lambdas.device, mix_outputs.device, labels.device, rolled_labels.device)
-                    loss = lambdas.squeeze()*criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze())*criterion_cls(mix_outputs, rolled_labels)
+                    loss = (lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
                     loss.backward()
                     
