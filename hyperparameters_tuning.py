@@ -161,6 +161,9 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                     rolled_labels = Variable(rolled_labels.type(LongTensor))
                     mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
                     
+                    # Move lambas to device
+                    lambdas = lambdas.to(device)
+                    
                     # zero the parameter gradients
                     optimizer.zero_grad()
 
