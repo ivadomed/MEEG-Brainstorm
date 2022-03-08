@@ -81,7 +81,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
     available, device = define_device(gpu_id) 
     if available:
         if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+            model = torch.nn.DataParallel(model)
     model.to(device)
 
     # Define loss
@@ -268,7 +268,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
     available, device = define_device(gpu_id)
     if available:
         if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+            model = torch.nn.DataParallel(model)
     model.to(device)
 
     # Set evaluation mode 
@@ -388,6 +388,7 @@ def main(n_splits = 8):
     gpu_id = args.gpu_id  
     num_samples = args.n_samples
     max_num_epochs = args.max_n_epochs
+    gpu_resources = args.gpu_resources
     
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
@@ -430,7 +431,7 @@ def main(n_splits = 8):
     # Tune hyperparameters
     result = tune.run(
         partial(cross_validation, train_set = train_set, n_splits = n_splits, gpu_id = gpu_id, check = True),
-        resources_per_trial={"cpu": 1, "gpu": 0},
+        resources_per_trial={"cpu": 4, "gpu": gpu_resources},
         config = config,
         num_samples = num_samples,
         scheduler = scheduler,
