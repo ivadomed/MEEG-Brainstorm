@@ -65,11 +65,7 @@ def get_parser():
                                help = 'Path to save training configuration file.')
     
     optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
-                               help = 'Id of the wanted gpu device.')
-    
-    optional_args.add_argument('-res', '--gpu_resources', dest = 'gpu_resources', required = False, type = int,
-                               help = 'Number of gpus to used per trial.')
-    
+                               help = 'Id of the wanted gpu device.')    
 
     return parser
 
@@ -118,4 +114,6 @@ def get_tune_parser():
     optional_args.add_argument('-me', '--max_n_epochs', dest = 'max_n_epochs', required = False, type = int,
                                help = 'Maximum time iteration per trial.')
     
+    optional_args.add_argument('-res', '--gpu_resources', dest = 'gpu_resources', required = False, type = int,
+                               help = 'Number of gpus to used per trial.')
     return parser
