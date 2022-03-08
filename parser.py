@@ -66,6 +66,10 @@ def get_parser():
     
     optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
                                help = 'Id of the wanted gpu device.')
+    
+    optional_args.add_argument('-res', '--gpu_resources', dest = 'gpu_resources', required = False, type = int,
+                               help = 'Number of gpus to used per trial.')
+    
 
     return parser
 

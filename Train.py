@@ -125,7 +125,7 @@ class Trans():
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                self.model = nn.DataParallel(self.model)
+                self.model = torch.nn.DataParallel(self.model)
         self.model.to(device)
 
         # Define loss
@@ -344,7 +344,7 @@ class Trans():
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                model = nn.DataParallel(model)
+                model = torch.nn.DataParallel(model)
         model.to(device)
         
         # Set evaluation mode
