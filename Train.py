@@ -212,27 +212,28 @@ class Trans():
                     f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
                     
                 else:
-                    data = Variable(data.type(self.Tensor), requires_grad = True)
-                    labels = Variable(labels.type(self.LongTensor))
-                    data, labels = data.to(device), labels.to(device)
-                    
-                    # zero the parameter gradients
-                    self.optimizer.zero_grad()
+                    with torch.autograd.detect_anomaly():
+                        data = Variable(data.type(self.Tensor), requires_grad = True)
+                        labels = Variable(labels.type(self.LongTensor))
+                        data, labels = data.to(device), labels.to(device)
 
-                    # forward + backward
-                    _, outputs = self.model(data)
-                    loss = self.criterion_cls(outputs, labels)
-                    torch.autograd.set_detect_anomaly(True)
-                    loss.backward()
-                    
-                    # Optimize
-                    self.optimizer.step()
-                    
-                    # Recover accurate prediction and F1 score
-                    y_pred = torch.max(outputs.data, 1)[1]
-                    total += labels.size(0)
-                    correct += (y_pred == labels).sum().item()
-                    f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
+                        # zero the parameter gradients
+                        self.optimizer.zero_grad()
+
+                        # forward + backward
+                        _, outputs = self.model(data)
+                        loss = self.criterion_cls(outputs, labels)
+                        torch.autograd.set_detect_anomaly(True)
+                        loss.backward()
+
+                        # Optimize
+                        self.optimizer.step()
+
+                        # Recover accurate prediction and F1 score
+                        y_pred = torch.max(outputs.data, 1)[1]
+                        total += labels.size(0)
+                        correct += (y_pred == labels).sum().item()
+                        f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
             
             # Recover accuracy and F1 score 
             train_acc = 100 * correct // total
