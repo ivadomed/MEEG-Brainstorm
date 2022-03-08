@@ -218,7 +218,8 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                 # Recover data, labels
                 test_data = Variable(test_data.type(Tensor), requires_grad = True)
                 test_labels = Variable(test_labels.type(LongTensor))
-
+                test_data, test_labels = test_data.to(device), test_labels.to(device)
+                
                 # Recover outputs
                 _, test_outputs = model(test_data)
                 loss = criterion_cls(test_outputs, test_labels)
