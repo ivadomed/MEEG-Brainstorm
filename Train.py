@@ -204,7 +204,7 @@ class Trans():
                     total += labels.size(0)
                     correct += (y_pred == labels).sum().item()
                     weighted_f1_train.append(f1_score(labels, y_pred, average = 'weighted'))
-                    f1_train.append(f1_score(labels, y_pred, average = 'macro'))
+                    f1_train.append(f1_score(labels.detach().numpy(), y_pred.detach.numpy(), average = 'macro'))
                 else:
                     data = Variable(data.type(self.Tensor))
                     labels = Variable(labels.type(self.LongTensor))
@@ -225,7 +225,7 @@ class Trans():
                     y_pred = torch.max(outputs.data, 1)[1]
                     total += labels.size(0)
                     correct += (y_pred == labels).sum().item()
-                    f1_train.append(f1_score(labels, y_pred, average = 'macro'))
+                    f1_train.append(f1_score(labels.detach.numpy(), y_pred.detach.numpy(), average = 'macro'))
             
             # Recover accuracy and F1 score 
             train_acc = 100 * correct // total
@@ -368,7 +368,7 @@ class Trans():
                 predicted = torch.max(outputs.data, 1)[1]
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-                f1_test.append(f1_score(labels, predicted, average = 'macro'))
+                f1_test.append(f1_score(labels.detach().numpy(), predicted.detach.numpy(), average = 'macro'))
 
         accuracy = correct / total * 100
         F1_score = np.mean(f1_test)
