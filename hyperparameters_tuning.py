@@ -226,7 +226,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                 test_steps += 1            
                 test_total += test_labels.size(0)
                 test_correct += (test_y_pred == test_labels).sum().item()
-                test_F1_score += f1_score(test_labels, test_y_pred, average = 'macro')
+                test_F1_score += f1_score(test_labels.detach().numpy(), test_y_pred.detach.numpy(), average = 'macro')
 
             if check:
                 with tune.checkpoint_dir(epoch) as checkpoint_dir:
@@ -301,7 +301,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
             predicted = torch.max(outputs, 1)[1]
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            F1_score += f1_score(labels, predicted, average = 'macro')
+            F1_score += f1_score(labels.detach().numpy(), predicted.detach.numpy(), average = 'macro')
             steps += 1
             
     logger.info("Finished evaluating")
