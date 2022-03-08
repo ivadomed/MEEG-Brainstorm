@@ -85,7 +85,10 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
     model.to(device)
 
     # Define loss
-    criterion_cls = torch.nn.CrossEntropyLoss()
+    if available:
+        criterion_cls = torch.nn.CrossEntropyLoss().cuda()
+    else:
+        criterion_cls = torch.nn.CrossEntropyLoss()
     
     # Define optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr = optimizer_config['lr'],\
@@ -155,8 +158,8 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                     mix_data = lambdas*data + (1-lambdas)*rolled_data
 
                     # Recover data, labels
-                    mix_data = Variable(mix_data.type(Tensor))
-                    data = Variable(data.type(Tensor))
+                    mix_data = Variable(mix_data.type(Tensor), requires_grad = True)
+                    data = Variable(data.type(Tensor), requires_grad = True)
                     labels = Variable(labels.type(LongTensor))
                     rolled_labels = Variable(rolled_labels.type(LongTensor))
                     mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
@@ -181,7 +184,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                     epoch_steps += 1
                     
                 else:
-                    data = Variable(data.type(Tensor))
+                    data = Variable(data.type(Tensor), requires_grad = True)
                     labels = Variable(labels.type(LongTensor))
                     data, labels = data.to(device), labels.to(device)
                     
@@ -213,7 +216,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
             for j, (test_data, test_labels) in enumerate(test_dataloader):
 
                 # Recover data, labels
-                test_data = Variable(test_data.type(Tensor))
+                test_data = Variable(test_data.type(Tensor), requires_grad = True)
                 test_labels = Variable(test_labels.type(LongTensor))
 
                 # Recover outputs
@@ -222,7 +225,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                 test_y_pred = torch.max(test_outputs, 1)[1]
                 
                 # Update val_loss, accuracy and F1_score
-                test_loss += loss.detach().numpy()
+                test_loss += loss.cpu().detach().numpy()
                 test_steps += 1            
                 test_total += test_labels.size(0)
                 test_correct += (test_y_pred == test_labels).sum().item()
@@ -294,7 +297,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
 
     with torch.no_grad():
         for i, (data, labels) in enumerate(test_dataloader):
-            data = Variable(data.type(Tensor))
+            data = Variable(data.type(Tensor), requires_grad = True)
             labels = Variable(labels.type(LongTensor))
             data, labels = data.to(device), labels.to(device)
             _, outputs = model(data)
@@ -361,7 +364,7 @@ def main(n_splits = 8):
 
     """
     Use Ray Tune to tune hyperparameters.
-
+    
     Args:
         n_splits (int): Number of folds in the cross-validation process.
 
@@ -384,11 +387,12 @@ def main(n_splits = 8):
     best_states_path = args.path_best_states
     config_path = args.path_best_config
 
-    # Recover gpu_id, num_samples and max_num_epochs
+    # Recover gpu_id, resources, num_samples and max_num_epochs
     gpu_id = args.gpu_id  
     num_samples = args.n_samples
     max_num_epochs = args.max_n_epochs
     gpu_resources = args.gpu_resources
+    cpu_resources = args.cpu_resources
     
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
@@ -431,7 +435,7 @@ def main(n_splits = 8):
     # Tune hyperparameters
     result = tune.run(
         partial(cross_validation, train_set = train_set, n_splits = n_splits, gpu_id = gpu_id, check = True),
-        resources_per_trial={"cpu": 4, "gpu": gpu_resources},
+        resources_per_trial={"cpu": cpu_resources, "gpu": gpu_resources},
         config = config,
         num_samples = num_samples,
         scheduler = scheduler,
