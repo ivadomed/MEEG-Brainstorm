@@ -185,8 +185,8 @@ class Trans():
                     mix_data = lambdas*data + (1-lambdas)*rolled_data
 
                     # Recover data, labels
-                    mix_data = Variable(mix_data.type(self.Tensor))
-                    data = Variable(data.type(self.Tensor))
+                    mix_data = Variable(mix_data.type(self.Tensor), requires_grad = True)
+                    data = Variable(data.type(self.Tensor), requires_grad = True)
                     labels = Variable(labels.type(self.LongTensor))
                     rolled_labels = Variable(rolled_labels.type(self.LongTensor))
                     mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
@@ -198,6 +198,7 @@ class Trans():
                     _, mix_outputs = self.model(mix_data)
                     loss = (lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
+                    torch.autograd.set_detect_anomaly(True)
                     loss.backward()
                     
                     # Optimize
@@ -208,10 +209,10 @@ class Trans():
                     total += labels.size(0)
                     correct += (y_pred == labels).sum().item()
                     weighted_f1_train.append(f1_score(labels, y_pred, average = 'weighted'))
-                    f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach.numpy(), average = 'macro'))
+                    f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
                     
                 else:
-                    data = Variable(data.type(self.Tensor))
+                    data = Variable(data.type(self.Tensor), requires_grad = True)
                     labels = Variable(labels.type(self.LongTensor))
                     data, labels = data.to(device), labels.to(device)
                     
@@ -221,6 +222,7 @@ class Trans():
                     # forward + backward
                     _, outputs = self.model(data)
                     loss = self.criterion_cls(outputs, labels)
+                    torch.autograd.set_detect_anomaly(True)
                     loss.backward()
                     
                     # Optimize
@@ -250,7 +252,7 @@ class Trans():
             for j, (test_data, test_labels) in enumerate(self.validation_dataloader):
 
                 # Recover data, labels
-                test_data = Variable(test_data.type(self.Tensor))
+                test_data = Variable(test_data.type(self.Tensor), requires_grad = True)
                 test_labels = Variable(test_labels.type(self.LongTensor))
 
                 # Recover outputs
