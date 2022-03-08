@@ -104,16 +104,20 @@ def get_tune_parser():
     
     optional_args.add_argument('-pc', '--path-best_config', dest = 'path_best_config', required = True, type = file_path,
                                help = 'Path to save best model configuration file.')
-    
-    optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
-                               help = 'Id of the wanted gpu device.')
 
     optional_args.add_argument('-n', '--n_samples', dest = 'n_samples', required = False, type = int,
                                help = 'Number of samples per trial during hyperparameters search.')
     
     optional_args.add_argument('-me', '--max_n_epochs', dest = 'max_n_epochs', required = False, type = int,
-                               help = 'Maximum time iteration per trial.')
+                               help = 'Maximum number of iterations per trial during hyperparameters search.')
     
-    optional_args.add_argument('-res', '--gpu_resources', dest = 'gpu_resources', required = False, type = int,
+    optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
+                               help = 'Id of the wanted gpu device.')
+    
+    optional_args.add_argument('-gpu_res', '--gpu_resources', dest = 'gpu_resources', required = False, type = int,
                                help = 'Number of gpus to used per trial.')
+    
+    optional_args.add_argument('-cpu_res', '--cpu_resources', dest = 'cpu_resources', required = False, type = int,
+                               help = 'Number of cpus to used per trial.')
+    
     return parser
