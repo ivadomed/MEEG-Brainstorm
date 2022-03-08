@@ -192,7 +192,7 @@ class Trans():
 
                     # forward + backward
                     _, mix_outputs = self.model(mix_data)
-                    loss = lambdas.squeeze()*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze())*self.criterion_cls(mix_outputs, rolled_labels)
+                    loss = (lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
                     loss.backward()
                     
@@ -205,6 +205,7 @@ class Trans():
                     correct += (y_pred == labels).sum().item()
                     weighted_f1_train.append(f1_score(labels, y_pred, average = 'weighted'))
                     f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach.numpy(), average = 'macro'))
+                    
                 else:
                     data = Variable(data.type(self.Tensor))
                     labels = Variable(labels.type(self.LongTensor))
