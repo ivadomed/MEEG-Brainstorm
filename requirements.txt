@@ -15,7 +15,8 @@ aiohttp==3.7.0
 # Find older pytorch pip wheel from PyTorch Org website
 --find-links https://download.pytorch.org/whl/torch_stable.html
 
-# UNCOMMENT IF GPU AVAILABLE
+# UNCOMMENT IF GPU NOT AVAILABLE
+
 # Torch CPU Version Windows/Linux
 #torch==1.8.0+cpu; sys_platform != "darwin"
 #torchvision==0.9.0+cpu; sys_platform != "darwin"
@@ -25,11 +26,12 @@ aiohttp==3.7.0
 #torchvision==0.9.0; sys_platform == "darwin"
 
 # UNCOMMENT ONLY IF GPU AVAILABLE
-#CUDA 11.1
+
+#CUDA 11.1 --> Some unknown issues occured on nn.Linear layers so we use CUDA 10.2 instead.
 #torch==1.8.1+cu111 
 #torchvision==0.9.1+cu111 
 
 #CUDA 10.2
-torch==1.6.0 
-torchvision==0.7.0
+torch==1.8.1+cu102
+torchvision==0.9.1+cu102 
 
