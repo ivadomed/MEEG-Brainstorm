@@ -129,7 +129,11 @@ class Trans():
         self.model.to(device)
 
         # Define loss
-        self.criterion_cls = torch.nn.CrossEntropyLoss()
+        if available:
+            self.criterion_cls = torch.nn.CrossEntropyLoss().cuda()
+        else:
+            self.criterion_cls = torch.nn.CrossEntropyLoss()
+            
                 
         # Define optimizer
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = optimizer_config['lr'],\
