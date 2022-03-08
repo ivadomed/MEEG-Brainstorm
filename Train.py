@@ -265,8 +265,8 @@ class Trans():
                 f1_test.append(f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro'))
 
                 # Recover labels and prediction
-                Predictions.append(test_y_pred.detach().numpy())
-                Labels.append(test_labels.detach().numpy())
+                Predictions.append(test_y_pred.cpu().detach().numpy())
+                Labels.append(test_labels.cpu().detach().numpy())
 
             # Recover accuracy and F1 score
             test_acc = 100 * test_correct // test_total
