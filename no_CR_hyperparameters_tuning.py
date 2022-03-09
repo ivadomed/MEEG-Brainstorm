@@ -230,10 +230,10 @@ def train_validation(config, train_set, val_set, gpu_id, check = False):
                 torch.save((model.state_dict(), optimizer.state_dict()), path)   
         
         averLoss += (test_loss / test_steps)
-        averAcc += (test_correct / test_total) 
+        averAcc += (test_correct / test_total) * 100
         averF1 += (test_F1_score / test_steps)
-
-    tune.report(loss = averLoss, accuracy = averAcc, F1_score = averF1)
+        tune.report(loss = averLoss, accuracy = averAcc, F1_score = averF1)
+    
     logger.info("Finished Training") 
 
     
