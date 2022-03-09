@@ -118,7 +118,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
         # Create dataloader
         batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
         train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
-        test_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
+        test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, balanced)
 
         # Reset the model parameters
         model.apply(weight_reset)
@@ -240,7 +240,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
         
         
         averLoss += (test_loss / test_steps)
-        averAcc += (test_correct / test_total) * 100
+        averAcc += (test_correct / test_total) 
         averF1 += (test_F1_score / test_steps)
 
     tune.report(loss = (averLoss / n_splits), accuracy = (averAcc / n_splits), F1_score = (averF1 / n_splits))
@@ -365,6 +365,7 @@ def main(n_splits = 8):
 
     """
     Use Ray Tune to tune hyperparameters.
+    ! Warning ! Trials seems to crash if cpu and gpu resources are not the same in the tune.run() function.
     
     Args:
         n_splits (int): Number of folds in the cross-validation process.
