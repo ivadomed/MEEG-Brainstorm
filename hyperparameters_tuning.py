@@ -236,14 +236,12 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                 with tune.checkpoint_dir(epoch) as checkpoint_dir:
                     path = os.path.join(checkpoint_dir, "checkpoint")
                     torch.save((model.state_dict(), optimizer.state_dict()), path)
+    
+    averLoss += (test_loss / test_steps)
+    averAcc += (test_correct / test_total) * 100
+    averF1 += (test_F1_score / test_steps)
+    tune.report(loss = averLoss / n_splits, accuracy = averAcc / n_splits, F1_score = averF1 / n_splits)
         
-        
-        
-        averLoss += (test_loss / test_steps)
-        averAcc += (test_correct / test_total) 
-        averF1 += (test_F1_score / test_steps)
-
-    tune.report(loss = (averLoss / n_splits), accuracy = (averAcc / n_splits), F1_score = (averF1 / n_splits))
     logger.info("Finished Training") 
 
     
