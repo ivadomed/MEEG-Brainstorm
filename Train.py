@@ -113,7 +113,7 @@ class Trans():
         # Create dataloader
         batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
         self.train_dataloader = get_dataloader(self.data_train, self.labels_train, batch_size, num_workers, balanced)
-        self.validation_dataloader = get_dataloader(self.data_val, self.labels_val, batch_size, num_workers, balanced)
+        self.validation_dataloader = get_dataloader(self.data_val, self.labels_val, batch_size, num_workers, balanced) # set balanced = False because val set must reflect test set
         
         # Recover number of epochs
         n_epochs = training_config['Epochs']
@@ -125,7 +125,7 @@ class Trans():
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                self.model = torch.nn.DataParallel(self.model)
+                self.model = torch.nn.parallel.DistributedDataParallel(model)
         self.model.to(device)
 
         # Define loss
@@ -269,7 +269,7 @@ class Trans():
                 Labels.append(test_labels.cpu().detach().numpy())
 
             # Recover accuracy and F1 score
-            test_acc = 100 * test_correct // test_total
+            test_acc = test_correct / test_total
             test_info[e]["Loss"] = test_loss.cpu().detach().numpy()
             test_info[e]["Accuracy"] = test_acc
             test_info[e]["F1_score"] = np.mean(f1_test)
@@ -342,16 +342,18 @@ class Trans():
         batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
         self.test_dataloader = get_dataloader(self.data_test, self.labels_test, batch_size, num_workers, balanced = False)
         
-        # Load model parameters
+        # Load model
         model = Transformer(**model_config)
-        model.load_state_dict(torch.load(model_path))
         
         # Move to gpu if available
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                model = torch.nn.DataParallel(model)
+                model = torch.nn.parallel.DistributedDataParallel(model)
         model.to(device)
+        
+        # Load model state
+        model.load_state_dict(torch.load(model_path))
         
         # Set evaluation mode
         model.eval()
@@ -376,7 +378,7 @@ class Trans():
                 correct += (predicted == labels).sum().item()
                 f1_test.append(f1_score(labels.cpu().detach().numpy(), predicted.cpu().detach().numpy(), average = 'macro'))
 
-        accuracy = correct / total * 100
+        accuracy = correct / total 
         F1_score = np.mean(f1_test)
         
         logger.info('Evaluation finished')

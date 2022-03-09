@@ -51,7 +51,7 @@ def weight_reset(model):
             m.reset_parameters()
         
         
-def cross_validation(config, train_set, n_splits, gpu_id, check = False):
+def train_validation(config, train_set, val_set, gpu_id, check = False):
 
     """
     Realise a cross-validation on the training set and send average validation loss to tune (imported from ray module)
@@ -81,7 +81,7 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
     available, device = define_device(gpu_id) 
     if available:
         if torch.cuda.device_count() > 1:
-            model = torch.nn.DataParallel(model)
+            model = torch.nn.parallel.DistributedDataParallel(model)
     model.to(device)
 
     # Define loss
@@ -95,153 +95,128 @@ def cross_validation(config, train_set, n_splits, gpu_id, check = False):
                                           betas=(optimizer_config['b1'], optimizer_config['b2']))
     
     # Recover all data and labels
-    allData, allLabels = train_set
-    
-    # Split the train_set into k parts to do k-fold cross-validation
-    kfold = KFold(n_splits = n_splits)
+    data_train, labels_train = train_set
+    data_test, labels_test = val_set
+         
+    # Recover train and test loaders
+    data_train = np.expand_dims(data_train, axis = 1)
+    data_test = np.expand_dims(data_test, axis = 1)
 
-    # Initialize validation loss, accuracy and F1 score
-    averLoss = 0.0
-    averAcc = 0.0
-    averF1 = 0.0
-    
-    
-    for fold, (train_index, test_index) in enumerate(kfold.split(allData)):
-        
-        # Recover train and test loaders
-        data_train, labels_train = allData[train_index], allLabels[train_index]
-        data_test, labels_test = allData[test_index], allLabels[test_index]
-        
-        data_train = np.expand_dims(data_train, axis = 1)
-        data_test = np.expand_dims(data_test, axis = 1)
+    # Create dataloader
+    batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
+    train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
+    test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, False)
 
-        # Create dataloader
-        batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
-        train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
-        test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, balanced)
+    # Reset the model parameters
+    model.apply(weight_reset)
 
-        # Reset the model parameters
-        model.apply(weight_reset)
-        
-        # Recover number of epochs
-        n_epochs = training_config['Epochs']
-        
-        # loop over the dataset n_epochs times
-        mix_up = training_config["Mix-up"]
-        for epoch in range(n_epochs):  
-            running_loss = 0.0
-            epoch_steps = 0
-            
-            # Set training mode
-            model.train()
-            
-            # Train the model
-            for i, (data, labels) in enumerate(train_dataloader):
-                
-                if mix_up:
-                    
-                    # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'
-                    BETA = training_config["BETA"]
-                    
-                    # Roll a copy of the batch
-                    roll_factor =  torch.randint(0, data.shape[0], (1,)).item()
-                    rolled_data = torch.roll(data, roll_factor, dims=0)        
-                    rolled_labels = torch.roll(labels, roll_factor, dims=0)  
+    # Recover number of epochs
+    n_epochs = training_config['Epochs']
 
-                    # Create a tensor of lambdas sampled from the beta distribution
-                    lambdas = np.random.beta(BETA, BETA, data.shape[0])
+    # loop over the dataset n_epochs times
+    mix_up = training_config["Mix-up"]
+    for epoch in range(n_epochs):  
 
-                    # trick from here https://forums.fast.ai/t/mixup-data-augmentation/22764
-                    lambdas = torch.reshape(torch.tensor(np.maximum(lambdas, 1-lambdas)), (-1,1,1,1))
+        # Set training mode
+        model.train()
 
-                    # Mix samples
-                    mix_data = lambdas*data + (1-lambdas)*rolled_data
+        # Train the model
+        for i, (data, labels) in enumerate(train_dataloader):
 
-                    # Recover data, labels
-                    mix_data = Variable(mix_data.type(Tensor), requires_grad = True)
-                    data = Variable(data.type(Tensor), requires_grad = True)
-                    labels = Variable(labels.type(LongTensor))
-                    rolled_labels = Variable(rolled_labels.type(LongTensor))
-                    mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
-                    
-                    # Move lambas to device
-                    #lambdas = lambdas.to(device)
-                    
-                    # zero the parameter gradients
-                    optimizer.zero_grad()
+            if mix_up:
 
-                    # forward + backward
-                    _, mix_outputs = model(mix_data)
-                    loss = (lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, rolled_labels)
-                    loss = loss.sum()
-                    loss.backward()
-                    
-                    # Optimize
-                    optimizer.step()
-                    
-                    # Update running_loss
-                    running_loss += loss.item()
-                    epoch_steps += 1
-                    
-                else:
-                    data = Variable(data.type(Tensor), requires_grad = True)
-                    labels = Variable(labels.type(LongTensor))
-                    data, labels = data.to(device), labels.to(device)
-                    
-                    # zero the parameter gradients
-                    optimizer.zero_grad()
+                # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'
+                BETA = training_config["BETA"]
 
-                    # forward + backward
-                    _, outputs = model(data)
-                    loss = criterion_cls(outputs, labels)
-                    loss.backward()
-                    
-                    # Optimize
-                    optimizer.step()
-                    
-                    # Update running_loss
-                    running_loss += loss.item()
-                    epoch_steps += 1
+                # Roll a copy of the batch
+                roll_factor =  torch.randint(0, data.shape[0], (1,)).item()
+                rolled_data = torch.roll(data, roll_factor, dims=0)        
+                rolled_labels = torch.roll(labels, roll_factor, dims=0)  
 
-            # Validation
-            test_loss = 0.0
-            test_steps = 0
-            test_total = 0
-            test_correct = 0
-            test_F1_score = 0.0
-            
-            # Set evaluation mode
-            model.eval()
-            
-            for j, (test_data, test_labels) in enumerate(test_dataloader):
+                # Create a tensor of lambdas sampled from the beta distribution
+                lambdas = np.random.beta(BETA, BETA, data.shape[0])
+
+                # trick from here https://forums.fast.ai/t/mixup-data-augmentation/22764
+                lambdas = torch.reshape(torch.tensor(np.maximum(lambdas, 1-lambdas)), (-1,1,1,1))
+
+                # Mix samples
+                mix_data = lambdas*data + (1-lambdas)*rolled_data
 
                 # Recover data, labels
-                test_data = Variable(test_data.type(Tensor), requires_grad = True)
-                test_labels = Variable(test_labels.type(LongTensor))
-                test_data, test_labels = test_data.to(device), test_labels.to(device)
-                
-                # Recover outputs
-                _, test_outputs = model(test_data)
-                loss = criterion_cls(test_outputs, test_labels)
-                test_y_pred = torch.max(test_outputs, 1)[1]
-                
-                # Update val_loss, accuracy and F1_score
-                test_loss += loss.cpu().detach().numpy()
-                test_steps += 1            
-                test_total += test_labels.size(0)
-                test_correct += (test_y_pred == test_labels).sum().item()
-                test_F1_score += f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro')
+                mix_data = Variable(mix_data.type(Tensor), requires_grad = True)
+                data = Variable(data.type(Tensor), requires_grad = True)
+                labels = Variable(labels.type(LongTensor))
+                rolled_labels = Variable(rolled_labels.type(LongTensor))
+                mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
 
-            if check:
-                with tune.checkpoint_dir(epoch) as checkpoint_dir:
-                    path = os.path.join(checkpoint_dir, "checkpoint")
-                    torch.save((model.state_dict(), optimizer.state_dict()), path)
-    
-    averLoss += (test_loss / test_steps)
-    averAcc += (test_correct / test_total) * 100
-    averF1 += (test_F1_score / test_steps)
-    tune.report(loss = averLoss / n_splits, accuracy = averAcc / n_splits, F1_score = averF1 / n_splits)
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward + backward
+                _, mix_outputs = model(mix_data)
+                loss = (lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, rolled_labels)
+                loss = loss.sum()
+                loss.backward()
+
+                # Optimize
+                optimizer.step()
+
+            else:
+                data = Variable(data.type(Tensor), requires_grad = True)
+                labels = Variable(labels.type(LongTensor))
+                data, labels = data.to(device), labels.to(device)
+
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward + backward
+                _, outputs = model(data)
+                loss = criterion_cls(outputs, labels)
+                loss.backward()
+
+                # Optimize
+                optimizer.step()
+
+        # Validation
+        test_loss = 0.0
+        test_steps = 0
+        test_total = 0
+        test_correct = 0
+        test_F1_score = 0.0
+
+        # Set evaluation mode
+        model.eval()
+
+        for j, (test_data, test_labels) in enumerate(test_dataloader):
+
+            # Recover data, labels
+            test_data = Variable(test_data.type(Tensor), requires_grad = True)
+            test_labels = Variable(test_labels.type(LongTensor))
+            test_data, test_labels = test_data.to(device), test_labels.to(device)
+
+            # Recover outputs
+            _, test_outputs = model(test_data)
+            loss = criterion_cls(test_outputs, test_labels)
+            test_y_pred = torch.max(test_outputs, 1)[1]
+
+            # Update val_loss, accuracy and F1_score
+            test_loss += loss.cpu().detach().numpy()
+            test_steps += 1  
+            test_correct += (test_y_pred == test_labels).sum().item()
+            test_total += test_labels.size(0)     
+            test_F1_score += f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro')
+
+        if check:
+            with tune.checkpoint_dir(epoch) as checkpoint_dir:
+                path = os.path.join(checkpoint_dir, "checkpoint")
+                torch.save((model.state_dict(), optimizer.state_dict()), path)   
         
+        averLoss = (test_loss / test_steps)
+        averAcc = (test_correct / test_total) 
+        averF1 = (test_F1_score / test_steps)
+        
+        tune.report(loss = averLoss, accuracy = averAcc, F1_score = averF1)
+    
     logger.info("Finished Training") 
 
     
@@ -264,15 +239,17 @@ def test_accuracy(config, model_state, test_set, gpu_id):
     """
     
     model = Transformer(**config['Model']) 
-    model.load_state_dict(model_state)
     
     # Move model to gpu if available
     available, device = define_device(gpu_id)
     if available:
         if torch.cuda.device_count() > 1:
-            model = torch.nn.DataParallel(model)
+            model = torch.nn.parallel.DistributedDataParallel(model)
     model.to(device)
 
+    # Load model state
+    model.load_state_dict(model_state)
+    
     # Set evaluation mode 
     model.eval()
     
@@ -307,7 +284,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
             steps += 1
             
     logger.info("Finished evaluating")
-    accuracy = (correct / total) * 100
+    accuracy = (correct / total) 
     F1_score /= steps
     return accuracy, F1_score
 
@@ -359,14 +336,14 @@ def get_config(tuning_config_path):
     return config
 
 
-def main(n_splits = 8):
+def main(validation_size = 0.15):
 
     """
     Use Ray Tune to tune hyperparameters.
     ! Warning ! Trials seems to crash if cpu and gpu resources are not the same in the tune.run() function.
     
     Args:
-        n_splits (int): Number of folds in the cross-validation process.
+        validation_size (float): Size of the validation set.
 
     Returns:
         tuple: best_trial.config (dict): Dictionnary of dictionnary containing best model hyperparamaters, optimizer parameters 
@@ -417,7 +394,11 @@ def main(n_splits = 8):
     # Split data and labels in train, validation and test sets
     data_train, labels_train, data_test, labels_test = train_test_dataset(allData, allLabels,\
                                                                train_size, shuffle, random_state)
+    new_train_size = 1 - validation_size/train_size
+    data_train, labels_train, data_val, labels_val = train_test_dataset(data_train, labels_train,\
+                                                               new_train_size, shuffle, random_state)
     train_set = (data_train, labels_train)
+    val_set = (data_val, labels_val)
     test_set = (data_test, labels_test)
     
     # Recover tuning config dictionnary
@@ -434,7 +415,7 @@ def main(n_splits = 8):
     
     # Tune hyperparameters
     result = tune.run(
-        partial(cross_validation, train_set = train_set, n_splits = n_splits, gpu_id = gpu_id, check = True),
+        partial(train_validation, train_set = train_set, val_set = val_set, gpu_id = gpu_id, check = True),
         resources_per_trial={"cpu": cpu_resources, "gpu": gpu_resources},
         config = config,
         num_samples = num_samples,
@@ -443,7 +424,7 @@ def main(n_splits = 8):
         local_dir = results_path)
 
     logger.info('Done')
-    best_trial = result.get_best_trial("loss", "min", "last")
+    best_trial = result.get_best_trial("loss", "min", "all")
     print("Best trial config: {}".format(
         best_trial.config))
     print("Best trial final validation loss: {}".format(
@@ -477,4 +458,4 @@ def main(n_splits = 8):
 
 
 if __name__ == "__main__":
-    main(n_splits = 8)
+    main()
