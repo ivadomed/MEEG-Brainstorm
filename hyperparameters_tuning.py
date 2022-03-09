@@ -81,7 +81,7 @@ def train_validation(config, train_set, val_set, gpu_id, check = False):
     available, device = define_device(gpu_id) 
     if available:
         if torch.cuda.device_count() > 1:
-            model = torch.nn.parallel.DistributedDataParallel(model)
+            model = torch.nn.DataParallel(model)
     model.to(device)
 
     # Define loss
@@ -244,7 +244,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
     available, device = define_device(gpu_id)
     if available:
         if torch.cuda.device_count() > 1:
-            model = torch.nn.parallel.DistributedDataParallel(model)
+            model = torch.nn.DataParallel(model)
     model.to(device)
 
     # Load model state
