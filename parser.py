@@ -120,4 +120,10 @@ def get_tune_parser():
     optional_args.add_argument('-cpu_res', '--cpu_resources', dest = 'cpu_resources', required = False, type = int,
                                help = 'Number of cpus to used per trial.')
     
+    optional_args.add_argument('-m', '--metric', dest = 'metric', required = False, type = str,
+                               help = 'Metric to tune hyperparameters in Ray tune.')
+    
+    optional_args.add_argument('-mo', '--mode', dest = 'mode', required = False, type = str,
+                               help = 'Mode to tune hyperparameters in Ray tune.')
+    
     return parser

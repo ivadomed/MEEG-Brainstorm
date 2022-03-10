@@ -54,7 +54,7 @@ def weight_reset(model):
 def train_validation(config, train_set, val_set, gpu_id, check = False):
 
     """
-    Realise a cross-validation on the training set and send average validation loss to tune (imported from ray module)
+    Training on the model and send average validation loss to tune (imported from ray module)
     to help tuning hyperparameters.
 
     Args:
@@ -371,6 +371,10 @@ def main(validation_size = 0.15):
     gpu_resources = args.gpu_resources
     cpu_resources = args.cpu_resources
     
+    # Recover metric and mode for Ray tune
+    metric = args.metric
+    mode = args.mode
+    
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
     
@@ -424,7 +428,7 @@ def main(validation_size = 0.15):
         local_dir = results_path)
 
     logger.info('Done')
-    best_trial = result.get_best_trial("loss", "min", "all")
+    best_trial = result.get_best_trial(metric, mode, "all")
     print("Best trial config: {}".format(
         best_trial.config))
     print("Best trial final validation loss: {}".format(
@@ -433,6 +437,8 @@ def main(validation_size = 0.15):
         best_trial.last_result["accuracy"]))
     print("Best trial final validation F1 score: {}".format(
         best_trial.last_result["F1_score"]))
+    print("Best trial epochs: {}".format(
+        best_trial.last_result["training_iteration"]))
     
     # Recover model and optimizer parameters
     best_checkpoint_dir = best_trial.checkpoint.value
