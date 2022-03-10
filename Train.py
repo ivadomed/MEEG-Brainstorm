@@ -23,7 +23,7 @@ from data import Data
 from dataloader import train_test_dataset, get_dataloader
 from parser import get_parser
 from Model import Transformer
-from utils import check_balance, define_device
+from utils import *
 
 from loguru import logger
 
@@ -80,10 +80,10 @@ class Trans():
         self.labels_test= labels_test
         
 
-    def train(self, config, model_path, optimizer_path, config_path, gpu_id, save):
+    def train(self, config, model_path, optimizer_path, config_path, weight_decay, l1_weight, l2_weight, gpu_id, save):
 
         """
-        Train the model and compute accuracy and F1 scores on the validation set.
+        Train the model and plot loss, accuracy and F1 scores on the training and validation set.
 
         Args:
             config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
@@ -92,19 +92,15 @@ class Trans():
             model_path (str): Path to save the model parameters,
             optimizer_path (str): Path to save the opimizer parameters,
             config_path (str): Path to save the config,
+            weight_decay (float): Weight decay for L2 regularization in Adam optimizer,
+            l1_weight (float): Weight for L1 regularization,
+            l2_weight (float): Weight for L2 regularization,
+            gpu_id (int): Id of the cuda device wanted,
             save (bool): Save information into the previous paths.
 
         Returns:
             tuple: train_info (dict): Values of loss, accuracy, F1 score on training set,
-                   test_info (dict): Values of loss, accuracy, f1 score on validation set,
-                   bestAcc (float): Best accuracy on validation set,
-                   averAcc (float) Average accuracy on validation set,
-                   bestF1 (float): Best F1 score on validation set,
-                   averF1 (float) Average F1 score on validation set,
-                   Y_true_acc (array): labels corresponding to best accuracy
-                   Y_pred_acc (array): prediciton corresponding to best accuracy,
-                   Y_true_F1 (array): labels corresponding to best F1 score,
-                   Y_pred_F1 (array): prediciton corresponding to best F1 score.
+                   test_info (dict): Values of loss, accuracy, f1 score on validation set.
         """
         
         # Recover model, optimizer and training configuration
@@ -125,7 +121,7 @@ class Trans():
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                self.model = torch.nn.parallel.DistributedDataParallel(model)
+                self.model = torch.nn.DataParallel(model)
         self.model.to(device)
 
         # Define loss
@@ -136,31 +132,24 @@ class Trans():
             
                 
         # Define optimizer
+        # We apply a weight decay for L2 regularization
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']))
+                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay)
         
-        bestAcc = 0
-        averAcc = 0
-        bestF1 = 0
-        averF1 = 0
+        # Recover loss, accuracy and F1 score
         train_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
         test_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
-        best_epochs_acc = 0
-        best_epochs_F1 = 0
-        num = 0
-        Y_true_acc = []
-        Y_pred_acc = [] 
-        Y_true_F1 = []
-        Y_pred_F1 = []   
       
         # Loop over the dataset n_epochs times
         mix_up = training_config["Mix-up"]
         for e in range(n_epochs):
             
             # Train the model
+            train_loss = 0
             correct, total = 0,0
-            weighted_f1_train, f1_train = [],[]
-
+            f1_train = 0
+            train_steps = 0
+            
             # Set training mode
             self.model.train()
             for i, (data, labels) in enumerate(self.train_dataloader):
@@ -198,18 +187,30 @@ class Trans():
                     _, mix_outputs = self.model(mix_data)
                     loss = (lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
+                    
+                    # Apply Elastic Net regularization
+                    cpu_model = self.model.to("cpu")
+                    parameters = []
+                    for parameter in cpu_model.parameters():
+                        parameters.append(parameter.view(-1))
+                    l1 = l1_weight * compute_l1_loss(torch.cat(parameters))
+                    l2 = l2_weight * compute_l2_loss(torch.cat(parameters))
+                    loss += l1
+                    loss += l2
+                    
                     loss.backward()
                     
                     # Optimize
                     self.optimizer.step()
                     
                     # Recover accurate prediction and F1 scores
+                    train_loss += loss.cpu().detach().numpy()
                     y_pred = torch.max(mix_outputs.data, 1)[1]
-                    total += labels.size(0)
                     correct += (y_pred == labels).sum().item()
-                    weighted_f1_train.append(f1_score(labels, y_pred, average = 'weighted'))
-                    f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
-                    
+                    total += labels.size(0)
+                    f1_train += f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro')
+                    train_steps += 1
+
                 else:
                     data = Variable(data.type(self.Tensor), requires_grad = True)
                     labels = Variable(labels.type(self.LongTensor))
@@ -221,28 +222,41 @@ class Trans():
                     # forward + backward
                     _, outputs = self.model(data)
                     loss = self.criterion_cls(outputs, labels)
+                    
+                    # Apply Elastic Net regularization
+                    cpu_model = self.model.to("cpu")
+                    parameters = []
+                    for parameter in cpu_model.parameters():
+                        parameters.append(parameter.view(-1))
+                    l1 = l1_weight * compute_l1_loss(torch.cat(parameters))
+                    l2 = l2_weight * compute_l2_loss(torch.cat(parameters))
+                    loss += l1
+                    loss += l2
+                    
+                    # backward
                     loss.backward()
 
                     # Optimize
                     self.optimizer.step()
 
-                    # Recover accurate prediction and F1 score
+                    # Recover accurate prediction and F1 scores
+                    train_loss += loss.cpu().detach().numpy()
                     y_pred = torch.max(outputs.data, 1)[1]
-                    total += labels.size(0)
                     correct += (y_pred == labels).sum().item()
-                    f1_train.append(f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro'))
-            
+                    total += labels.size(0)
+                    f1_train += f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro')
+                    train_steps += 1
+
             # Recover accuracy and F1 score 
-            train_acc = 100 * correct // total
-            train_info[e]["Loss"] = loss.cpu().detach().numpy()
-            train_info[e]["Accuracy"] = train_acc
-            train_info[e]["F1_score"] = np.mean(f1_train)
+            train_info[e]["Loss"] = train_loss / train_steps
+            train_info[e]["Accuracy"] = correct / total
+            train_info[e]["F1_score"] = f1_train / train_steps
                 
             # Evaluate the model
+            test_loss = 0
             test_correct, test_total = 0,0
-            weighted_f1_test, f1_test = [],[]
-            Predictions = []
-            Labels = []
+            f1_test = 0
+            test_steps = 0
             
             # Set evaluation mode
             self.model.eval()
@@ -256,50 +270,24 @@ class Trans():
 
                 # Recover outputs
                 _, test_outputs = self.model(test_data)
-                test_loss = self.criterion_cls(test_outputs, test_labels)
+                loss = self.criterion_cls(test_outputs, test_labels)
 
                 # Recover accurate prediction and F1 scores
+                test_loss += loss.cpu().detach().numpy()
                 test_y_pred = torch.max(test_outputs, 1)[1]
                 test_total += test_labels.size(0)
                 test_correct += (test_y_pred == test_labels).sum().item()
-                f1_test.append(f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro'))
-
-                # Recover labels and prediction
-                Predictions.append(test_y_pred.cpu().detach().numpy())
-                Labels.append(test_labels.cpu().detach().numpy())
-
-            # Recover accuracy and F1 score
-            test_acc = test_correct / test_total
-            test_info[e]["Loss"] = test_loss.cpu().detach().numpy()
-            test_info[e]["Accuracy"] = test_acc
-            test_info[e]["F1_score"] = np.mean(f1_test)
-
-            
-            num+=1
-            averAcc = averAcc + test_acc
-            averF1 = averF1 + np.mean(f1_test)
-            
-            if test_acc > bestAcc:
-                bestAcc = test_acc
-                best_epochs_acc = e
-                Y_true_acc = Predictions
-                Y_pred_acc = Labels
+                f1_test += f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro')
+                test_steps += 1
                 
-            if np.mean(f1_test) > bestF1:
-                bestF1 = np.mean(f1_test)
-                best_epochs_F1 = e
-                Y_true_F1 = Predictions
-                Y_pred_F1 = Labels
-
-        if num > 0:
-            averAcc = averAcc / num
-            averF1 = averF1 / num
+            # Recover accuracy and F1 score
+            test_info[e]["Loss"] = test_loss / test_steps
+            test_info[e]["Accuracy"] = test_correct / test_total
+            test_info[e]["F1_score"] = f1_test / test_steps
             
         logger.info("Training finished")
-        print('The average accuracy is:', averAcc)
-        print('The best accuracy is:', bestAcc)
-        print('The average F1 score is:', averF1)
-        print('The best F1 score is:', bestF1)
+        print('The average validation accuracy is:', np.mean([test_info[e]["Accuracy"] for e in range(n_epochs)]))
+        print('The average validation F1 score is:', np.mean([test_info[e]["F1_score"] for e in range(n_epochs)]))
         
         if save:
             logger.info("Saving config files")
@@ -313,7 +301,7 @@ class Trans():
             print('Optimizer state here:', optimizer_path)
             print('Config file here:', config_path, '\n')
                 
-        return train_info, test_info, bestAcc, averAcc, bestF1, averF1, Y_true_acc, Y_pred_acc, Y_true_F1, Y_pred_F1
+        return train_info, test_info
     
     
     def evaluate(self, config_path, model_path, optimizer_path, gpu_id):
@@ -349,7 +337,7 @@ class Trans():
         available, device = define_device(gpu_id)
         if available:
             if torch.cuda.device_count() > 1:
-                model = torch.nn.parallel.DistributedDataParallel(model)
+                model = torch.nn.DataParallel(model)
         model.to(device)
         
         # Load model state
@@ -387,6 +375,7 @@ class Trans():
         return accuracy , F1_score
         
 
+### WARNING THE MAIN FUNCTION MIGHT NOT BE UPDATED CONCERNING THE TRAIN FUNCTION BECAUSE SOME NEW PARAMETERS MIGHT HAVE APPEARED ###
 def main(): 
    
     """
@@ -441,8 +430,9 @@ def main():
             config = json.loads(f.read())
             
         save = args.save
+        ### WARNING THE MAIN FUNCTION MIGHT NOT BE UPDATED CONCERNING THE TRAIN FUNCTION BECAUSE SOME NEW PARAMETERS MIGHT HAVE APPEARED ###
         train_results = trans.train(config, model_path, optimizer_path, config_path, gpu_id = gpu_id, save = save)
-        train_info, test_info, bestAcc, averAcc, bestF1, averF1, Y_true_acc, Y_pred_acc, Y_true_F1, Y_pred_F1 = train_results
+        train_info, test_info = train_results
                   
     # Evaluate model
     if Test_bool:
