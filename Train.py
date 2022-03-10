@@ -375,7 +375,6 @@ class Trans():
         return accuracy , F1_score
         
 
-### WARNING THE MAIN FUNCTION MIGHT NOT BE UPDATED CONCERNING THE TRAIN FUNCTION BECAUSE SOME NEW PARAMETERS MIGHT HAVE APPEARED ###
 def main(): 
    
     """
@@ -401,6 +400,11 @@ def main():
     # Recover gpu_id
     gpu_id = args.gpu_id
 
+    # Recover weight for L1 and L2 regularization
+    weight_decay = args.weight_decay
+    l1_weight = args.l1_weight
+    l2_weight = args.l2_weight
+    
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
 
@@ -430,8 +434,7 @@ def main():
             config = json.loads(f.read())
             
         save = args.save
-        ### WARNING THE MAIN FUNCTION MIGHT NOT BE UPDATED CONCERNING THE TRAIN FUNCTION BECAUSE SOME NEW PARAMETERS MIGHT HAVE APPEARED ###
-        train_results = trans.train(config, model_path, optimizer_path, config_path, gpu_id = gpu_id, save = save)
+        train_results = trans.train(config, model_path, optimizer_path, config_path, weight_decay, l1_weight, l2_weight, gpu_id = gpu_id, save = save)
         train_info, test_info = train_results
                   
     # Evaluate model
