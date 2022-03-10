@@ -95,3 +95,24 @@ def define_device(gpu_id):
         torch.cuda.set_device(gpu_id)
         logger.info(f"Using GPU ID {gpu_id}")
     return cuda_available, device
+
+
+def compute_l1_loss(w):
+    
+    """
+    Apply L1 regularization.
+    
+    Args: w: weight of the model.
+    """
+    
+    return torch.abs(w).sum()
+
+def compute_l2_loss(w):
+    
+    """
+    Apply L2 regularization.
+    
+    Args: w: weight of the model.
+    """
+    
+    return torch.square(w).sum()
