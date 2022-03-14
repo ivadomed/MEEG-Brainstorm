@@ -4,6 +4,7 @@ Repository for epileptic spike classification based on [Transformer-based Spatia
 Learning for EEG Decoding](https://arxiv.org/pdf/2106.11170.pdf).
 
 ## Data
+Dataset can be found on rosenberg cluster: ~/duke/temp/konstantinos/EEG_signals/seconds_2_trials 
 
 ## Recover code
 Clone this github repository by running in terminal `git clone -b ao/seizure_classification https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
