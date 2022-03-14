@@ -72,6 +72,12 @@ Example datasets can be found at NeuroPoly's internal server: duke:temp/konstant
 Help is needed on the training of the datasets to optimize parameters.
 
 ## Relevant literature
-[Transformer based model used in ao/seizure_classification](https://arxiv.org/pdf/2106.11170.pdf).  
 
-[Attention is all you need](https://arxiv.org/pdf/1706.03762.pdf)
+1. [Transformer based model used in ao/seizure_classification](https://arxiv.org/pdf/2106.11170.pdf).
+
+   a. [Attention is all you need](https://arxiv.org/pdf/1706.03762.pdf)
+   
+2. [Detection of mesial temporal lobe epileptiform discharges on intracranial electrodes using deep learning](https://pubmed.ncbi.nlm.nih.gov/31760212/)
+3. [Neurophysiologically interpretable DNN predicts complex movement components from brain activity](https://www.nature.com/articles/s41598-022-05079-0)
+
+
