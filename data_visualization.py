@@ -263,7 +263,7 @@ def csp_visualization(allData, csp_allData, allLabels, allSpikeTimePoints, allTi
          'MEG shape ', 'before CSP : ',X_MEG1.shape,' after CSP: ', X_cspMEG1.shape)
     
     
-def plot_training_validation(train_info, test_info, train_bool):
+def plot_training_validation(train_info, test_info, train_bool, test_bool):
 
     """
     Plot loss, accuracy and F1 score curves fro training and validation.
@@ -290,7 +290,8 @@ def plot_training_validation(train_info, test_info, train_bool):
     #create subplots
     if train_bool:
         ax[0].plot(x, y_train_1, color='red', label = "Training")
-    ax[0].plot(x, y_test_1, color='blue', label = "Validation")
+    if test_bool:
+        ax[0].plot(x, y_test_1, color='blue', label = "Validation")
     ax[0].set_xlabel('Epochs')
     ax[0].set_ylabel('Loss')
     ax[0].set_title('Loss on training and validation set', fontsize = 18)
