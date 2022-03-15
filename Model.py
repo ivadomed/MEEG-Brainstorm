@@ -97,7 +97,7 @@ class channel_attention(nn.Module):
         # Weights initiation
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
+                nn.init.xavier_normal_(m.weight, gain = 1)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0.0)
 
