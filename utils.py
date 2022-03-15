@@ -12,10 +12,11 @@ import torch
 
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 from loguru import logger
 
-def get_class_distribution(label, display):
+def get_class_distribution(label, display, save, title):
 
     """
     Get proportion of each class in the dataset data.
@@ -23,7 +24,9 @@ def get_class_distribution(label, display):
     Args:
         data (array): Training trials after CSP algorithm (n_trials)x(Nr)x(n_sample_points),
         label (array): Corresponding labels,
-        display (bool): Display histogram of class repartition.
+        display (bool): Display histogram of class repartition,
+        save (bool): Save image,
+        title (str): name and format of saved file.
         
     Returns:
             count_label (dictionnary): Keys are label and values are corresponding proportion.
@@ -42,6 +45,9 @@ def get_class_distribution(label, display):
         sns.barplot(data = pd.DataFrame.from_dict([count_label]).melt(), x = "variable", y="value")\
         .set_title('Class Distribution')
     
+    if save:
+        plt.savefig(title) 
+        
     return count_label
 
 
@@ -97,7 +103,7 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
-def compute_l1_loss(w):
+def l1_regularization(w):
     
     """
     Apply L1 regularization.
@@ -107,7 +113,7 @@ def compute_l1_loss(w):
     
     return torch.abs(w).sum()
 
-def compute_l2_loss(w):
+def l2_regularization(w):
     
     """
     Apply L2 regularization.

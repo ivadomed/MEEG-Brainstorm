@@ -134,7 +134,7 @@ class Trans():
         # Define optimizer
         # We apply a weight decay for L2 regularization
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay)
+                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay, amsgrad = True)
         
         # Recover loss, accuracy and F1 score
         train_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
@@ -193,8 +193,8 @@ class Trans():
                     parameters = []
                     for parameter in cpu_model.parameters():
                         parameters.append(parameter.view(-1))
-                    l1 = l1_weight * compute_l1_loss(torch.cat(parameters))
-                    l2 = l2_weight * compute_l2_loss(torch.cat(parameters))
+                    l1 = l1_weight * l1_regularization(torch.cat(parameters))
+                    l2 = l2_weight * l2_regularization(torch.cat(parameters))
                     loss += l1
                     loss += l2
                     
@@ -228,8 +228,8 @@ class Trans():
                     parameters = []
                     for parameter in cpu_model.parameters():
                         parameters.append(parameter.view(-1))
-                    l1 = l1_weight * compute_l1_loss(torch.cat(parameters))
-                    l2 = l2_weight * compute_l2_loss(torch.cat(parameters))
+                    l1 = l1_weight * l1_regularization(torch.cat(parameters))
+                    l2 = l2_weight * l2_regularization(torch.cat(parameters))
                     loss += l1
                     loss += l2
                     
