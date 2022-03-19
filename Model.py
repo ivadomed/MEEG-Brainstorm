@@ -64,7 +64,6 @@ class channel_attention(nn.Module):
         """
         
         super().__init__()
-        self.scaling = vector_size ** (1 / 2)
 
         # Query layer
         self.query = nn.Sequential(
@@ -92,8 +91,14 @@ class channel_attention(nn.Module):
         self.dropout = nn.Dropout(0)
         
         # Average pooling layer
-        self.pooling = nn.AvgPool2d(kernel_size=(1, kernel_size), stride=(1, stride))
+        self.pooling = nn.AvgPool2d(kernel_size=(1, kernel_size), stride=(1, stride)) 
 
+        # Compute Query dimension after average pooling
+        query_size = vector_size - kernel_size
+        query_size /= stride
+        query_size += 1
+        self.scaling = query_size ** (1 / 2) 
+        
         # Weights initiation
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -207,7 +212,7 @@ class MultiHeadAttention(nn.Module):
         """
         
         super().__init__()
-        self.scaling = slice_size ** (1 / 2)
+        self.scaling = (slice_size / num_heads) ** (1 / 2)
         self.num_heads = num_heads
         self.keys = nn.Linear(slice_size, slice_size)
         self.queries = nn.Linear(slice_size, slice_size)
@@ -235,10 +240,10 @@ class MultiHeadAttention(nn.Module):
         # Compute attention score
         energy = torch.einsum('b h q o, b h k o -> b h q k', queries, keys)  # batch, num_heads, query_len, key_len
         if mask is not None:
-            fill_value = torch.finfo(torch.float32).min
+            fill_value = torch.finfo(torch.float32).min 
             energy.mask_fill(~mask, fill_value)
 
-        attention_score = F.softmax(energy / self.scaling, dim=-1)
+        attention_score = F.softmax(energy / self.scaling, dim=-1) 
         attention_score = self.att_drop(attention_score)
         
         # Multiply by value V 
@@ -358,7 +363,7 @@ class ClassificationHead(nn.Sequential):
     def forward(self, x):
         
         """
-        Compress and slice input batch x of size (batch_size x 1 x n_channels x n_sample_points).
+        Obtain the predicted probability for each class. 
 
         Args:
             x (torch tensor): Batch of trial after transformer of dimension (batch_size x new_n_sample_points x slice_size).
@@ -375,7 +380,7 @@ class ClassificationHead(nn.Sequential):
 
 """ ********** Model ********** """
 
-class Transformer(nn.Sequential):
+class Transformer_classification(nn.Sequential):
     
     """ 
     Transformer model based on:
@@ -391,7 +396,7 @@ class Transformer(nn.Sequential):
                  out_channels = 2, position_kernel_size = 51, position_stride = 1, emb_negative_slope = 0.2,\
                  channel_kernel_size = 28, time_kernel_size = 5, time_stride = 5, slice_size = 10,\
                  depth = 3, num_heads = 5, transformer_dropout = 0.5, forward_expansion = 4, forward_dropout = 0.5,\
-                 n_classes = 7): #, **kwargs):
+                 n_classes = 7): 
       
         """    
         Args:
