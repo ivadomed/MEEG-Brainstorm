@@ -32,7 +32,7 @@ from data import Data
 from dataloader import train_test_dataset, get_dataloader
 from utils import define_device
 from parser import get_tune_parser
-from Model import Transformer
+from Model import Transformer_classification
 
 from loguru import logger
 
@@ -75,7 +75,7 @@ def train_validation(config, train_set, val_set, gpu_id, check = False):
     LongTensor = torch.LongTensor
     
     # Define model
-    model = Transformer (**model_config)
+    model = Transformer_classification(**model_config)
 
     # Move model to gpu if available
     available, device = define_device(gpu_id) 
@@ -238,7 +238,7 @@ def test_accuracy(config, model_state, test_set, gpu_id):
                F1_score (float): Average F1 score on the test set.
     """
     
-    model = Transformer(**config['Model']) 
+    model = Transformer_classification(**config['Model']) 
     
     # Move model to gpu if available
     available, device = define_device(gpu_id)

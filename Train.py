@@ -22,7 +22,7 @@ from torch.autograd import Variable
 from data import Data
 from dataloader import train_test_dataset, get_dataloader
 from parser import get_parser
-from Model import Transformer
+from Model import Transformer_classification
 from utils import *
 
 from loguru import logger
@@ -115,7 +115,7 @@ class Trans():
         n_epochs = training_config['Epochs']
         
         # Define model
-        self.model = Transformer(**model_config)
+        self.model = Transformer_classification(**model_config)
         
         # Move to gpu if available
         available, device = define_device(gpu_id)
@@ -134,7 +134,7 @@ class Trans():
         # Define optimizer
         # We apply a weight decay for L2 regularization
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay, amsgrad = True)
+                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay)
         
         # Recover loss, accuracy and F1 score
         train_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
@@ -185,6 +185,7 @@ class Trans():
 
                     # forward + backward
                     _, mix_outputs = self.model(mix_data)
+                
                     loss = (lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
                     
@@ -331,7 +332,7 @@ class Trans():
         self.test_dataloader = get_dataloader(self.data_test, self.labels_test, batch_size, num_workers, balanced = False)
         
         # Load model
-        model = Transformer(**model_config)
+        model = Transformer_classification(**model_config)
         
         # Move to gpu if available
         available, device = define_device(gpu_id)
