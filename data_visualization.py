@@ -132,7 +132,7 @@ def plot_signals_from_df(trial_df, channel_type, spikeTimePoints, wanted_event_l
     raw = mne_object(trial_df,freq, channel_type)
     
     # Mark spike times
-    if spikeTimePoints.size :
+    if len(spikeTimePoints) :
         N = spikeTimePoints.shape[0]
         new_annotations = mne.Annotations(spikeTimePoints,\
                                           [1e-15 for i in range(N)],\
@@ -173,7 +173,7 @@ def plot_signals_from_file(trial_fname, channel_fname, channel_type,\
     raw = mne_object(m,freq, channel_type)
     
     # Mark spike times
-    if spikeTimePoints.size :
+    if len(spikeTimePoints) :
         N = spikeTimePoints.shape[0]
         new_annotations = mne.Annotations(spikeTimePoints,\
                                           [1e-15 for i in range(N)],\
