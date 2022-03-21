@@ -2,6 +2,8 @@
 
 """
 This script is used to compute the Common Spatial Pattern projection W.
+Compute Common Spatial Pattern inspired from:
+`"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding " <https://arxiv.org/pdf/2106.11170.pdf>`.
 
 Usage: type "from common_spatial_filter import <function>" to use one of ist functions.
 
@@ -16,7 +18,7 @@ def csp(data, labels, selected_rows):
     
     """
     Compute Common Spatial Pattern matrix W based on 
-    `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding " <https://arxiv.org/pdf/2106.11170.pdf>`_
+    `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding " <https://arxiv.org/pdf/2106.11170.pdf>`
     
     Args:
         data (array): Array of trials, size (n_trials)x(n_channels)x(n_sample_points).

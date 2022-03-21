@@ -1,8 +1,9 @@
 #!/opt/anaconda3/bin/python
 
 """
-This script is used to visualize EEG and MEG signals. 
+This script is used to visualize EEG/MEG signals and loss, accuracy, F1 score curves. 
 Final visualization is done through the MNE framework `<https://mne.tools/stable/index.html>`
+
 Usage: type "from data_visualization import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
@@ -90,7 +91,8 @@ def mne_object(data, freq, channel_type):
         ch_types = ['eeg']*data.shape[-1]
     elif channel_type == ['MEG','MEG REF']:
         ch_types = ['ref_meg']*data.shape[-1]
-    info = mne.create_info(ch_names = list(data.columns), 
+    columns_name = list(map(str, data.columns))
+    info = mne.create_info(ch_names = columns_name, 
                          sfreq = freq, 
                          ch_types = ch_types)
 
@@ -104,25 +106,33 @@ def mne_object(data, freq, channel_type):
 
 
 
-def plot_signals_from_df(trial_df, spikeTimePoints, channel_type, wanted_event_label,\
+def plot_signals_from_df(trial_df, channel_type, spikeTimePoints, wanted_event_label,\
                          freq, n_channel, scaling, highpass, lowpass):
 
     """
     Plot EEG/MEG trial.
     
     Args:
-        trial_df (pd dataframe): EEG/MEG tria,
+        trial_df (pd dataframe): EEG/MEG trial,
+        channel_type (list): List of types of channels wanted,
+        spikeTimePoints (array) : Corresponding spike times,
+        wanted_event_label (str): Annotation of wanted event,
         freq (int): Sample rate of the data,
+        n_channel (in): Number of channels,
         scaling (float): zoom out of the plot,
         highpass (float): frequence for highpass filter,
         lowpass (float): frequence for lowpass filter.
 
     """
     
+    # Transpose and remove columns that do not change value
+    trial_df = trial_df.T
+    trial_df = trial_df.loc[:, (trial_df != trial_df.iloc[0]).any()]
+    
     raw = mne_object(trial_df,freq, channel_type)
     
     # Mark spike times
-    if spikeTimePoints.size :
+    if len(spikeTimePoints) :
         N = spikeTimePoints.shape[0]
         new_annotations = mne.Annotations(spikeTimePoints,\
                                           [1e-15 for i in range(N)],\
@@ -149,7 +159,9 @@ def plot_signals_from_file(trial_fname, channel_fname, channel_type,\
         trial_fname (str): Path to trial file (matlab dictionnary),
         channel_fname (str): Path to channel file (matlab dictionnary),
         channel_type (list): List of types of channels wanted,
+        wanted_event_label (str): Annotation of wanted event,
         freq (int): Sample rate of the data,
+        n_channel (in): Number of channels,
         scaling (float): zoom out of the plot,
         highpass (float): frequence for highpass filter,
         lowpass (float): frequence for lowpass filter.
@@ -161,7 +173,7 @@ def plot_signals_from_file(trial_fname, channel_fname, channel_type,\
     raw = mne_object(m,freq, channel_type)
     
     # Mark spike times
-    if spikeTimePoints.size :
+    if len(spikeTimePoints) :
         N = spikeTimePoints.shape[0]
         new_annotations = mne.Annotations(spikeTimePoints,\
                                           [1e-15 for i in range(N)],\
@@ -250,3 +262,51 @@ def csp_visualization(allData, csp_allData, allLabels, allSpikeTimePoints, allTi
           'EEG shape ', 'before CSP : ',X_EEG1.shape,' after CSP: ', X_cspEEG1.shape,'\n',\
          'MEG shape ', 'before CSP : ',X_MEG1.shape,' after CSP: ', X_cspMEG1.shape)
     
+    
+def plot_training_validation(train_info, test_info, train_bool, test_bool):
+
+    """
+    Plot loss, accuracy and F1 score curves fro training and validation.
+    
+    Args: train_info (list of dict): contains loss, accuracy, F1 score information for training,
+          test_info (list of dict): contains loss, accuracy, F1 score information for validation.
+    """
+    
+    # define data
+    N = len(train_info)
+    x = range(N)
+    y_train_1 = [train_info[e]['Loss'] for e in x]
+    y_test_1 = [test_info[e]['Loss'] for e in x] 
+    y_train_2 = [train_info[e]['Accuracy'] for e in x]
+    y_test_2 = [test_info[e]['Accuracy'] for e in x] 
+    y_train_3 = [train_info[e]['F1_score'] for e in x]
+    y_test_3 = [test_info[e]['F1_score'] for e in x] 
+
+    #define subplots
+    w,h = 18,6
+    fig, ax = plt.subplots(1, 3, figsize=(w,h))
+    fig.tight_layout()
+
+    #create subplots
+    if train_bool:
+        ax[0].plot(x, y_train_1, color='red', label = "Training")
+    if test_bool:
+        ax[0].plot(x, y_test_1, color='blue', label = "Validation")
+    ax[0].set_xlabel('Epochs')
+    ax[0].set_ylabel('Loss')
+    ax[0].set_title('Loss on training and validation set', fontsize = 18)
+    ax[0].legend(fontsize = 15)
+
+    ax[1].plot(x, y_train_2, color='red', label = "Training")
+    ax[1].plot(x, y_test_2, color='blue', label = "Validation")
+    ax[1].set_xlabel('Epochs')
+    ax[1].set_ylabel('Accuracy')
+    ax[1].set_title('Accuracy on training and validation set', fontsize = 18)
+    ax[1].legend(fontsize = 15)
+
+    ax[2].plot(x, y_train_3, color='red', label = "Training")
+    ax[2].plot(x, y_test_3, color='blue', label = "Validation")
+    ax[2].set_xlabel('Epochs')
+    ax[2].set_ylabel('F1_score')
+    ax[2].set_title('F1_score on training and validation set', fontsize = 15)
+    ax[2].legend(fontsize = 15)
