@@ -88,7 +88,7 @@ class channel_attention(nn.Module):
             nn.Dropout(dropout)
         )
 
-        self.dropout = nn.Dropout(0)
+        self.dropout = nn.Dropout(0.5)
         
         # Average pooling layer
         self.pooling = nn.AvgPool2d(kernel_size=(1, kernel_size), stride=(1, stride)) 
@@ -204,6 +204,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, slice_size, num_heads, dropout):
         
         """   
+        Compute multi-head attention based on `<https://arxiv.org/pdf/1606.08415v3.pdf>`.
         Warning: num_heads must be a divider of slice_size !
         Args:
             slice_size (int): Size of slices,
@@ -257,16 +258,6 @@ class MultiHeadAttention(nn.Module):
     
     
 """ ********** Feed-forward block ********** """
-
-class GELU(nn.Module):
-    
-    """
-    GeLU activation function.
-    """
-    
-    def forward(self, input: Tensor) -> Tensor:
-        return input*0.5*(1.0+torch.erf(input/math.sqrt(2.0)))
-    
 
 class FeedForwardBlock(nn.Sequential):
     
@@ -329,7 +320,7 @@ class TransformerEncoder(nn.Sequential):
         Args:
             depth (int): Number of {multi-head attention + FF} blocks,
             slice_size (int): Size of slices,
-            num_heads (int): Number of heads in mulit-head block,
+            num_heads (int): Number of heads in multi-head block,
             dropout (float): Dropout value for multi-head block,
             forward_expansion (int): Value of expansion to obtain inner size,
             forward_dropout (float): Dropout value for FF block.
