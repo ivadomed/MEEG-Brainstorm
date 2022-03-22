@@ -35,36 +35,66 @@ from parser import get_tune_parser
 from Model import Transformer_classification
 
 from loguru import logger
-
-
-def weight_reset(model):
-    
-    """
-    Reset parameters of the model between folds in cross-validation process.
-
-    Args:
-        model: Deep Learning model (inherited from torch.nn.Modules).
-    """
-    
-    for m in model.modules():
-        if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
-            m.reset_parameters()
         
+     
         
 def train_validation(config, train_set, val_set, gpu_id, check = False):
 
     """
-    Training on the model and send average validation loss to tune (imported from ray module)
-    to help tuning hyperparameters.
+    Training on the model and send average validation loss to tune (imported from ray module) to help tuning hyperparameters.
 
     Args:
-        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
-                       and training configuration --> dataloaders parameters (batch size, number of workers),
-                       number of epochs, mix-up parameters,
+        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters and training configuration,
         train_set (array): Training set,
-        n_splits (int): Number of folds in the cross-validation process,
+        val_set (array): Validation set
+        gpu_id (int): Index of cuda device to use if available,
         check (bool): Save model and optimizer state during training.
 
+    Example of configuration file:
+
+        config = 
+        {
+        "Model": 
+                {
+                "normalized_shape": 201,
+                "linear_size": 28,
+                "vector_size": 201,
+                "attention_dropout": 0.4,
+                "attention_negative_slope": 0.01,
+                "attention_kernel_size": 40,
+                "attention_stride": 1,
+                "spatial_dropout": 0.5,
+                "out_channels": 2,
+                "position_kernel_size": 101,
+                "position_stride": 1,
+                "emb_negative_slope": 0.001,
+                "channel_kernel_size": 28,
+                "time_kernel_size": 40,
+                "time_stride": 1,
+                "slice_size": 15,
+                "depth": 5,
+                "num_heads": 5,
+                "transformer_dropout": 0.7,
+                "forward_expansion": 4,
+                "forward_dropout": 0.6,
+                "n_classes": 7
+                },
+        "Optimizer": 
+                {
+                "lr": 0.01,
+                "b1": 0.9,
+                "b2": 0.999
+                }, 
+        "Training": 
+                {
+                "batch_size": 4,
+                "num_workers": 4,
+                "balanced": true,
+                "Epochs": 50,
+                "Mix-up": False,
+                "BETA": 0.6
+                }
+        }
     """
 
     # Recover model, optimizer and training configuration
@@ -106,9 +136,6 @@ def train_validation(config, train_set, val_set, gpu_id, check = False):
     batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
     train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
     test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, False)
-
-    # Reset the model parameters
-    model.apply(weight_reset)
 
     # Recover number of epochs
     n_epochs = training_config['Epochs']
@@ -226,16 +253,61 @@ def test_accuracy(config, model_state, test_set, gpu_id):
     Evaluate a model on test set.
 
     Args:
-        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
-                       and training configuration --> dataloaders parameters (batch size, number of workers),
-                       number of epochs, mix-up parameters,
+        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters and training configuration,
         model: Deep Learning model (inherited from torch.nn.Modules),
         test_set (array): Test set,
-        device (str): Indicates the type of device used (gpu or cpu).
+        gpu_id (int): Index of cuda device to use if available.
 
     Returns:
         tuple: accuracy (float): Average accuracy on the test set,
                F1_score (float): Average F1 score on the test set.
+        
+    Example of configuration file:
+
+        config = 
+        {
+        "Model": 
+                {
+                "normalized_shape": 201,
+                "linear_size": 28,
+                "vector_size": 201,
+                "attention_dropout": 0.4,
+                "attention_negative_slope": 0.01,
+                "attention_kernel_size": 40,
+                "attention_stride": 1,
+                "spatial_dropout": 0.5,
+                "out_channels": 2,
+                "position_kernel_size": 101,
+                "position_stride": 1,
+                "emb_negative_slope": 0.001,
+                "channel_kernel_size": 28,
+                "time_kernel_size": 40,
+                "time_stride": 1,
+                "slice_size": 15,
+                "depth": 5,
+                "num_heads": 5,
+                "transformer_dropout": 0.7,
+                "forward_expansion": 4,
+                "forward_dropout": 0.6,
+                "n_classes": 7
+                },
+        "Optimizer": 
+                {
+                "lr": 0.01,
+                "b1": 0.9,
+                "b2": 0.999
+                }, 
+        "Training": 
+                {
+                "batch_size": 4,
+                "num_workers": 4,
+                "balanced": true,
+                "Epochs": 50,
+                "Mix-up": False,
+                "BETA": 0.6
+                }
+        }
+    
     """
     
     model = Transformer_classification(**config['Model']) 
@@ -292,7 +364,7 @@ def get_config(tuning_config_path):
     
     """
     Function to obtain the search domain for hyperparameters.
-    ! Warning! slice_size must be a multiple of num_heads.
+    ! *** Warning --> slice_size must be a multiple of num_heads *** !
 
     Args:
         tuning_config (dict): Dictionnary of dictionnary containing in list format search model for model hyperparamaters, optimizer parameters 
@@ -300,9 +372,55 @@ def get_config(tuning_config_path):
                        number of epochs, mix-up parameters.
 
     Returns:
-            tuning_config (dict): Dictionnary of dictionnary containing in categorical format search model hyperparamaters, optimizer parameters 
-                    and training configuration --> dataloaders parameters (batch size, number of workers),
-                    number of epochs, mix-up parameters.
+        tuning_config (dict): Dictionnary of dictionnary containing in categorical format search model hyperparamaters, optimizer parameters 
+                and training configuration --> dataloaders parameters (batch size, number of workers),
+                number of epochs, mix-up parameters.
+            
+    Example of tuning configuration file:
+
+        config = 
+        {
+        "Model": 
+                {
+                'normalized_shape': normalized_shape,
+                'linear_size': linear_size,
+                'vector_size': vector_size,
+                'attention_dropout': dropout_list,
+                'attention_negative_slope': slope_list,
+                'attention_kernel_size': [10,20,30,40],
+                'attention_stride': stride_list,
+                'spatial_dropout': dropout_list,
+                'out_channels': out_channels,
+                'position_kernel_size': [1,11,21,31,41,51,61,71,81,91,101],
+                'position_stride': position_stride,
+                'emb_negative_slope': slope_list,
+                'channel_kernel_size': channel_kernel_size,
+                'time_kernel_size': [10,20,30,40],
+                'time_stride': stride_list,
+                'slice_size': [5,10,15,20,25,30],
+                'depth': [2,3,4,5,6],
+                'num_heads': [5],
+                'transformer_dropout': dropout_list,
+                'forward_expansion': [3,4,5],
+                'forward_dropout': dropout_list,
+                'n_classes': n_classes
+                },
+        "Optimizer": 
+                {
+                'lr': [1e-2, 1e-3, 1e-4],
+                'b1': [0.9],
+                'b2': [0.999]
+                }, 
+        "Training": 
+                {
+                'batch_size': [4,8,16,32,64],
+                'num_workers': 4,
+                'balanced': balanced,
+                'Epochs': n_epochs,
+                'Mix-up': mix_up,
+                'BETA': [0.4,0.6]
+                }
+        }
     """
     
     # Recover tuning config dictionnary
@@ -340,18 +458,69 @@ def main(validation_size = 0.15):
 
     """
     Use Ray Tune to tune hyperparameters.
-    ! Warning ! Trials seems to crash if cpu and gpu resources are not the same in the tune.run() function.
+    Configurations files must be saved in .json format.
+    ! *** Warning --> If cuda is available, trials seems to crash if cpu and gpu resources are not the same in the tune.run() function *** !
     
     Args:
         validation_size (float): Size of the validation set.
 
-    Returns:
-        tuple: best_trial.config (dict): Dictionnary of dictionnary containing best model hyperparamaters, optimizer parameters 
-                                         and training configuration --> dataloaders parameters (batch size, number of workers),
-                                         number of epochs, mix-up parameters,
-               model_state (dict): Best model state,
-               optimizer_state (dict): Best optimizer for best model.
+    Tuning:
+            To tune hyperparameters of the model, run the following command in your terminal:
+            
+            python hyperparameters_tuning.py --tune --path-data [path to the data] --path-config_data 
+            [path to configuration file for data] --path-tuning_config [path to configuration file for tuning] --path-results 
+            [path to save search results] --path-best_states [path to save bets model and optimizer parameters] --path-best_config 
+            [path to save best corresponding configuration file] -gpu [index of the cuda device to use if available] --n_samples [number of samples in Ray]
+            --max_n_epochs [number of maxima epochs for each trial] --gpu_resources [gpu resources] --cpu_resources [cpu resources]
+            --metric [metric to tune on ("loss" for instance)] --mode [mode to tune on ("min" for instance)]
+
+    Example of tuning configuration file:
+
+        config = 
+        {
+        "Model": 
+                {
+                'normalized_shape': normalized_shape,
+                'linear_size': linear_size,
+                'vector_size': vector_size,
+                'attention_dropout': dropout_list,
+                'attention_negative_slope': slope_list,
+                'attention_kernel_size': [10,20,30,40],
+                'attention_stride': stride_list,
+                'spatial_dropout': dropout_list,
+                'out_channels': out_channels,
+                'position_kernel_size': [1,11,21,31,41,51,61,71,81,91,101],
+                'position_stride': position_stride,
+                'emb_negative_slope': slope_list,
+                'channel_kernel_size': channel_kernel_size,
+                'time_kernel_size': [10,20,30,40],
+                'time_stride': stride_list,
+                'slice_size': [5,10,15,20,25,30],
+                'depth': [2,3,4,5,6],
+                'num_heads': [5],
+                'transformer_dropout': dropout_list,
+                'forward_expansion': [3,4,5],
+                'forward_dropout': dropout_list,
+                'n_classes': n_classes
+                },
+        "Optimizer": 
+                {
+                'lr': [1e-2, 1e-3, 1e-4],
+                'b1': [0.9],
+                'b2': [0.999]
+                }, 
+        "Training": 
+                {
+                'batch_size': [4,8,16,32,64],
+                'num_workers': 4,
+                'balanced': balanced,
+                'Epochs': n_epochs,
+                'Mix-up': mix_up,
+                'BETA': [0.4,0.6]
+                }
+        }
     """
+
 
     parser = get_tune_parser()
     args = parser.parse_args()
@@ -457,11 +626,8 @@ def main(validation_size = 0.15):
     # Saving best model and optimizer states
     torch.save((model_state, optimizer_state), best_states_path)
     print('Model and optimizer states here:', best_states_path)
-    
-    
-    return best_model_config, model_state, optimizer_state
 
-
+    
 
 if __name__ == "__main__":
     main()
