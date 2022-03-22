@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from loguru import logger
 
-def get_class_distribution(label, display, save, title):
+def get_class_distribution(label, display, save = False, title = None):
 
     """
     Get proportion of each class in the dataset data.
@@ -113,6 +113,7 @@ def l1_regularization(w):
     
     return torch.abs(w).sum()
 
+
 def l2_regularization(w):
     
     """
@@ -122,3 +123,4 @@ def l2_regularization(w):
     """
     
     return torch.square(w).sum()
+
