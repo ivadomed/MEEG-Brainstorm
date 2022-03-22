@@ -108,7 +108,7 @@ class Data:
                    allSpikeTimePoints (dictionnary): Keys are number of channels and values are array of corresponding spike times,
                    allTimes (dictionnary): Keys are number of channels and values are array of time points,
                    Example: allData[50][0] is a trial of size (50 x n_sample_points),
-                            allLabels[50][0] is its corresponding label.
+                            allLabels[50][0] is its corresponding label (int value).
 
         """
 
@@ -154,7 +154,7 @@ class Data:
 
         """
         Get dataset and labels after Common Spatial Pattern algorithm.
-        All projected trials have same dimension (Nr)x(n_sample_points) with N = n_classes and r = selected_rows.
+        All projected trials have same dimension (2 x N x r)x(n_sample_points) with N = n_classes and r = selected_rows.
 
         Args:
             folder (list): List of paths to trial files (matlab dictionnaries),
@@ -165,7 +165,7 @@ class Data:
                                           instead of taking the number of seizures as label.
 
         Returns:
-            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials x Nr x n_sample_points),
+            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials)x(2 x N x r)x(n_sample_points),
                    allLabels (array): Corresponding labels,
                    allSpikeTimePoints (array): Corresponding spike times,
                    allTimes (array): Time points.
@@ -201,9 +201,9 @@ class Data:
 
         """
         Get dataset and labels after Common Spatial Pattern algorithm.
-        All projected trials have same dimension (Nr)x(n_sample_points) with N = n_classes and r = selected_rows.
+        All projected trials have same dimension (2 x N x r)x(n_sample_points) with N = n_classes and r = selected_rows.
         Returns:
-            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials x Nr x n_sample_points),
+            tuple: csp_allDatas (array): Trials after CSP algorithm (n_trials)x(2 x N x r)x(n_sample_points),
                    allLabels (array): Corresponding labels,
                    allSpikeTimePoints (array): Corresponding spike times,
                    allTimes (array): Time points.
