@@ -377,8 +377,8 @@ class Transformer_classification(nn.Sequential):
     Transformer model based on:
     `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding " <https://arxiv.org/pdf/2106.11170.pdf>`.
     
-    Input is of dimension (batch_size x 1 x n_channels x n_sample_points).
-    Output is of dimension (batch_size x new_sample_points x slice_size).
+    Input (tensor): Tensor of dimension (batch_size x 1 x n_channels x n_sample_points).
+    Output (tensor): Tensor of dimension (batch_size x n_classes).
     """
     
     def __init__(self, normalized_shape = 201, linear_size = 28, vector_size = 201,\
@@ -391,9 +391,34 @@ class Transformer_classification(nn.Sequential):
       
         """    
         Args:
-            slice_size (int): Size of slices,
-            size_expansion (int): Value of expansion to obtain inner size,
-            drop_p (float): Dropout value.
+            For Spatial transforming:
+                    normalized_shape (int): It must equal the number of sample points (i.e n_sample_points),
+                    linear_size (int): It must equal the number of channels after CSP projection 
+                                       (i.e n_channels = 2 x N x r with N the initial number of channels and r the number of selected rows),
+                    vector_size (int): It must equal the number of sample points (i.e n_sample_points)= 201,
+                    attention_dropout (float), = 0.3,
+                    attention_negative_slope (float),
+                    attention_kernel_size (int),
+                    attention_stride (int),
+                    spatial_dropout (float),
+            For Compressing and slicing:
+                    out_channels (int),
+                    position_kernel_size (int),
+                    position_stride (int),
+                    emb_negative_slope (float),
+                    channel_kernel_size (int),
+                    time_kernel_size (int),
+                    time_stride (int),
+                    slice_size (int),
+            For Temporal transforming:
+                    depth (int),
+                    num_heads (int): It must be a dividor of slice_size,
+                    transformer_dropout (float),
+                    forward_expansion (int),
+                    forward_dropout (int),
+            For Classification:
+                    n_classes (int): It must equal N+1 if N is the highest label value in the dataset 
+                                     (labels from 0 to N will be considered even if not every label from 0 to N is represented in the dataset).
         """
         
         super().__init__(   
