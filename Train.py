@@ -129,7 +129,6 @@ class Trans():
             self.criterion_cls = torch.nn.CrossEntropyLoss().cuda()
         else:
             self.criterion_cls = torch.nn.CrossEntropyLoss()
-            
                 
         # Define optimizer
         # We apply a weight decay for L2 regularization
@@ -185,7 +184,6 @@ class Trans():
 
                     # forward + backward
                     _, mix_outputs = self.model(mix_data)
-                
                     loss = (lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*self.criterion_cls(mix_outputs, rolled_labels)
                     loss = loss.sum()
                     
@@ -379,7 +377,88 @@ class Trans():
 def main(): 
    
     """
-    Train or evaluate model depending on args given in command line
+    Train or evaluate model depending on args given in command line.
+    All configuration files are dictionnaries saved in .json format.
+    
+    Training: --save, -gpu, -weight_decay, -l1_weight, l2_weight are optional.
+            To train and save the model, run the following command in your terminal:
+
+                python Train.py --train --save --path-data [path to the data] --path-config_data 
+                [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
+                [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config     
+                [path to save training configuration file] -gpu [index of the gpu device to use if available] -weight_decay [weight decay value]
+                -l1_weight [L1 regularization weight value] -l2_weight [L2 regularization weight value]
+                
+    Testing: -gpu is optional.
+            To evaluate the model, run the following command in your terminal:
+            
+                python Train.py --test --path-data [path to the data] --path-config_data 
+                [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
+                [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config 
+                [path to save training configuration file] -gpu [index of the gpu device to use if available]
+            
+    Examples of configuration files:
+    
+            Data config file (dict):
+        
+            data_config = 
+            {
+            'channel_fname': '../../Neuropoly_Internship/MEEG_data/EEG_signals/channel_ctf_acc1.mat',
+            'wanted_event_label': 'saw_EST',
+            'channel_type': ['EEG'],
+            'binary_classification': False,
+            'selected_rows': 2,
+            'train_size': 0.75,
+            'validation_size': 0.15,
+            'random_state': 42,
+            'shuffle': True
+            }
+            
+            Training config file (dict):
+            
+            config = 
+            {
+            "Model": 
+                    {
+                    "normalized_shape": 201,
+                    "linear_size": 28,
+                    "vector_size": 201,
+                    "attention_dropout": 0.4,
+                    "attention_negative_slope": 0.01,
+                    "attention_kernel_size": 40,
+                    "attention_stride": 1,
+                    "spatial_dropout": 0.5,
+                    "out_channels": 2,
+                    "position_kernel_size": 101,
+                    "position_stride": 1,
+                    "emb_negative_slope": 0.001,
+                    "channel_kernel_size": 28,
+                    "time_kernel_size": 40,
+                    "time_stride": 1,
+                    "slice_size": 15,
+                    "depth": 5,
+                    "num_heads": 5,
+                    "transformer_dropout": 0.7,
+                    "forward_expansion": 4,
+                    "forward_dropout": 0.6,
+                    "n_classes": 7
+                    },
+            "Optimizer": 
+                    {
+                    "lr": 0.01,
+                    "b1": 0.9,
+                    "b2": 0.999
+                    }, 
+            "Training": 
+                    {
+                    "batch_size": 4,
+                    "num_workers": 4,
+                    "balanced": true,
+                    "Epochs": 50,
+                    "Mix-up": False,
+                    "BETA": 0.6
+                    }
+            }
     """
     
     parser = get_parser()
