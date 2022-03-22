@@ -86,21 +86,65 @@ class Trans():
         Train the model and plot loss, accuracy and F1 scores on the training and validation set.
 
         Args:
-            config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters 
-                           and training configuration --> dataloaders parameters (batch size, number of workers),
-                           number of epochs, mix-up parameters,
+            config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer hyperparameters and training configuration,
             model_path (str): Path to save the model parameters,
             optimizer_path (str): Path to save the opimizer parameters,
-            config_path (str): Path to save the config,
+            config_path (str): Path to save the training configuration file,
             weight_decay (float): Weight decay for L2 regularization in Adam optimizer,
             l1_weight (float): Weight for L1 regularization,
             l2_weight (float): Weight for L2 regularization,
-            gpu_id (int): Id of the cuda device wanted,
-            save (bool): Save information into the previous paths.
+            gpu_id (int): Index of cuda device to use if available,
+            save (bool): Save model and optimizer parameters as well as training configuration file.
 
         Returns:
             tuple: train_info (dict): Values of loss, accuracy, F1 score on training set,
                    test_info (dict): Values of loss, accuracy, f1 score on validation set.
+                   
+        Example of configuration file:
+        
+            config = 
+            {
+            "Model": 
+                    {
+                    "normalized_shape": 201,
+                    "linear_size": 28,
+                    "vector_size": 201,
+                    "attention_dropout": 0.4,
+                    "attention_negative_slope": 0.01,
+                    "attention_kernel_size": 40,
+                    "attention_stride": 1,
+                    "spatial_dropout": 0.5,
+                    "out_channels": 2,
+                    "position_kernel_size": 101,
+                    "position_stride": 1,
+                    "emb_negative_slope": 0.001,
+                    "channel_kernel_size": 28,
+                    "time_kernel_size": 40,
+                    "time_stride": 1,
+                    "slice_size": 15,
+                    "depth": 5,
+                    "num_heads": 5,
+                    "transformer_dropout": 0.7,
+                    "forward_expansion": 4,
+                    "forward_dropout": 0.6,
+                    "n_classes": 7
+                    },
+            "Optimizer": 
+                    {
+                    "lr": 0.01,
+                    "b1": 0.9,
+                    "b2": 0.999
+                    }, 
+            "Training": 
+                    {
+                    "batch_size": 4,
+                    "num_workers": 4,
+                    "balanced": true,
+                    "Epochs": 50,
+                    "Mix-up": False,
+                    "BETA": 0.6
+                    }
+            }
         """
         
         # Recover model, optimizer and training configuration
@@ -309,9 +353,10 @@ class Trans():
         Evaluate a model on test set.
 
         Args:
-            config_path (str): Path to recover config dictionnary,
+            config_path (str): Path to recover training configuration dictionnary (saved in .json format),
             model_path (str): Path to recover model hyperparameters,
-            optimizer_path (str): Path to recover optimizer parameters.
+            optimizer_path (str): Path to recover optimizer parameters,
+            gpu_id (int): Index of cuda device to use if available.
 
         Returns:
             tuple: accuracy (float): Average accuracy on the test set,
@@ -383,19 +428,19 @@ def main():
     Training: --save, -gpu, -weight_decay, -l1_weight, l2_weight are optional.
             To train and save the model, run the following command in your terminal:
 
-                python Train.py --train --save --path-data [path to the data] --path-config_data 
-                [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
-                [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config     
-                [path to save training configuration file] -gpu [index of the gpu device to use if available] -weight_decay [weight decay value]
-                -l1_weight [L1 regularization weight value] -l2_weight [L2 regularization weight value]
+            python Train.py --train --save --path-data [path to the data] --path-config_data 
+            [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
+            [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config     
+            [path to save training configuration file] -gpu [index of the cuda device to use if available] -weight_decay [weight decay value]
+            -l1_weight [L1 regularization weight value] -l2_weight [L2 regularization weight value]
                 
     Testing: -gpu is optional.
             To evaluate the model, run the following command in your terminal:
             
-                python Train.py --test --path-data [path to the data] --path-config_data 
-                [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
-                [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config 
-                [path to save training configuration file] -gpu [index of the gpu device to use if available]
+            python Train.py --test --path-data [path to the data] --path-config_data 
+            [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
+            [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config 
+            [path to save training configuration file] -gpu [index of the cuda device to use if available]
             
     Examples of configuration files:
     
