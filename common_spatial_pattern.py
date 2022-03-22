@@ -26,7 +26,7 @@ def csp(data, labels, selected_rows):
         selected_rows (int): Number of first rows and number of last rows selected on each sub-filter.
         
     Returns:
-        W (array): CSP projection matrix (Nr)x(n_channels) where N = number of classes; r = selected_rows
+        W (array): CSP projection matrix (2 x N x r)x(n_channels) where N = number of classes; r = selected_rows
     """
     
     # Recover trials' index for all classes
@@ -73,8 +73,7 @@ def csp(data, labels, selected_rows):
         eigorder = eigorder[::-1]
         eigValues = lam[eigorder]
         eigVectors = V[:, eigorder]
-        
-        # Compute P and B      
+           
         """
         CovTotal can have very small negative ones due to computational error.
         To overcome this issue, we can add a small positive constant to the the diagonal. 
@@ -82,6 +81,7 @@ def csp(data, labels, selected_rows):
         We choose to add epsilon = 1e-15.
         """
         
+        # Compute P and B   
         epsilon = 1e-16
         Ptmp = np.sqrt(np.diag(np.power(eigValues + epsilon, -1)))
         P = np.dot(Ptmp, eigVectors.transpose())
