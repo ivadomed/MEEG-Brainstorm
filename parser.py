@@ -67,13 +67,13 @@ def get_parser():
     optional_args.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = False, type = int,
                                help = 'Id of the wanted gpu device.')    
     
-    optional_args.add_argument('--weight_decay', dest = 'weight_decay', required = False, type = float,
+    optional_args.add_argument('-weight_decay', dest = 'weight_decay', required = False, type = float,
                                help = 'Weight_decay in optimizer for L2 regularization.')
 
-    optional_args.add_argument('--l1_weight', dest = 'l1_weight', required = False, type = float,
+    optional_args.add_argument('-l1_weight', dest = 'l1_weight', required = False, type = float,
                                help = 'Weight for L1 regularization.')
 
-    optional_args.add_argument('--l2_weight', dest = 'l2_weight', required = False, type = float,
+    optional_args.add_argument('-l2_weight', dest = 'l2_weight', required = False, type = float,
                                help = 'Weight for L2 regularization.')
     
     return parser
