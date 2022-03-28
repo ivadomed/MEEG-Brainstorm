@@ -263,50 +263,63 @@ def csp_visualization(allData, csp_allData, allLabels, allSpikeTimePoints, allTi
          'MEG shape ', 'before CSP : ',X_MEG1.shape,' after CSP: ', X_cspMEG1.shape)
     
     
-def plot_training_validation(train_info, test_info, train_bool, test_bool):
+def plot_training_validation(train_info, test_info, final_epoch, train_bool, test_bool, line = 2):
 
     """
     Plot loss, accuracy and F1 score curves fro training and validation.
     
-    Args: train_info (list of dict): contains loss, accuracy, F1 score information for training,
-          test_info (list of dict): contains loss, accuracy, F1 score information for validation.
+    Args: train_info (list of dict): Contains metrics information on training set,
+          test_info (list of dict): Contains metrics information on validation set,
+          final_epoch (int): Final epoch of training,
+          train_bool (bool): Plot training loss,
+          test_bool (bool): Plot test loss,
+          line (int): Linewidth.
     """
     
     # define data
-    N = len(train_info)
+    N = int(final_epoch)
     x = range(N)
     y_train_1 = [train_info[e]['Loss'] for e in x]
     y_test_1 = [test_info[e]['Loss'] for e in x] 
-    y_train_2 = [train_info[e]['Accuracy'] for e in x]
-    y_test_2 = [test_info[e]['Accuracy'] for e in x] 
-    y_train_3 = [train_info[e]['F1_score'] for e in x]
-    y_test_3 = [test_info[e]['F1_score'] for e in x] 
+    y_train_2 = [train_info[e]['F1_score'] for e in x]
+    y_test_2 = [test_info[e]['F1_score'] for e in x] 
+    y_train_3 = [train_info[e]['Precision'] for e in x]
+    y_test_3 = [test_info[e]['Precision'] for e in x] 
+    y_train_4 = [train_info[e]['Recall'] for e in x]
+    y_test_4 = [test_info[e]['Recall'] for e in x] 
 
     #define subplots
-    w,h = 18,6
-    fig, ax = plt.subplots(1, 3, figsize=(w,h))
+    w,h = 28,7
+    fig, ax = plt.subplots(1, 4, figsize=(w,h))
     fig.tight_layout()
 
     #create subplots
     if train_bool:
-        ax[0].plot(x, y_train_1, color='red', label = "Training")
+        ax[0].plot(x, y_train_1, color='red', label = "Training", linewidth = line)
     if test_bool:
-        ax[0].plot(x, y_test_1, color='blue', label = "Validation")
+        ax[0].plot(x, y_test_1, color='blue', label = "Validation", linewidth = line)
     ax[0].set_xlabel('Epochs')
     ax[0].set_ylabel('Loss')
-    ax[0].set_title('Loss on training and validation set', fontsize = 18)
-    ax[0].legend(fontsize = 15)
+    ax[0].set_title('Loss on training and validation sets', fontsize = 18)
+    ax[0].legend(fontsize = 15, loc = 1)
 
-    ax[1].plot(x, y_train_2, color='red', label = "Training")
-    ax[1].plot(x, y_test_2, color='blue', label = "Validation")
+    ax[1].plot(x, y_train_2, color='red', label = "Training", linewidth = line)
+    ax[1].plot(x, y_test_2, color='blue', label = "Validation", linewidth = line)
     ax[1].set_xlabel('Epochs')
-    ax[1].set_ylabel('Accuracy')
-    ax[1].set_title('Accuracy on training and validation set', fontsize = 18)
-    ax[1].legend(fontsize = 15)
+    ax[1].set_ylabel('F1 score')
+    ax[1].set_title('F1 score on training and validation sets', fontsize = 18)
+    ax[1].legend(fontsize = 15, loc = 4)
 
-    ax[2].plot(x, y_train_3, color='red', label = "Training")
-    ax[2].plot(x, y_test_3, color='blue', label = "Validation")
+    ax[2].plot(x, y_train_3, color='red', label = "Precision Training", linewidth = line)
+    ax[2].plot(x, y_test_3, color='blue', label = "Precision Validation", linewidth = line)
     ax[2].set_xlabel('Epochs')
-    ax[2].set_ylabel('F1_score')
-    ax[2].set_title('F1_score on training and validation set', fontsize = 15)
-    ax[2].legend(fontsize = 15)
+    ax[2].set_ylabel('Precision')
+    ax[2].set_title('Precision on training and validation sets', fontsize = 15)
+    ax[2].legend(fontsize = 15, loc = 4)
+    
+    ax[3].plot(x, y_train_4, color='red', label = "Recall Training", linewidth = line)
+    ax[3].plot(x, y_test_4, color='blue', label = "Recall Validation", linewidth = line)
+    ax[3].set_xlabel('Epochs')
+    ax[3].set_ylabel('Recall')
+    ax[3].set_title('Recall on training and validation sets', fontsize = 15)
+    ax[3].legend(fontsize = 15, loc = 4)
