@@ -1,0 +1,1 @@
+{"channel_fname": "../../Neuropoly_Internship/MEEG_data/EEG_signals/channel_ctf_acc1.mat", "wanted_event_label": "saw_EST", "channel_type": ["EEG"], "binary_classification": false, "selected_rows": 2, "train_size": 0.75, "validation_size": 0.15, "random_state": 42, "shuffle": true}
