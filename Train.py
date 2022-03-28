@@ -2,6 +2,7 @@
 
 """
 This script is used to train and test the model. 
+The EarlyStopping class is inspired from `<https://github.com/Bjarten/early-stopping-pytorch/blob/master/pytorchtools.py>`.
 
 Usage: type "from Train import <class>" to use one of its classes.
        type "from Train import <function>" to use one of its functions.
@@ -16,7 +17,7 @@ import numpy as np
 
 from os import listdir
 from os.path import isfile, join
-from sklearn.metrics import f1_score
+from torchmetrics.functional import  f1_score, precision_recall, specificity, average_precision, cohen_kappa 
 from torch.autograd import Variable
 
 from data import Data
@@ -28,7 +29,64 @@ from utils import *
 from loguru import logger
 
 
+class EarlyStopping:
+    
+    """
+    Stop the training if validation loss doesn't improve after a given patience.
+    Inspired from `<https://github.com/Bjarten/early-stopping-pytorch/blob/master/pytorchtools.py>`.
+    """
+    
+    def __init__(self, patience = 10, verbose = False, delta = 0, path = 'checkpoint.pt'):
+        
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 10
+            verbose (bool): If True, prints a message for each validation loss improvement. 
+                            Default: False
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+            path (str): Path for the checkpoint to be saved to.
+                            Default: 'checkpoint.pt'         
+        """
+        
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.delta = delta
+        self.path = path
+        
+    def save_checkpoint(self, val_loss, model):
+        
+        """
+        Save model's parameters when validation loss decreases.
+        """
+        
+        if self.verbose:
+            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
+        
+    def __call__(self, val_loss, model):
 
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
+        
+        
 class Trans():
     
     def __init__(self, folder, channel_fname, wanted_event_label,list_channel_type, binary_classification, selected_rows,\
@@ -60,7 +118,6 @@ class Trans():
         self.dataset = Data(folder,channel_fname,wanted_event_label, list_channel_type,binary_classification, selected_rows)
         self.allData, self.allLabels, self.allSpikeTimePoints, self.allTimes = self.dataset.csp_data()
         
-        
         # Recover dataloader
         logger.info("Get dataloader")
         
@@ -80,25 +137,27 @@ class Trans():
         self.labels_test= labels_test
         
 
-    def train(self, config, model_path, optimizer_path, config_path, weight_decay, l1_weight, l2_weight, gpu_id, save):
+    def train(self, config, model_path, config_path, weight_decay, l1_weight, l2_weight, scheduler, amsgrad, gpu_id, save):
 
         """
-        Train the model and plot loss, accuracy and F1 scores on the training and validation set.
+        Train the model and recover Loss, Accuracy, F1 scores and Average-precision curves on the training and validation set.
+        We use an early stopping strategy which stops the training process when the validation loss does not improve anymore.
 
         Args:
             config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer hyperparameters and training configuration,
             model_path (str): Path to save the model parameters,
-            optimizer_path (str): Path to save the opimizer parameters,
             config_path (str): Path to save the training configuration file,
             weight_decay (float): Weight decay for L2 regularization in Adam optimizer,
             l1_weight (float): Weight for L1 regularization,
             l2_weight (float): Weight for L2 regularization,
+            scheduler (bool): Use a scheduler on the learning rate,
+            amsgrad (bool): Use AMSGrad instead of ADAM as optimizer algorithm,
             gpu_id (int): Index of cuda device to use if available,
             save (bool): Save model and optimizer parameters as well as training configuration file.
 
         Returns:
-            tuple: train_info (dict): Values of loss, accuracy, F1 score on training set,
-                   test_info (dict): Values of loss, accuracy, f1 score on validation set.
+            tuple: train_info (dict): Values of Loss, F1 score, Precision, Recall on training set,
+                   test_info (dict): Values of Loss, F1 score, Precision, Recall on validation set.
                    
         Example of configuration file:
         
@@ -146,6 +205,8 @@ class Trans():
                     }
             }
         """
+        # Recover number of classes in the dataset
+        self.n_classes = len(np.unique(self.allLabels))
         
         # Recover model, optimizer and training configuration
         training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
@@ -157,6 +218,7 @@ class Trans():
         
         # Recover number of epochs
         n_epochs = training_config['Epochs']
+        final_epoch = n_epochs
         
         # Define model
         self.model = Transformer_classification(**model_config)
@@ -175,14 +237,19 @@ class Trans():
             self.criterion_cls = torch.nn.CrossEntropyLoss()
                 
         # Define optimizer
-        # We apply a weight decay for L2 regularization
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay)
+                                          betas=(optimizer_config['b1'], optimizer_config['b2']), weight_decay = weight_decay, amsgrad = amsgrad)
         
-        # Recover loss, accuracy and F1 score
-        train_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
-        test_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0}) for e in range(n_epochs))
-      
+        # Define scheduler
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', factor = 0.5, patience = 20, min_lr = 1e-5, verbose = False)
+        
+        # Define early stopping
+        early_stopping = EarlyStopping()
+    
+        # To recover loss, accuracy and F1 score
+        train_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0, "Precision": 0, "Recall": 0}) for e in range(n_epochs))
+        val_info = dict((e,{"Loss": 0, "Accuracy": 0, "F1_score": 0, "Precision": 0, "Recall": 0}) for e in range(n_epochs))
+        
         # Loop over the dataset n_epochs times
         mix_up = training_config["Mix-up"]
         for e in range(n_epochs):
@@ -190,7 +257,8 @@ class Trans():
             # Train the model
             train_loss = 0
             correct, total = 0,0
-            f1_train = 0
+            F1_train = 0
+            precision_train, recall_train = 0,0
             train_steps = 0
             
             # Set training mode
@@ -251,7 +319,10 @@ class Trans():
                     y_pred = torch.max(mix_outputs.data, 1)[1]
                     correct += (y_pred == labels).sum().item()
                     total += labels.size(0)
-                    f1_train += f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro')
+                    F1_train += f1_score(y_pred.cpu().detach(), labels.cpu().detach(), average = 'weighted', num_classes = self.n_classes)
+                    precision, recall = precision_recall(mix_outputs.cpu().detach(), labels.cpu().detach(), average = 'weighted',num_classes = self.n_classes)
+                    precision_train += precision
+                    recall_train += recall
                     train_steps += 1
 
                 else:
@@ -287,67 +358,92 @@ class Trans():
                     y_pred = torch.max(outputs.data, 1)[1]
                     correct += (y_pred == labels).sum().item()
                     total += labels.size(0)
-                    f1_train += f1_score(labels.cpu().detach().numpy(), y_pred.cpu().detach().numpy(), average = 'macro')
+                    F1_train += f1_score(y_pred.cpu().detach(), labels.cpu().detach(), average = 'weighted', num_classes = self.n_classes)
+                    precision, recall = precision_recall(outputs.cpu().detach(), labels.cpu().detach(), average = 'weighted',num_classes = self.n_classes)
+                    precision_train += precision
+                    recall_train += recall
                     train_steps += 1
 
             # Recover accuracy and F1 score 
             train_info[e]["Loss"] = train_loss / train_steps
             train_info[e]["Accuracy"] = correct / total
-            train_info[e]["F1_score"] = f1_train / train_steps
+            train_info[e]["F1_score"] = F1_train / train_steps
+            train_info[e]["Precision"] = precision_train / train_steps
+            train_info[e]["Recall"] = recall_train / train_steps
                 
             # Evaluate the model
-            test_loss = 0
-            test_correct, test_total = 0,0
-            f1_test = 0
-            test_steps = 0
+            val_loss = 0
+            val_correct, val_total = 0,0
+            F1_val = 0
+            precision_val, recall_val = 0,0
+            val_steps = 0
             
             # Set evaluation mode
             self.model.eval()
-            
-            for j, (test_data, test_labels) in enumerate(self.validation_dataloader):
+            for j, (val_data, val_labels) in enumerate(self.validation_dataloader):
 
                 # Recover data, labels
-                test_data = Variable(test_data.type(self.Tensor), requires_grad = True)
-                test_labels = Variable(test_labels.type(self.LongTensor))
-                test_data, test_labels = test_data.to(device), test_labels.to(device)
+                val_data = Variable(val_data.type(self.Tensor), requires_grad = True)
+                val_labels = Variable(val_labels.type(self.LongTensor))
+                val_data, val_labels = val_data.to(device), val_labels.to(device)
 
                 # Recover outputs
-                _, test_outputs = self.model(test_data)
-                loss = self.criterion_cls(test_outputs, test_labels)
+                _, val_outputs = self.model(val_data)
+                loss = self.criterion_cls(val_outputs, val_labels)
 
                 # Recover accurate prediction and F1 scores
-                test_loss += loss.cpu().detach().numpy()
-                test_y_pred = torch.max(test_outputs, 1)[1]
-                test_total += test_labels.size(0)
-                test_correct += (test_y_pred == test_labels).sum().item()
-                f1_test += f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro')
-                test_steps += 1
-                
-            # Recover accuracy and F1 score
-            test_info[e]["Loss"] = test_loss / test_steps
-            test_info[e]["Accuracy"] = test_correct / test_total
-            test_info[e]["F1_score"] = f1_test / test_steps
+                val_loss += loss.cpu().detach().numpy()
+                val_y_pred = torch.max(val_outputs, 1)[1]
+                val_correct += (val_y_pred == val_labels).sum().item()
+                val_total += val_labels.size(0)
+                F1_val += f1_score(val_y_pred.cpu().detach(), val_labels.cpu().detach(), average = 'weighted', num_classes = self.n_classes)
+                precision, recall = precision_recall(val_outputs.cpu().detach(), val_labels.cpu().detach(), average = 'weighted',num_classes = self.n_classes)
+                precision_val += precision
+                recall_val += recall
+                val_steps += 1
+                                
+            # Update learning rate via the scheduler
+            if scheduler:
+                self.scheduler.step(val_loss / val_steps)
             
+            # Recover accuracy and F1 score
+            val_info[e]["Loss"] = val_loss / val_steps
+            val_info[e]["Accuracy"] = val_correct / val_total
+            val_info[e]["F1_score"] = F1_val / val_steps
+            val_info[e]["Precision"] = precision_val / val_steps
+            val_info[e]["Recall"] = recall_val / val_steps
+                
+            # Update early stopping
+            early_stopping(val_loss / val_steps, self.model)
+            if early_stopping.early_stop:
+                final_epoch = e+1
+                print("Early stopping at epoch: ", final_epoch)
+                break      
+              
         logger.info("Training finished")
-        print('The average validation accuracy is:', np.mean([test_info[e]["Accuracy"] for e in range(n_epochs)]))
-        print('The average validation F1 score is:', np.mean([test_info[e]["F1_score"] for e in range(n_epochs)]))
+        
+        print('Mean Accuracy on validation set:', "%.4f" % round(np.float(np.mean([val_info[e]["Accuracy"] for e in range(final_epoch)])), 4))
+        print('Mean F1 score on validation set:', "%.4f" % round(np.float(np.mean([val_info[e]["F1_score"] for e in range(final_epoch)])), 4))
+        print('Mean Precision on validation set:', "%.4f" % round(np.float(np.mean([val_info[e]["Accuracy"] for e in range(final_epoch)])), 4))
+        print('Mean Recall on validation set:', "%.4f" % round(np.float(np.mean([val_info[e]["Recall"] for e in range(final_epoch)])), 4))
+        print('Final Accuracy on validation set:', "%.4f" % round(np.float(val_info[final_epoch-1]["Accuracy"]), 4))        
+        print('Final F1 score on validation set:', "%.4f" % round(np.float(val_info[final_epoch-1]["F1_score"]), 4))
         
         if save:
+            config['Training']['Epochs'] = final_epoch
             logger.info("Saving config files")
             json.dump(config, open(config_path, 'w' ))
             
             logger.info("Saving parameters")
-            torch.save(self.model.state_dict(), model_path)
-            torch.save(self.optimizer.state_dict(), optimizer_path)
+            torch.save(torch.load('checkpoint.pt'), model_path)
             
             print('Model state here:', model_path)
-            print('Optimizer state here:', optimizer_path)
             print('Config file here:', config_path, '\n')
                 
-        return train_info, test_info
+        return train_info, val_info, final_epoch
     
     
-    def evaluate(self, config_path, model_path, optimizer_path, gpu_id):
+    def evaluate(self, config_path, model_path, gpu_id):
 
         """
         Evaluate a model on test set.
@@ -355,13 +451,16 @@ class Trans():
         Args:
             config_path (str): Path to recover training configuration dictionnary (saved in .json format),
             model_path (str): Path to recover model hyperparameters,
-            optimizer_path (str): Path to recover optimizer parameters,
             gpu_id (int): Index of cuda device to use if available.
 
         Returns:
             tuple: accuracy (float): Average accuracy on the test set,
-                   F1_score (float): Average F1 score on the test set.
+                   F1_score (float): Average F1 score on the test set,
+                   Weighted_F1_score (float): Average weighted F1 score on the test set.
         """
+        
+        # Recover number of classes in the dataset
+        self.n_classes = len(np.unique(self.allLabels))
         
         # Recover config files
         with open(config_path) as f:
@@ -373,7 +472,7 @@ class Trans():
         # Create dataloader
         batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
         self.test_dataloader = get_dataloader(self.data_test, self.labels_test, batch_size, num_workers, balanced = False)
-        
+
         # Load model
         model = Transformer_classification(**model_config)
         
@@ -390,33 +489,58 @@ class Trans():
         # Set evaluation mode
         model.eval()
         
-        # Load optimizer parameters
-        optimizer = torch.optim.Adam(model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']))        
-        optimizer.load_state_dict(torch.load(optimizer_path))
-        
         # Initialize accuracy
-        correct = 0
-        total = 0
-        f1_test = []
+        correct, total = 0,0
+        F1_test = 0
+        CK_test = 0
+        Avg_precision_test = 0
+        Precision = 0
+        Recall = 0
+        Specificity = 0
+        steps= 0
+        CK_steps = 0
+        
         with torch.no_grad():
             for data, labels in self.test_dataloader:
                 data = Variable(data.type(self.Tensor), requires_grad = True)
                 labels = Variable(labels.type(self.LongTensor))
                 data, labels = data.to(device), labels.to(device)
                 _, outputs = model(data)
-                predicted = torch.max(outputs.data, 1)[1]
+                y_pred = torch.max(outputs.data, 1)[1]
+                correct += (y_pred == labels).sum().item()
                 total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                f1_test.append(f1_score(labels.cpu().detach().numpy(), predicted.cpu().detach().numpy(), average = 'macro'))
+                F1_test += f1_score(y_pred.cpu().detach(), labels.cpu().detach(), average = 'weighted', num_classes = self.n_classes)
+                Avg_precision_test += average_precision(outputs.cpu().detach(), labels.cpu().detach(), average = 'weighted',num_classes = self.n_classes)
+                precision, recall = precision_recall(outputs.cpu().detach(), labels.cpu().detach(), average = 'weighted',num_classes = self.n_classes)
+                Precision += precision
+                Recall += recall
+                Specificity += specificity(y_pred, labels, average = 'weighted', num_classes = self.n_classes)
+                steps += 1
+            
+                # Count Cohen-Kappa score for prediction non equal to labels
+                if sum(y_pred.cpu().detach().numpy() != labels.cpu().detach().numpy()) > 0:
+                    CK_test += cohen_kappa(y_pred, labels, num_classes = self.n_classes)
+                    CK_steps += 1
 
-        accuracy = correct / total 
-        F1_score = np.mean(f1_test)
+        Accuracy = correct / total
+        F1_score = F1_test / steps
+        Average_precision = Avg_precision_test / steps
+        Precision /= steps
+        Recall /= steps
+        Specificity /= steps
+        CK = CK_test / CK_steps
         
         logger.info('Evaluation finished')
-        print("Accuracy on test set: {} \nF1 score on test set: {}".format(accuracy, F1_score))
         
-        return accuracy , F1_score
+        print('Accuracy on test set:', "%.4f" % round(np.float(Accuracy), 4))
+        print('F1 score on test set:', "%.4f" % round(np.float(F1_score), 4))
+        print('Precision on test set:', "%.4f" % round(np.float(Precision), 4))
+        print('Recall on test set:', "%.4f" % round(np.float(Recall), 4))
+        print('Specificity on test set:', "%.4f" % round(np.float(Specificity), 4))
+        print('Average-precision on test set:', "%.4f" % round(np.float(Average_precision), 4))
+        print('Cohen-Kappa coefficient on test set:', "%.4f" % round(np.float(CK), 4))
+        
+        return Accuracy , F1_score, Average_precision, Precision, Recall, Specificity, CK
         
 
 def main(): 
@@ -425,22 +549,19 @@ def main():
     Train or evaluate model depending on args given in command line.
     All configuration files are dictionnaries saved in .json format.
     
-    Training: --save, -gpu, -weight_decay, -l1_weight, l2_weight are optional.
-            To train and save the model, run the following command in your terminal:
+    Training: To train and save the model, using a scheduler for the learning rate with optimizer AMSGrad, run the following command in your terminal:
 
-            python Train.py --train --save --path-data [path to the data] --path-config_data 
-            [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
-            [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config     
-            [path to save training configuration file] -gpu [index of the cuda device to use if available] -weight_decay [weight decay value]
-            -l1_weight [L1 regularization weight value] -l2_weight [L2 regularization weight value]
+            python Train.py --train --path-data [path to the data] --path-config_data [path to configuration file for data] 
+            --path-config_training [path to configuration file for training] --path-model [path to save model parameters]
+            --path-config [path to save training configuration file] -gpu [index of the cuda device to use if available]
+            --save --scheduler --amsgrad -weight_decay [weight decay value] -l1_weight [L1 regularization weight value]
+            -l2_weight [L2 regularization weight value]
                 
-    Testing: -gpu is optional.
-            To evaluate the model, run the following command in your terminal:
+    Testing: To evaluate the model, run the following command in your terminal:
             
             python Train.py --test --path-data [path to the data] --path-config_data 
             [path to configuration file for data] --path-config_training [path to configuration file for training] --path-model 
-            [path to save model parameters] --path-optimizer [path to save optimizer parameters] --path-config 
-            [path to save training configuration file] -gpu [index of the cuda device to use if available]
+            [path to save model parameters] --path-config [path to save training configuration file] -gpu [index of the cuda device to use if available]
             
     Examples of configuration files:
     
@@ -509,26 +630,19 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     
-    # Recover data path
+    # Recover data and configuration files
     data_path = args.path_data
     data_config_path = args.path_config_data
     training_config_path = args.path_config_training
     model_path = args.path_model
-    optimizer_path = args.path_optimizer
     config_path = args.path_config
 
-    # Recover command
+    # Recover commands
     Train_bool = args.train
     Test_bool = args.test
-    save = args.save
-    
+
     # Recover gpu_id
     gpu_id = args.gpu_id
-
-    # Recover weight for L1 and L2 regularization
-    weight_decay = args.weight_decay
-    l1_weight = args.l1_weight
-    l2_weight = args.l2_weight
     
     # Recover data
     folder = [data_path+f for f in listdir(data_path) if isfile(join(data_path, f))]
@@ -554,17 +668,26 @@ def main():
     # Train model
     if Train_bool:
         
+        # Recover training commands
+        save = args.save
+        scheduler = args.scheduler
+        amsgrad = args.amsgrad
+    
+        # Recover weight for L1 and L2 regularization
+        weight_decay = args.weight_decay
+        l1_weight = args.l1_weight
+        l2_weight = args.l2_weight
+    
         # Recover training config dictionnary
         with open(training_config_path) as f:
             config = json.loads(f.read())
             
-        save = args.save
-        train_results = trans.train(config, model_path, optimizer_path, config_path, weight_decay, l1_weight, l2_weight, gpu_id = gpu_id, save = save)
-        train_info, test_info = train_results
+        train_results = trans.train(config, model_path, config_path, weight_decay, l1_weight, l2_weight, scheduler = scheduler,\
+                                    amsgrad = amsgrad, gpu_id = gpu_id, save = save)
                   
     # Evaluate model
     if Test_bool:
-        accuracy, F1_score = trans.evaluate(config_path, model_path, optimizer_path, gpu_id)
+        test_results = trans.evaluate(config_path, model_path, gpu_id)
         
         
 
