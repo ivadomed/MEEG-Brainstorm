@@ -352,13 +352,14 @@ def test_accuracy(config, model_state, test_set, gpu_id):
             predicted = torch.max(outputs, 1)[1]
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            F1_score += f1_score(labels.cpu().detach().numpy(), predicted.cpu().detach().numpy(), average = 'macro')
+            F1_score += f1_score(labels.cpu().detach().numpy(), predicted.cpu().detach().numpy(), average = 'weighted')
             steps += 1
             
     logger.info("Finished evaluating")
     accuracy = (correct / total) 
     F1_score /= steps
     return accuracy, F1_score
+
 
 def get_config(tuning_config_path):
     
@@ -457,7 +458,7 @@ def get_config(tuning_config_path):
 def main(validation_size = 0.15):
 
     """
-    Use Ray Tune to tune hyperparameters.
+    Use Ray Tune to tune hyperparameters: save the best configuration file with corresponding model and optimizer parameters.
     Configurations files must be saved in .json format.
     ! *** Warning --> If cuda is available, trials seems to crash if cpu and gpu resources are not the same in the tune.run() function *** !
     
