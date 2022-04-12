@@ -31,7 +31,7 @@ class CostSensitiveLoss(nn.Module):
         """
         Args:
             criterion (Loss): Criterion.
-            n_classes (int): Number of classes.
+            n_classes (int): Number of classes in the dataset.
             lambd (float): Modulate the influence of the cost-sensitive regularization.
         """
         
@@ -94,7 +94,7 @@ class DetectionLoss(nn.Module):
         """
         Args:
             criterion (Loss): Criterion.
-            n_classes (int): Number of classes.
+            n_classes (int): Number of classes in the dataset.
             lambd (float): Modulate the influence of the cost-sensitive regularization.
         """
         
@@ -148,33 +148,22 @@ class DetectionLoss(nn.Module):
         return loss
     
     
-def get_training_loss(labels, n_classes, cost_sensitive, lambd, weight_method, beta):
+def get_classification_loss(n_classes, cost_sensitive, lambd):
     
     """
-    Build a custom cross-entropy.
+    Build a custom cross-entropy loss with a cost-sensitive regularization.
     
     Args:
-        labels (array): Labels in the training set,
-        cost_sensitive (bool): Build cost-sensitive cross entropy loss,
+        criterion (Loss): Criterion.
+        n_classes (int): Number of classes in the dataset.
+        cost_sensitive (bool): Build cost-sensitive cross entropy loss.
         lambd (float): Modulate the influence of the cost-sensitive weight,
-        weight_method (str): Use weights in the cross-entropy loss if weight_method is provided,
-        beta (float): Beta value for ENS method.
         
     Return:
-        criterion (Loss): CrossEntropyLoss.
+        criterion (Loss): Criterion.
     """
     
-    # Apply weighting method
-    if weight_method == None:
-        criterion = torch.nn.CrossEntropyLoss()
-    else:
-        if weight_method == 'INS':
-            weight = inverse_number_samples(labels)
-        elif weight_method == 'ISNS':
-            weight = inverse_square_root_number_samples(labels)
-        elif weight_method == 'ENS':
-            weight = effective_number_samples(labels, beta)
-        criterion =  torch.nn.CrossEntropyLoss(weight = weight)
+    criterion = torch.nn.CrossEntropyLoss()
     
     # Apply cost-sensitive method
     if cost_sensitive:
@@ -182,4 +171,26 @@ def get_training_loss(labels, n_classes, cost_sensitive, lambd, weight_method, b
     else:
         return criterion
 
+    
+def get_detection_loss(cost_sensitive, lambd):
+    
+    """
+    Build a custom cross-entropy loss with a cost-sensitive regularization.
+    
+    Args:
+        criterion (Loss): Criterion.
+        cost_sensitive (bool): Build cost-sensitive cross entropy loss.
+        lambd (float): Modulate the influence of the cost-sensitive weight,
+        
+    Return:
+        criterion (Loss): Criterion.
+    """
+    
+    criterion = torch.nn.CrossEntropyLoss()
+    
+    # Apply cost-sensitive method
+    if cost_sensitive:
+        return DetectionLoss(criterion, 2, lambd)
+    else:
+        return criterion
         
