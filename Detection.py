@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-This script is used to train and test the model. It detects spikes in EEG/MEG trials.
+This script is used to train and test the detection model. It detects spikes in EEG/MEG trials.
 
 Usage: type "from Detection import <class>" to use one of its classes.
        
