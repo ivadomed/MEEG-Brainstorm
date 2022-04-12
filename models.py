@@ -287,6 +287,8 @@ class FeedForwardBlock(nn.Sequential):
     def __init__(self, emb_size, expansion, dropout):
         
         """    
+        Feed Forward with Mish activation instead of GELU activation. Inspired by:
+        `"Attention Is All You Need" <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
         Args:
             emb_size (int): Size of embedding vectors.
             expansion (int): Expansion coefficient to obtain inner size.
