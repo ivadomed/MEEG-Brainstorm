@@ -23,7 +23,7 @@ from data import Data
 from dataloader import get_dataloader
 from parser import get_parser
 from models import ClassificationBertMEEG
-from custom_losses import get_training_loss
+from custom_losses import get_classification_loss
 from early_stopping import EarlyStopping
 from learning_rate_warmup import NoamOpt
 from utils import *
@@ -167,7 +167,7 @@ class ClassificationTransformer():
         self.model.to(device)
 
         # Define training and validation losses
-        self.train_criterion_cls = get_training_loss(self.train_labels, self.n_classes, cost_sensitive, lambd, weighting_method, beta)
+        self.train_criterion_cls = get_classification_loss(self.n_classes, cost_sensitive, lambd)
         self.val_criterion_cls = torch.nn.CrossEntropyLoss()
 
         if available:
