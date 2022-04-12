@@ -15,14 +15,14 @@ import numpy as np
 from torch import nn
 from torchmetrics.functional import  f1_score, precision_recall
 
-from utils import *
+from utils import inverse_number_samples, inverse_square_root_number_samples, effective_number_samples
 
 
 class CostSensitiveLoss(nn.Module):
     
     """
     Implement a cost-sensitive loss inspired by:
-    "Cost-Sensitive Convolution based Neural Networks for Imbalanced Time-Series Classification"
+    "Cost-Sensitive Regularization for Diabetic Retinopathy Grading from Eye Fundus Images"
     `<https://arxiv.org/pdf/2010.00291.pdf>`_.
     """
     
@@ -30,9 +30,9 @@ class CostSensitiveLoss(nn.Module):
         
         """
         Args:
-            criterion (Loss): Criterion,
-            n_classes (int): Number of classes,
-            lambd (float): Modulate influence of the cost-sensitive weight.
+            criterion (Loss): Criterion.
+            n_classes (int): Number of classes.
+            lambd (float): Modulate the influence of the cost-sensitive regularization.
         """
         
         super().__init__()
@@ -53,28 +53,30 @@ class CostSensitiveLoss(nn.Module):
         
         """
         Args:
-            outputs (tensor): Array of logits of dimension (batch_size x n_classes),
-            labels (tensor): Ground truth of dimension batch_size.
+            outputs (tensor): Batches of logits of dimension [batch_size x n_classes].
+            labels (tensor): Bacthes of labels of dimension [batch_size].
         
         Return:
             loss (float): Mean loss value on the batch.
         """
         
-        loss = self.criterion(outputs, labels)
+        # Recover prediction
         prediction = torch.max(outputs.data, 1)[1]
-        CS = self.M[prediction,labels]
+    
+        # Compute cost-sensitive regularization
+        coeff = self.lambd
         
-        # Compute coeff
+        # Modulate with the sensitivity and precision of the model
         F1_score = f1_score(prediction, labels, average = 'macro', num_classes = self.n_classes)
         precision, recall = precision_recall(prediction, labels, average = 'macro', num_classes = self.n_classes)
-
-        coeff = self.lambd
-        if F1_score:
-            #coeff = - self.lambd * np.log(F1_score)
-            #coeff = - self.lambd * np.log(recall)
-            coeff = - self.lambd * np.log(np.sqrt(recall*precision)) #best one yet
-            
+        if precision*recall: 
+            coeff = self.lambd * (-np.log(np.sqrt(recall*precision)))
+        
+        # Compute mean loss on the batch
+        CS = self.M[prediction,labels]
+        loss = self.criterion(outputs, labels)
         loss += coeff * CS.mean()
+        
         return loss
         
         
@@ -82,16 +84,18 @@ class CostSensitiveLoss(nn.Module):
 class DetectionLoss(nn.Module):
     
     """
-    Implement cost-sensitive loss based on `<https://arxiv.org/pdf/2010.00291.pdf>`.
+    Implement a cost-sensitive loss inspired by:
+    "Cost-Sensitive Regularization for Diabetic Retinopathy Grading from Eye Fundus Images"
+    `<https://arxiv.org/pdf/2010.00291.pdf>`_.
     """
     
     def __init__(self, criterion, n_classes, lambd):
         
         """
         Args:
-            criterion (Loss): Criterion,
-            n_classes (int): Number of classes,
-            lambd (float): Modulate influence of the cost-sensitive weight.
+            criterion (Loss): Criterion.
+            n_classes (int): Number of classes.
+            lambd (float): Modulate the influence of the cost-sensitive regularization.
         """
         
         super().__init__()
@@ -112,18 +116,20 @@ class DetectionLoss(nn.Module):
         
         """
         Args:
-            outputs (tensor): Array of logits of dimension (batch_size x n_classes),
-            labels (tensor): Ground truth of dimension batch_size.
+            outputs (tensor): Batches of logits of dimension [batch_size x seq_len x 2].
+            labels (tensor): Bacthes of labels of dimension [batch_size x seq_len].
         
         Return:
             loss (float): Mean loss value on the batch.
         """
         
-        loss = self.criterion(outputs, labels)
+        # Recover prediction
         prediction = torch.max(outputs.data, 1)[1]
-        CS = self.M[prediction,labels]
-
-        # Compute coeff
+    
+        # Compute cost-sensitive regularization
+        coeff = self.lambd
+                
+        # Modulate with the sensitivity and precision of the model
         confusion_matrix = np.zeros((self.n_classes, self.n_classes))
         for t, p in zip(labels.reshape(-1), prediction.reshape(-1)):
             confusion_matrix[t.long(), p.long()] += 1
@@ -131,11 +137,14 @@ class DetectionLoss(nn.Module):
         TN = confusion_matrix[0][0] 
         FP = confusion_matrix[0][1] 
         FN = confusion_matrix[1][0] 
-        coeff = self.lambd
-        if FN * TP * FP * TN:
-            #coeff = - self.lambd * np.log(TP / (TP + FN)) 
-            coeff = - self.lambd * np.log(np.sqrt((TP/(TP + FN))*(FP / (FP + TN)))) #best one yet
+        if FN*TP*FP*TN:
+             coeff = self.lambd * (-np.log(np.sqrt((TP/(TP+FN)) * (TP/(TP+FP)))))
+                
+        # Compute mean loss on the batch
+        CS = self.M[prediction,labels]
+        loss = self.criterion(outputs, labels)
         loss += coeff * CS.mean()
+        
         return loss
     
     
