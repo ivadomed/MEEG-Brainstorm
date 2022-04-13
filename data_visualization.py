@@ -281,12 +281,12 @@ def plot_CLS_training_validation(train_info, test_info, final_epoch, train_bool,
     x = range(N)
     y_train_1 = [train_info[e]['Loss'] for e in x]
     y_test_1 = [test_info[e]['Loss'] for e in x] 
-    y_train_2 = [train_info[e]['Accuracy'] for e in x]
-    y_test_2 = [test_info[e]['Accuracy'] for e in x] 
-    y_train_3 = [train_info[e]['F1_score'] for e in x]
-    y_test_3 = [test_info[e]['F1_score'] for e in x] 
-    y_train_4 = [train_info[e]['weighted_F1_score'] for e in x]
-    y_test_4 = [test_info[e]['weighted_F1_score'] for e in x] 
+    y_train_2 = [train_info[e]['F1_score'] for e in x]
+    y_test_2 = [test_info[e]['F1_score'] for e in x] 
+    y_train_3 = [train_info[e]['Recall'] for e in x]
+    y_test_3 = [test_info[e]['Recall'] for e in x] 
+    y_train_4 = [train_info[e]['Precision'] for e in x]
+    y_test_4 = [test_info[e]['Precision'] for e in x] 
     
     #define subplots
     w,h = 28,7
@@ -306,22 +306,22 @@ def plot_CLS_training_validation(train_info, test_info, final_epoch, train_bool,
     ax[1].plot(x, y_train_2, color='red', label = "Training", linewidth = line)
     ax[1].plot(x, y_test_2, color='blue', label = "Validation", linewidth = line)
     ax[1].set_xlabel('Epochs')
-    ax[1].set_ylabel('Accuracy')
-    ax[1].set_title('Accuracy on training and validation sets', fontsize = 18)
+    ax[1].set_ylabel('F1 score')
+    ax[1].set_title('F1 score on training and validation sets', fontsize = 18)
     ax[1].legend(fontsize = 15, loc = 4)
-
+    
     ax[2].plot(x, y_train_3, color='red', label = "Training", linewidth = line)
     ax[2].plot(x, y_test_3, color='blue', label = "Validation", linewidth = line)
     ax[2].set_xlabel('Epochs')
-    ax[2].set_ylabel('F1 score')
-    ax[2].set_title('F1 score on training and validation sets', fontsize = 18)
+    ax[2].set_ylabel('Recall')
+    ax[2].set_title('Recall on training and validation sets', fontsize = 18)
     ax[2].legend(fontsize = 15, loc = 4)
     
     ax[3].plot(x, y_train_4, color='red', label = "Training", linewidth = line)
     ax[3].plot(x, y_test_4, color='blue', label = "Validation", linewidth = line)
     ax[3].set_xlabel('Epochs')
-    ax[3].set_ylabel('Weighted F1 score')
-    ax[3].set_title('Weighted F1 score on training and validation sets', fontsize = 18)
+    ax[3].set_ylabel('Precision')
+    ax[3].set_title('Precision score on training and validation sets', fontsize = 18)
     ax[3].legend(fontsize = 15, loc = 4)
     
     
