@@ -60,8 +60,7 @@ class RobertaClassifier(nn.Sequential):
                                         nn.Linear(emb_size, emb_size),
                                         Mish(),
                                         nn.Dropout(dropout),
-                                        nn.Linear(emb_size, n_classes)
-                                       ) 
+                                        nn.Linear(emb_size, n_classes)) 
         
         # Weight initialization
         for layer in self.classifier:
@@ -109,8 +108,7 @@ class SpikeDetector(nn.Sequential):
                                        Mish(),
                                        nn.Dropout(dropout),
                                        nn.LayerNorm(emb_size),
-                                       nn.Linear(emb_size, 2)
-                                      )
+                                       nn.Linear(emb_size, 2))
         
         # Weight initialization
         for layer in self.predictor:

@@ -36,6 +36,7 @@ class ResidualAdd(nn.Module):
         """
         
         super().__init__()
+        
         self.fn = fn
 
     def forward(self, x, **kwargs):
@@ -66,21 +67,18 @@ class ChannelAttention(nn.Module):
         # Query layer
         self.query = nn.Sequential(nn.Linear(seq_len, seq_len),
                                    nn.LayerNorm(seq_len),  
-                                   nn.Dropout(dropout)
-                                   )
+                                   nn.Dropout(dropout))
         
         # Key layer
         self.key = nn.Sequential(nn.Linear(seq_len, seq_len),
                                  nn.LayerNorm(seq_len),
-                                 nn.Dropout(dropout)
-                                )
+                                 nn.Dropout(dropout))
 
         # Final projection layer
         self.projection = nn.Sequential(nn.Linear(seq_len, seq_len),
                                         nn.LeakyReLU(),
                                         nn.LayerNorm(seq_len),
-                                        nn.Dropout(dropout)
-                                        )
+                                        nn.Dropout(dropout))
         self.dropout = nn.Dropout(0.5)
         
         # Average pooling layer
@@ -173,8 +171,7 @@ class PatchEmbedding(nn.Module):
                                            nn.Conv2d(2, emb_size, (n_channels, time_kernel),
                                                      stride=(1, time_stride),
                                                      padding=(0,time_padding)), 
-                                           Rearrange('b o (c) (t) -> b (c t) o') # [batch size x seq_len x emb_size]
-                                          )       
+                                           Rearrange('b o (c) (t) -> b (c t) o')) # [batch size x seq_len x emb_size]       
         else:
             
             # Position encoding and compression of channel axis via convolutional layer
@@ -184,8 +181,7 @@ class PatchEmbedding(nn.Module):
                                            nn.LeakyReLU(),
                                            nn.Conv2d(2, emb_size, (n_channels, time_kernel),
                                                      stride=(1, time_stride)), 
-                                           Rearrange('b o (c) (t) -> b (c t) o') # [batch size x new_seq_len x emb_size]
-                                           )
+                                           Rearrange('b o (c) (t) -> b (c t) o')) # [batch size x new_seq_len x emb_size]
         
     def forward(self, x: Tensor) -> Tensor:
 
@@ -287,8 +283,9 @@ class FeedForwardBlock(nn.Sequential):
     def __init__(self, emb_size, expansion, dropout):
         
         """    
-        Feed Forward with Mish activation instead of GELU activation. Inspired by:
-        `"Attention Is All You Need" <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
+        Novel method: Feed Forward with Mish activation instead of GELU activation.
+        Inspired by: `"Attention Is All You Need" <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
+        
         Args:
             emb_size (int): Size of embedding vectors.
             expansion (int): Expansion coefficient to obtain inner size.
@@ -316,18 +313,15 @@ class TransformerEncoderBlock(nn.Sequential):
             dropout (float): Dropout value.
         """
         
-        super().__init__(# MHA block
-                         ResidualAdd(nn.Sequential(nn.LayerNorm(emb_size),
+        super().__init__(ResidualAdd(nn.Sequential(nn.LayerNorm(emb_size),
                                                    MultiHeadAttention(emb_size, num_heads, dropout),
-                                                   nn.Dropout(dropout)
-                                                   )),
-                         # Feed Forward block
+                                                   nn.Dropout(dropout))), # MHA block
+                         
                          ResidualAdd(nn.Sequential(nn.LayerNorm(emb_size),
                                                    FeedForwardBlock(emb_size, expansion, dropout),
-                                                   nn.Dropout(dropout)
-                                                  )))
+                                                   nn.Dropout(dropout)))) # Novel Feed forward block
 
-
+        
         
 class TransformerEncoder(nn.Sequential):
     
@@ -384,26 +378,21 @@ class ClassificationBertMEEG(nn.Sequential):
             classifier_dropout (float): Dropout value in Classifier block.
         """
         
-        super().__init__(# Spatial transforming,
-                         ResidualAdd(nn.Sequential(nn.LayerNorm(n_time_points),
+        super().__init__(ResidualAdd(nn.Sequential(nn.LayerNorm(n_time_points),
                                                    ChannelAttention(n_channels, n_time_points,
                                                                     attention_dropout,
                                                                     attention_kernel,
                                                                     attention_stride),
-                                                   nn.Dropout(spatial_dropout),
-                                                  )),
-                         # Position encoding, compression and slicing with convolution
-                         PatchEmbedding(True, n_time_points, position_kernel, position_stride, emb_size,
-                                        n_channels, time_kernel, time_stride),
-
-                         # Dropout layer
+                                                   nn.Dropout(spatial_dropout))), # Spatial transforming
+                         
+                         PatchEmbedding(True, n_time_points, position_kernel, position_stride,
+                                        emb_size, n_channels, time_kernel, time_stride), # Embedding and positional encoding
+                         
                          nn.Dropout(embedding_dropout),
-            
-                         # Temporal transforming
-                         TransformerEncoder(depth, emb_size, num_heads, expansion, transformer_dropout),
+                         
+                         TransformerEncoder(depth, emb_size, num_heads, expansion, transformer_dropout), # Temporal transforming
 
-                         # Classifier
-                         RobertaClassifier(emb_size, n_classes, classifier_dropout))
+                         RobertaClassifier(emb_size, n_classes, classifier_dropout)) # Classifier
         
 
         
@@ -443,25 +432,19 @@ class DetectionBertMEEG(nn.Sequential):
             detector_dropout (float): Dropout value in spike detector block.
         """
         
-        super().__init__(# Spatial transforming,
-                         ResidualAdd(
-                             nn.Sequential(nn.LayerNorm(n_time_points),
-                                           ChannelAttention(n_channels, n_time_points,
-                                                            attention_dropout,
-                                                            attention_kernel,
-                                                            attention_stride),
-                                           nn.Dropout(spatial_dropout),
-                                          )),
+        super().__init__(ResidualAdd(nn.Sequential(nn.LayerNorm(n_time_points),
+                                                   ChannelAttention(n_channels, n_time_points,
+                                                                    attention_dropout,
+                                                                    attention_kernel,
+                                                                    attention_stride),
+                                                   nn.Dropout(spatial_dropout))), # Spatial transforming,
             
-                         # Position encoding, compression and slicing with convolution
-                         PatchEmbedding(True, n_time_points, position_kernel, position_stride, emb_size, n_channels, time_kernel, time_stride),
+                         PatchEmbedding(True, n_time_points, position_kernel, position_stride,
+                                        emb_size, n_channels, time_kernel, time_stride), # Embedding and positional encoding
             
-                         # Dropout layer
                          nn.Dropout(embedding_dropout),
 
-                         # Temporal transforming
-                         TransformerEncoder(depth, emb_size, num_heads, expansion, transformer_dropout),
+                         TransformerEncoder(depth, emb_size, num_heads, expansion, transformer_dropout), # Temporal transforming
 
-                         # Detection
-                         SpikeDetector(n_time_points, n_time_windows, emb_size, detector_dropout))
+                         SpikeDetector(n_time_points, n_time_windows, emb_size, detector_dropout)) # Spike detector
 
