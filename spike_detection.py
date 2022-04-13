@@ -3,7 +3,7 @@
 """
 This script is used to train and test the detection model. It detects spikes in the EEG/MEG trials.
 The output of the model is a tensor of logits of dimension [batch_size x n_time_windows x 2].
-The prediction is a tensor of dimension [batch_size x n_time_windows] 
+The inference is a tensor of dimension [batch_size x n_time_windows] 
 with value 1 in time window t if a spike occurs in it and 0 otherwise.
 
 Usage: type "from spike_detection import <class>" to use one of its classes.
@@ -13,6 +13,8 @@ Contributors: Ambroise Odonnat.
 
 import json
 import torch
+import warnings
+warnings.filterwarnings("ignore")
 
 import numpy as np
 
@@ -29,11 +31,7 @@ from learning_rate_warmup import NoamOpt
 from models import DetectionBertMEEG
 from utils import define_device, get_spike_windows
 
-from os import listdir
-from os.path import isfile, join
-from parser import get_parser
-    
-    
+
 class DetectionTransformer():
     
     def __init__(self, folder, channel_fname, wanted_event_label, wanted_channel_type,
@@ -190,7 +188,7 @@ class DetectionTransformer():
         self.checkpoint = checkpoint
         early_stopping = EarlyStopping(patience=patience, path=self.checkpoint)
 
-        # Recover loss, accuracy and F1 score
+        # Recover loss and metrics
         train_info = dict((e,{"Loss": np.inf, "Accuracy": 0, "F1_score": 0,"Sensitivity": 0, "Precision": 0}) for e in range(n_epochs))
         val_info = dict((e,{"Loss": np.inf, "Accuracy": 0, "F1_score": 0,"Sensitivity": 0, "Precision": 0}) for e in range(n_epochs))
 
@@ -314,7 +312,7 @@ class DetectionTransformer():
                     train_steps += 1
                     for t, p in zip(labels.reshape(-1), y_pred.reshape(-1)):
                         confusion_matrix[t.long(), p.long()] += 1
-            
+
             TP = confusion_matrix[1][1] 
             TN = confusion_matrix[0][0] 
             FP = confusion_matrix[0][1] 
@@ -378,7 +376,7 @@ class DetectionTransformer():
                 val_steps += 1
                 for t, p in zip(val_labels.reshape(-1), val_y_pred.reshape(-1)):
                     confusion_matrix[t.long(), p.long()] += 1
-                    
+ 
             TP = confusion_matrix[1][1]
             TN = confusion_matrix[0][0] 
             FP = confusion_matrix[0][1] 
@@ -401,7 +399,8 @@ class DetectionTransformer():
             val_info[e]["Precision"] = Precision
             
             if e%10 == 0:
-                print('validation epoch: ', e,'P: ', P, 'N: ', N,'TP: ', TP,'TN: ', TN,'FP: ', FP,'FN: ', FN)
+                print('validation epoch: ', e)
+                print('P: ', P, 'N: ', N,'TP: ', TP,'TN: ', TN,'FP: ', FP,'FN: ', FN)
                 print('Accuracy: ', round(Accuracy,4), 'Specificity: ', round(Specificity,4), 'Sensitivity: ',
                       round(Sensitivity,4), 'Precision: ', round(Precision,4), 'F1_score: ', round(F1_score,4))
 
@@ -427,7 +426,6 @@ class DetectionTransformer():
             
                 
         return train_info, val_info, final_epoch
-    
     
     def evaluate(self, config_path, model_path, gpu_id):
 
@@ -519,6 +517,9 @@ class DetectionTransformer():
         print('Average F1 score on test set:', "%.4f" % round(F1_score, 4))
 
         
+from os import listdir
+from os.path import isfile, join
+from parser import get_parser
 
 def main(patience = 10): 
    
