@@ -1,26 +1,44 @@
 {
     "command": "train",
-    "gpu_ids": [0],
-    "path_output": "/home/GRAMES.POLYMTL.CA/u111358/data_nvme_u111358/EEG-ivado/output_epilepsy_EEG_with_baseline",
-    "model_name": "EEG_model_with_baseline",
+    "gpu_ids": [
+        0
+    ],
+    "path_output": "/home/GRAMES.POLYMTL.CA/u111358/data_nvme_u111358/EEG-ivado/epilepsy/multiple_spikes_5_seconds_gaussian_annotation/output_Epilepsy_EEG_runs_3-4-5-6_uncertainty",
+    "model_name": "EEG_model",
     "debugging": true,
+    "log_file": "log",
     "object_detection_params": {
         "object_detection_path": null,
-        "safety_factor": [1.0, 1.0, 1.0]
+        "safety_factor": [
+            1,
+            1,
+            1
+        ]
     },
     "loader_parameters": {
-        "path_data": "/home/GRAMES.POLYMTL.CA/u111358/data_nvme_u111358/EEG-ivado/data_epilepsy_EEG_with_baseline",
-        "subject_selection": {"n": [], "metadata": [], "value": []},
-        "target_suffix": ["_centered"],
+        "path_data": [
+            "/home/GRAMES.POLYMTL.CA/u111358/data_nvme_u111358/EEG-ivado/epilepsy/multiple_spikes_5_seconds_gaussian_annotation/data_Epilepsy_EEG_runs_3-4-5-6"
+        ],
+        "subject_selection": {
+            "n": [],
+            "metadata": [],
+            "value": []
+        },
+        "target_suffix": [
+            "_saw_EST"
+        ],
+        "extensions": [],
         "roi_params": {
             "suffix": null,
             "slice_filter_roi": null
         },
         "contrast_params": {
-            "training_validation": ["baselines1", "baselines2", "baselines3", "baselines4", "baselines5", "baselines6", "baselines7", "baselines8", "baselines9", "baselinesA10", "baselinesA11", "sawestdistant1", "sawestdistant2", "sawestdistant3", "sawestdistant4", "sawestdistant5", "sawestdistant6", "sawestdistant7", "sawestdistant8", "sawestdistant9", "sawestdistantA10", "sawestdistantA11", "sawestdistantA12", "sawestdistantA13", "sawestdistantA14", "sawestdistantA15", "sawestdistantA16", "sawestdistantA17", "sawestdistantA18", "sawestdistantA19", "sawestdistantB20", "sawestdistantB21", "sawestdistantB22", "sawestdistantB23", "sawestdistantB24", "sawestdistantB25", "sawestdistantB26", "sawestdistantB27", "sawestdistantB28", "sawestdistantB29", "sawestdistantC30", "sawestdistantC31", "sawestdistantC32", "sawestdistantC33", "sawestdistantC34", "sawestdistantC35", "sawestdistantC36", "sawestdistantC37", "sawestdistantC38", "sawestdistantC39", "sawestdistantD40", "sawestdistantD41", "sawestdistantD42", "sawestdistantD43", "sawestdistantD44", "sawestdistantD45", "sawestdistantD46", "sawestdistantD47", "sawestdistantD48", "sawestdistantD49", "sawestdistantE50", "sawestdistantE51", "sawestdistantE52", "sawestdistantE53", "sawestdistantE54", "sawestdistantE55", "sawestdistantE56", "sawestdistantE57", "sawestdistantE58", "sawestdistantE59", "sawestdistantF60", "sawestdistantF61", "sawestdistantF62", "sawestdistantF63"
-],
-            "testing": ["baselines1", "baselines2", "baselines3", "baselines4", "baselines5", "baselines6", "baselines7", "baselines8", "baselines9", "baselinesA10", "baselinesA11", "sawestdistant1", "sawestdistant2", "sawestdistant3", "sawestdistant4", "sawestdistant5", "sawestdistant6", "sawestdistant7", "sawestdistant8", "sawestdistant9", "sawestdistantA10", "sawestdistantA11", "sawestdistantA12", "sawestdistantA13", "sawestdistantA14", "sawestdistantA15", "sawestdistantA16", "sawestdistantA17", "sawestdistantA18", "sawestdistantA19", "sawestdistantB20", "sawestdistantB21", "sawestdistantB22", "sawestdistantB23", "sawestdistantB24", "sawestdistantB25", "sawestdistantB26", "sawestdistantB27", "sawestdistantB28", "sawestdistantB29", "sawestdistantC30", "sawestdistantC31", "sawestdistantC32", "sawestdistantC33", "sawestdistantC34", "sawestdistantC35", "sawestdistantC36", "sawestdistantC37", "sawestdistantC38", "sawestdistantC39", "sawestdistantD40", "sawestdistantD41", "sawestdistantD42", "sawestdistantD43", "sawestdistantD44", "sawestdistantD45", "sawestdistantD46", "sawestdistantD47", "sawestdistantD48", "sawestdistantD49", "sawestdistantE50", "sawestdistantE51", "sawestdistantE52", "sawestdistantE53", "sawestdistantE54", "sawestdistantE55", "sawestdistantE56", "sawestdistantE57", "sawestdistantE58", "sawestdistantE59", "sawestdistantF60", "sawestdistantF61", "sawestdistantF62", "sawestdistantF63"
-],
+            "training_validation": [
+                "EEGspacedout5"
+            ],
+            "testing": [
+                "EEGspacedout5"
+            ],
             "balance": {}
         },
         "slice_filter_params": {
@@ -29,24 +47,32 @@
         },
         "slice_axis": "axial",
         "multichannel": false,
-        "soft_gt": false
+        "soft_gt": true,
+        "is_input_dropout": false
     },
     "split_dataset": {
         "fname_split": null,
         "random_seed": 6,
-        "center_test": [],
-        "method": "per_patient",
+        "split_method": "participant_id",
+        "data_testing": {
+            "data_type": null,
+            "data_value": []
+        },
         "balance": null,
         "train_fraction": 0.6,
         "test_fraction": 0.2
     },
     "training_parameters": {
-        "batch_size": 30,
+        "batch_size": 24,
         "loss": {
-            "name": "DiceLoss"
+            "name": "AdapWingLoss",
+            "theta": 0.5,
+            "alpha": 2.1,
+            "epsilon": 1,
+            "omega": 8
         },
         "training_time": {
-            "num_epochs": 100,
+            "num_epochs": 300,
             "early_stopping_patience": 50,
             "early_stopping_epsilon": 0.001
         },
@@ -54,8 +80,8 @@
             "initial_lr": 0.001,
             "lr_scheduler": {
                 "name": "CosineAnnealingLR",
-                "base_lr": 1e-5,
-                "max_lr": 1e-2
+                "base_lr": 1e-05,
+                "max_lr": 0.01
             }
         },
         "balance_samples": {
@@ -65,7 +91,7 @@
         "mixup_alpha": null,
         "transfer_learning": {
             "retrain_model": null,
-            "retrain_fraction": 1.0,
+            "retrain_fraction": 1,
             "reset": true
         }
     },
@@ -73,46 +99,107 @@
         "name": "Unet",
         "dropout_rate": 0.3,
         "bn_momentum": 0.9,
-        "depth": 3
+        "depth": 3,
+        "is_2d": false,
+        "final_activation": "relu"
+    },
+    "uncertainty": {
+        "epistemic": true,
+        "aleatoric": false,
+        "n_it": 2
+    },
+    "postprocessing": {
+        "remove_noise": {
+            "thr": -1
+        },
+        "binarize_prediction": {
+            "thr": -1
+        },
+        "uncertainty": {
+            "thr": -1,
+            "suffix": "_unc-vox.nii.gz"
+        },
+        "fill_holes": {},
+        "remove_small": {
+            "unit": "vox",
+            "thr": 3
+        }
+    },
+    "evaluation_parameters": {
+        "target_size": {
+            "unit": "vox",
+            "thr": [
+                20,
+                100
+            ]
+        },
+        "overlap": {
+            "unit": "vox",
+            "thr": 3
+        }
+    },
+    "transformation": {
+        "CenterCrop": {
+            "size": [
+                32,
+                32,
+                512
+            ]
+        },
+        "RandomAffine": {
+            "degrees": 0,
+            "scale": [
+                0,
+                0,
+                0.1
+            ],
+            "translate": [
+                0,
+                0,
+                0.03
+            ],
+            "applied_to": [
+                "im",
+                "gt"
+            ],
+            "dataset_type": [
+                "training"
+            ]
+        },
+        "NumpyToTensor": {},
+        "NormalizeInstance": {
+            "applied_to": [
+                "im"
+            ]
+        }
     },
     "FiLMedUnet": {
         "applied": false,
         "metadata": "institution_id",
-        "film_layers": [0, 1, 0, 0, 0, 0, 0, 0]
+        "film_layers": [
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
     },
     "Modified3DUNet": {
         "applied": true,
-        "length_3D": [32, 32, 512],
-        "stride_3D": [32, 32, 128],
+        "length_3D": [
+            32,
+            32,
+            512
+        ],
+        "stride_3D": [
+            32,
+            32,
+            128
+        ],
         "attention": false,
         "n_filters": 8
-    },
-    "uncertainty": {
-        "epistemic": false,
-        "aleatoric": false,
-        "n_it": 0
-    },
-    "postprocessing": {
-        "remove_noise": {"thr": -1},
-        "binarize_prediction": {"thr": 0.5},
-        "uncertainty": {"thr": -1, "suffix": "_unc-vox.nii.gz"},
-        "fill_holes": {},
-        "remove_small": {"unit": "vox", "thr": 3}
-    },
-    "evaluation_parameters": {
-        "target_size": {"unit": "vox", "thr": [20, 100]},
-        "overlap": {"unit": "vox", "thr": 3}
-    },
-    "transformation": {
-        "CenterCrop": {"size":  [32, 32, 512]}, 
-        "RandomAffine": {
-            "degrees": 0,
-            "scale": [0, 0, 0.1],
-            "translate": [0, 0, 0.03],
-            "applied_to": ["im", "gt"],
-            "dataset_type": ["training"]
-        },
-      "NumpyToTensor": {},
-      "NormalizeInstance": {"applied_to": ["im"]}
     }
 }
