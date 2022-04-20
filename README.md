@@ -45,15 +45,33 @@ The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input pa
 ![image](https://user-images.githubusercontent.com/23224563/164158717-a80f3c5e-67fa-4509-83aa-2d6adcc84ade.png)
 
 - `Parent folder`: Parent folder to store the created BIDS folder. If selected, the BIDS folder included within it will have the following name: 'protocolName_modality_datasetID_#' where # is a sequential number for easy identification. If no parent folder is selected, the BIDS dataset will be created within Brainstorm's temp folder - ATTENTION: the temp folder is emptied every time this function is used, or when Brainstorm is restarted.
-- `Modality selection`: some acquisition systems contain more than one recording modality in the same file. This selection allows the dataset to select the desired modality or a combination of modalities.
-- `Event for ground truth`: Events to be used as ground truth annotations in the NIFTIs. In case of a simple event, the `Annotations Time window` will create an annotation around the selected event. In case of an extended event, the annotation time window values are ignored.
-- `Annotation type`: Whole head - the entire slice is annotated. Partial - Only the annotated channels are annotated with the peak of a Gaussian centered at those channels (Gaussian in space).
-- `Gaussian annotation`: If selected, the annotation on the BIDS derivatives will be comprised of a gaussian function (soft annotation) with the 95% edges at the edges of the `Annotations Time window` that is selected around the `Event for ground truth` (Gaussian in time).
-- `Resampling rate`: if a value is entered here, the signals will be resampled to match this sampling rate. This ultimately affects the 3rd dimension of the NIFTI files.
-- `Jitter value`: This values chops a random number of ms, up to the value selected, from both edges of the trials.
-- `Channels drop-out`: randomly selected channels will be removed on the signals level (Before the conversion to NIFTIs). This is used to emulate the fact that recordings in different subjects can sometimes have some channels missing/corrupted.
-- `BIDS folders creation`: Manipulates the subjects on the created BIDS folder. `Normal`: assign each trial to the correct subject. `Separate runs/session as different subjects`: Each run is a different subject. `Separate each trial as different subjects`: Each trial is assigned as a different subject.
-- `FSLeyes`: if `FSLEyes` is installed, it shows an image and its derivative for quality control.
+
+**Modality selection**: Some acquisition systems contain more than one recording modality (ie: EEG and/or MEG) in the same file. This selection allows the dataset to select the desired modality or a combination of modalities.
+
+**Annotation parameters**
+- `Event for ground truth`: Events to be used as ground truth annotations in the NIfTIs. 
+- `Annotations Time window`: In case of a simple event, this field is used to create an annotation around the selected event. In case of an extended event, the annotation time window values are ignored.
+- `Whole head annotation:` 
+  - `Whole head`: the entire slice is annotated.
+  - `Partial`: Only the annotated channels are annotated with the peak of a Gaussian centered at those channels (Gaussian in space).
+- `Include trials that don't have selected events`: if a trial does not have a ground truth, include it. In this case, the ground truth (stored under `/derivatives`) will be a whole-zero NIfTI file.
+- `Gaussian annotation`: The annotation on the NIfTI file will be smoothed by a Gaussian function across time. The sigma of the Gaussian function is adjusted so that 5% bilateral edges are beyond the `Annotations Time window` defined earlier.
+
+**BIDS conversion parameters**
+- `Resampling rate`: The signals will be resampled to match this sampling rate. This ultimately affects the 3rd dimension of the NIFTI files (ie: time).
+- `Jitter value`: Range (in ms) within which a random number is selected to crop both edges of the trials. For example: if a trial is 1000ms long, a Jitter value of 100ms will crop both edges of the trial, producing a trial that is between 800ms and 1000ms long.
+
+**Data augmentation parameters (signal level)**
+- `Channels drop-out`: remove `n` random channels from the M/EEG dataset. `n` is a random number between 0 and the value input in this field. After removing those channels, the data will be interpolated on the Euclidean grid defined by the NIfTI file. For example, if a value `5` is selected, then up to 5 channels will be randomly removed for each trial independently (eg: trial 1 will have 2 channels removed, trial 2 will have 4 channels removed, etc.). This is used to emulate the fact that recordings in different subjects can sometimes have some channels missing/corrupted.
+
+**BIDS folders creation**
+In ivadomed, training imposes to split data across subjects. Hence, if training of M/EEG data is only done in one subject, we need to find a "hack" to split the data into several virtual subjects. This is the purpose of this section.
+- `Normal`: Assign trials to the correct subjects. 
+- `Separate runs/session as different subjects`: Each run is a different subject.
+- `Separate each trial as different subjects`: Each trial is a different subject.
+
+**FSLeyes**
+- `Open an example image/derivative on FSLeyes`: If [FSLeyes](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FSLeyes) is installed, it shows an image and its derivative for quality control.
 
 
 ## Definitions
@@ -81,5 +99,4 @@ Help is needed on the training of the datasets to optimize parameters.
    
 2. [Detection of mesial temporal lobe epileptiform discharges on intracranial electrodes using deep learning](https://pubmed.ncbi.nlm.nih.gov/31760212/)
 3. [Neurophysiologically interpretable DNN predicts complex movement components from brain activity](https://www.nature.com/articles/s41598-022-05079-0)
-
 
