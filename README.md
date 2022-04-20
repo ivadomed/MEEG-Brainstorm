@@ -42,15 +42,17 @@ In order to keep the two software as separate as possible and avoid duplications
 The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input parameters that affect the dataset created. The following figure shows the pop-up window where the users select the dataset parameters:
 
 
-![image](https://user-images.githubusercontent.com/23224563/144146427-e11d1789-67de-421b-88d1-57b95e26a870.png)
+![image](https://user-images.githubusercontent.com/23224563/164158717-a80f3c5e-67fa-4509-83aa-2d6adcc84ade.png)
 
+- `Parent folder`: Parent folder to store the created BIDS folder. If selected, the BIDS folder included within it will have the following name: 'protocolName_modality_datasetID_#' where # is a sequential number for easy identification. If no parent folder is selected, the BIDS dataset will be created within Brainstorm's temp folder - ATTENTION: the temp folder is emptied every time this function is used, or when Brainstorm is restarted.
 - `Modality selection`: some acquisition systems contain more than one recording modality in the same file. This selection allows the dataset to select the desired modality or a combination of modalities.
-- `Event for ground truth`: if the selected event is present in the trial: in case of a simple event, the `Annotations Time window` will create an annotation around the selected event. In case of an extended event, the annotation time window values are ignored
+- `Event for ground truth`: Events to be used as ground truth annotations in the NIFTIs. In case of a simple event, the `Annotations Time window` will create an annotation around the selected event. In case of an extended event, the annotation time window values are ignored.
+- `Annotation type`: Whole head - the entire slice is annotated. Partial - Only the annotated channels are annotated with the peak of a Gaussian centered at those channels (Gaussian in space).
+- `Gaussian annotation`: If selected, the annotation on the BIDS derivatives will be comprised of a gaussian function (soft annotation) with the 95% edges at the edges of the `Annotations Time window` that is selected around the `Event for ground truth` (Gaussian in time).
 - `Resampling rate`: if a value is entered here, the signals will be resampled to match this sampling rate. This ultimately affects the 3rd dimension of the NIFTI files.
 - `Jitter value`: This values chops a random number of ms, up to the value selected, from both edges of the trials.
-- `Gaussian annotation`: If selected, the annotation on the BIDS derivatives will be comprised of a gaussian function (soft annotation) with the 95% edges at the edges of the `Annotations Time window` that is selected around the `Event for ground truth`. `Soft seg training needed on the config file.`
-- `Soft annotation threshold`: If selected, the values on the annotation below the threshold will be set to 0, and above the threshold will be left as is. `Soft seg training needed on the config file.`
-- `BIDS folders creation`: Since we only have a single subject on this first epilepsy dataset, we fake subjects by selecting: `Separate each trial as different subjects`.
+- `Channels drop-out`: randomly selected channels will be removed on the signals level (Before the conversion to NIFTIs). This is used to emulate the fact that recordings in different subjects can sometimes have some channels missing/corrupted.
+- `BIDS folders creation`: Manipulates the subjects on the created BIDS folder. `Normal`: assign each trial to the correct subject. `Separate runs/session as different subjects`: Each run is a different subject. `Separate each trial as different subjects`: Each trial is assigned as a different subject.
 - `FSLeyes`: if `FSLEyes` is installed, it shows an image and its derivative for quality control.
 
 
