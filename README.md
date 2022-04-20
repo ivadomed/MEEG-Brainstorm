@@ -39,6 +39,9 @@ A collection of ivadomed's config.json files will be listed in this repo for dif
 
 In order to keep the two software as separate as possible and avoid duplications, all the EEG/MEG data processing is done on the Brainstorm side, and only once everything is prepared it gets transfered to ivadomed. The trials are created after preprocessing (ICA/PCA artifact rejection, resampling, z-scoring, filtering etc.).
 
+![image](https://user-images.githubusercontent.com/23224563/164266867-53d89a44-43f7-4503-bffc-d48d7b1965d7.png)
+
+
 The function `Ivadomed Toolbox -> Create BIDS dataset` has a variety of input parameters that affect the dataset created. The following figure shows the pop-up window where the users select the dataset parameters:
 
 
