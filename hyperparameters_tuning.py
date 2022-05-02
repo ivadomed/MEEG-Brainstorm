@@ -1,159 +1,140 @@
-#!/opt/anaconda3/bin/python
+#!/usr/bin/env python
 
 """
 This script is used to tune the hyperparameters of the model using Ray Tune.
-Website: `<https://docs.ray.io/en/latest/index.html>`
+Website: `<https://docs.ray.io/en/latest/index.html>`_.
 
-Usage: type "from hyperparameter_tuning import <class>" to use one of its classes.
-       type "from hyperparameter_tuning import <function>" to use one of its functions.
+Usage: type "from hyperparameters_tuning import <function>" to use one of its functions.
 
 Contributors: Ambroise Odonnat.
 """
 
-import os 
 import json
 import ray
 import torch
 
 import numpy as np
 
-from os import listdir
-from os.path import isfile, join
-from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score
 from functools import partial
-from torch.autograd import Variable
-
+from loguru import logger
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
+from sklearn.model_selection import KFold
+from sklearn.metrics import f1_score
+from torch.autograd import Variable
+from torchmetrics.functional import  accuracy, specificity, precision_recall, f1_score 
 
+from custom_losses import get_classification_loss, get_detection_loss
 from data import Data
-from dataloader import train_test_dataset, get_dataloader
+from dataloader import get_dataloader
+from early_stopping import EarlyStopping
+from learning_rate_warmup import NoamOpt
+from models import ClassificationBertMEEG, DetectionBertMEEG
 from utils import define_device
-from parser import get_tune_parser
-from Model import Transformer_classification
-
-from loguru import logger
         
-     
-        
-def train_validation(config, train_set, val_set, gpu_id, check = False):
+          
+def train_validation(task, config, train_set, val_set, n_classes, cost_sensitive, lambd,
+                     weight_decay, amsgrad, scheduler, warmup, gpu_id, check=False):
 
     """
-    Training on the model and send average validation loss to tune (imported from ray module) to help tuning hyperparameters.
+    Train the model corresponding to task.
+    Tune hyperparameters thanks to Ray Tune `<https://docs.ray.io/en/latest/index.html>`_.
 
     Args:
-        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters and training configuration,
-        train_set (array): Training set,
-        val_set (array): Validation set
-        gpu_id (int): Index of cuda device to use if available,
-        check (bool): Save model and optimizer state during training.
+        task (str): Indicates the model to use.
+        config (dict): Dictionnary containing training configuration, model and optimizer hyperparameters.
+        train_set (array): Training set with data, labels and spike events times.
+        val_set (array): Validation set with data, labels and spike events times.
+        n_classes (int): Number of classes in the dataset.
+        cost_sensitive (bool): If True, use cost-sensitive loss.
+        lambd (float): Modulate the influence of the cost-sensitive weight.
+        weight_decay (float): Value of weight decay in optimizer.
+        amsgrad (bool): Use AMSGrad variant of Adam.
+        scheduler (bool): Use ReduceLROnPLateau scheduler.
+        warmup (int): If warmup > 0, apply warm-up steps on the learning rate.
+        gpu_id (int): Index of cuda device to use if available.
+        check (bool): If True, save model state during training.
 
-    Example of configuration file:
-
-        config = 
-        {
-        "Model": 
-                {
-                "normalized_shape": 201,
-                "linear_size": 28,
-                "vector_size": 201,
-                "attention_dropout": 0.4,
-                "attention_negative_slope": 0.01,
-                "attention_kernel_size": 40,
-                "attention_stride": 1,
-                "spatial_dropout": 0.5,
-                "out_channels": 2,
-                "position_kernel_size": 101,
-                "position_stride": 1,
-                "emb_negative_slope": 0.001,
-                "channel_kernel_size": 28,
-                "time_kernel_size": 40,
-                "time_stride": 1,
-                "slice_size": 15,
-                "depth": 5,
-                "num_heads": 5,
-                "transformer_dropout": 0.7,
-                "forward_expansion": 4,
-                "forward_dropout": 0.6,
-                "n_classes": 7
-                },
-        "Optimizer": 
-                {
-                "lr": 0.01,
-                "b1": 0.9,
-                "b2": 0.999
-                }, 
-        "Training": 
-                {
-                "batch_size": 4,
-                "num_workers": 4,
-                "balanced": true,
-                "Epochs": 50,
-                "Mix-up": False,
-                "BETA": 0.6
-                }
-        }
     """
-
-    # Recover model, optimizer and training configuration
-    training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
-                                                             
+    
     # Tensor format
     Tensor = torch.FloatTensor
     LongTensor = torch.LongTensor
-    
-    # Define model
-    model = Transformer_classification(**model_config)
+            
+    # Recover model, optimizer and training configuration
+    training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
 
-    # Move model to gpu if available
-    available, device = define_device(gpu_id) 
+    # Recover training parameters
+    batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
+    n_epochs, final_epoch = training_config['Epochs'], training_config['Epochs']
+    mix_up, BETA = training_config["Mix-up"], training_config["BETA"]
+    
+    train_data, train_labels, train_spike_events = train_set
+    val_data, val_labels, val_spike_events = val_set
+    
+    if task == 'spike_counting':
+        
+        # Create dataloader
+        train_dataloader = get_dataloader(train_data, train_labels, batch_size, True, num_workers)
+        validation_dataloader = get_dataloader(val_data, val_labels, batch_size, False, num_workers) 
+
+        # Define model
+        model = ClassificationBertMEEG(**model_config)
+        
+        # Define losses
+        train_criterion_cls = get_classification_loss(n_classes, cost_sensitive, lambd)
+        val_criterion_cls = torch.nn.CrossEntropyLoss()
+    
+    elif task == "spike_detection':
+    
+        # Create dataloader
+        train_dataloader = get_dataloader(train_data, train_spike_events, batch_size, True, num_workers)
+        validation_dataloader = get_dataloader(val_data, val_spike_events, batch_size, False, num_workers) 
+
+        # Define model
+        n_time_windows = model_config['n_time_windows']
+        model = DetectionBertMEEG(**model_config)
+
+        # Define losses
+        train_criterion_cls = get_detection_loss(cost_sensitive, lambd)
+        val_criterion_cls = torch.nn.CrossEntropyLoss()
+        
+    # Move to gpu if available
+    available, device = define_device(gpu_id)
     if available:
+        train_criterion_cls = train_criterion_cls.cuda()
+        val_criterion_cls = val_criterion_cls.cuda()
         if torch.cuda.device_count() > 1:
             model = torch.nn.DataParallel(model)
     model.to(device)
 
-    # Define loss
-    if available:
-        criterion_cls = torch.nn.CrossEntropyLoss().cuda()
-    else:
-        criterion_cls = torch.nn.CrossEntropyLoss()
-    
     # Define optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr = optimizer_config['lr'],\
-                                          betas=(optimizer_config['b1'], optimizer_config['b2']))
-    
-    # Recover all data and labels
-    data_train, labels_train = train_set
-    data_test, labels_test = val_set
-         
-    # Recover train and test loaders
-    data_train = np.expand_dims(data_train, axis = 1)
-    data_test = np.expand_dims(data_test, axis = 1)
+    lr, b1, b2 = optimizer_config['lr'], optimizer_config['b1'], optimizer_config['b2']
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(b1, b2),
+                                      weight_decay=weight_decay, amsgrad=amsgrad)
 
-    # Create dataloader
-    batch_size, num_workers, balanced = training_config['batch_size'], training_config['num_workers'], training_config['balanced']
-    train_dataloader = get_dataloader(data_train, labels_train, batch_size, num_workers, balanced)
-    test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, False)
+    # Define warmup method
+    if warmup:
+        warmup_scheduler = NoamOpt(lr, warmup, optimizer) 
 
-    # Recover number of epochs
-    n_epochs = training_config['Epochs']
+    # Define scheduler
+    self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5,
+                                                                   patience=20, min_lr=1e-5, verbose=False)
 
-    # loop over the dataset n_epochs times
-    mix_up = training_config["Mix-up"]
-    for epoch in range(n_epochs):  
+    # Loop over the dataset n_epochs times
+    for e in range(n_epochs):
 
         # Set training mode
         model.train()
-
-        # Train the model
-        for i, (data, labels) in enumerate(train_dataloader):
+        for i, (data, labels) in enumerate(self.train_dataloader):
 
             if mix_up:
 
-                # Apply a mix-up strategy for data augmentation as adviced here '<https://forums.fast.ai/t/mixup-data-augmentation/22764>'
-                BETA = training_config["BETA"]
+                """
+                Apply a mix-up strategy for data augmentation inspired by:
+                `"mixup: Beyond Empirical Risk Minimization" <https://arxiv.org/abs/1710.09412>`_.
+                """
 
                 # Roll a copy of the batch
                 roll_factor =  torch.randint(0, data.shape[0], (1,)).item()
@@ -163,155 +144,176 @@ def train_validation(config, train_set, val_set, gpu_id, check = False):
                 # Create a tensor of lambdas sampled from the beta distribution
                 lambdas = np.random.beta(BETA, BETA, data.shape[0])
 
-                # trick from here https://forums.fast.ai/t/mixup-data-augmentation/22764
+                # Trick inspired by `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
                 lambdas = torch.reshape(torch.tensor(np.maximum(lambdas, 1-lambdas)), (-1,1,1,1))
 
                 # Mix samples
                 mix_data = lambdas*data + (1-lambdas)*rolled_data
 
-                # Recover data, labels
-                mix_data = Variable(mix_data.type(Tensor), requires_grad = True)
-                data = Variable(data.type(Tensor), requires_grad = True)
+                # Format conversion and move to device
+                mix_data = Variable(mix_data.type(Tensor), requires_grad=True)
+                data = Variable(data.type(Tensor), requires_grad=True)
                 labels = Variable(labels.type(LongTensor))
                 rolled_labels = Variable(rolled_labels.type(LongTensor))
                 mix_data, labels, rolled_labels = mix_data.to(device), labels.to(device), rolled_labels.to(device)
 
-                # zero the parameter gradients
+                # Zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward + backward
+                # Forward
                 _, mix_outputs = model(mix_data)
-                loss = (lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, labels) + (1-lambdas.squeeze()).to(device)*criterion_cls(mix_outputs, rolled_labels)
+
+                if task == 'spike_counting':
+                    
+                    # Compute mix-up loss
+                    lambdas = lambdas.squeeze().to(device)
+                    loss = (lambdas * train_criterion_cls(mix_outputs, labels) 
+                            + ((1-lambdas) * train_criterion_cls(mix_outputs, rolled_labels)))
+                elif task == 'spike_detection':
+                    
+                    # Concatenate the batches
+                    stack_mix_outputs = rearrange(mix_outputs, '(b) (v) o -> (b v) o') 
+                    stack_labels = rearrange(labels, '(b) (v) -> (b v)') 
+                    stack_rolled_labels = rearrange(rolled_labels, '(b) (v) -> (b v)') 
+                    
+                    # Compute mix-up loss
+                    lambdas = lambdas.squeeze().to(device)
+                    loss = (lambdas * train_criterion_cls(stack_mix_outputs, stack_labels) 
+                            + ((1-lambdas) * train_criterion_cls(stack_mix_outputs, stack_rolled_labels)))
                 loss = loss.sum()
+
+                # Backward
                 loss.backward()
 
-                # Optimize
-                optimizer.step()
+                # Update learning rate
+                if warmup:
+                    warmup_scheduler.step()
+                else:
+                    optimizer.step()
 
             else:
-                data = Variable(data.type(Tensor), requires_grad = True)
+
+                # Format conversion and move to device
+                data = Variable(data.type(Tensor), requires_grad=True)
                 labels = Variable(labels.type(LongTensor))
                 data, labels = data.to(device), labels.to(device)
 
-                # zero the parameter gradients
+                # Zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward + backward
+                # Forward
                 _, outputs = model(data)
-                loss = criterion_cls(outputs, labels)
+                y_pred = torch.max(outputs.data, -1)[1] 
+
+                if task == 'spike_counting':
+                    
+                    # Compute training loss
+                    loss = train_criterion_cls(outputs, labels)
+                elif task == 'spike_detection':
+                    
+                    # Concatenate the batches
+                    stack_outputs = rearrange(outputs, '(b) (v) o -> (b v) o') 
+                    stack_labels = rearrange(labels, '(b) (v) -> (b v)') 
+                    
+                    # Compute training loss
+                    loss = train_criterion_cls(stack_outputs, stack_labels)
+
+                # Backward
                 loss.backward()
 
-                # Optimize
-                optimizer.step()
+                # Update learning rate
+                if warmup:
+                    warmup_scheduler.step()
+                else:
+                    optimizer.step()
 
-        # Validation
-        test_loss = 0.0
-        test_steps = 0
-        test_total = 0
-        test_correct = 0
-        test_F1_score = 0.0
+        # Evaluate the model
+        val_loss = 0
+        val_steps = 0
 
         # Set evaluation mode
-        model.eval()
+        self.model.eval()
+        for j, (val_data, val_labels) in enumerate(self.validation_dataloader):
 
-        for j, (test_data, test_labels) in enumerate(test_dataloader):
+            # Format conversion and move to device
+            val_data = Variable(val_data.type(Tensor), requires_grad=True)
+            val_labels = Variable(val_labels.type(LongTensor))
+            val_data, val_labels = val_data.to(device), val_labels.to(device)
 
-            # Recover data, labels
-            test_data = Variable(test_data.type(Tensor), requires_grad = True)
-            test_labels = Variable(test_labels.type(LongTensor))
-            test_data, test_labels = test_data.to(device), test_labels.to(device)
+            # Forward
+            _, val_outputs = model(val_data)
 
-            # Recover outputs
-            _, test_outputs = model(test_data)
-            loss = criterion_cls(test_outputs, test_labels)
-            test_y_pred = torch.max(test_outputs, 1)[1]
+            if task == 'spike_counting':
+                
+                # Compute validation loss
+                loss = val_criterion_cls(val_outputs, val_labels)
+            elif task == 'spike_detection':
+                
+                # Compute validation loss
+                loss = self.val_criterion_cls(stack_val_outputs, stack_val_labels)
 
-            # Update val_loss, accuracy and F1_score
-            test_loss += loss.cpu().detach().numpy()
-            test_steps += 1  
-            test_correct += (test_y_pred == test_labels).sum().item()
-            test_total += test_labels.size(0)     
-            test_F1_score += f1_score(test_labels.cpu().detach().numpy(), test_y_pred.cpu().detach().numpy(), average = 'macro')
+            # Detach from device
+            loss = loss.cpu().detach().numpy()
 
+            # Update learning rate if validation loss does not improve
+            if scheduler:
+                lr_scheduler.step(loss)
+
+            # Recover training loss and metrics
+            val_loss += loss 
+            val_steps += 1
+                
         if check:
             with tune.checkpoint_dir(epoch) as checkpoint_dir:
                 path = os.path.join(checkpoint_dir, "checkpoint")
                 torch.save((model.state_dict(), optimizer.state_dict()), path)   
         
-        averLoss = (test_loss / test_steps)
-        averAcc = (test_correct / test_total) 
-        averF1 = (test_F1_score / test_steps)
-        
-        tune.report(loss = averLoss, accuracy = averAcc, F1_score = averF1)
+        loss /= val_steps
+        tune.report(loss=loss)
     
     logger.info("Finished Training") 
 
     
-def test_accuracy(config, model_state, test_set, gpu_id):
+def test(config, test_set, model_state, gpu_id):
     
     """
     Evaluate a model on test set.
 
     Args:
-        config (dict): Dictionnary of dictionnary containing model hyperparamaters, optimizer parameters and training configuration,
-        model: Deep Learning model (inherited from torch.nn.Modules),
-        test_set (array): Test set,
+        config (dict): Dictionnary containing training_configuration, model and optimizer hyperparameters.
+        train_set (array): Training set with data, labels and spike events times.
+        model: Model inherited from torch.nn.Modules.
         gpu_id (int): Index of cuda device to use if available.
-
-    Returns:
-        tuple: accuracy (float): Average accuracy on the test set,
-               F1_score (float): Average F1 score on the test set.
         
-    Example of configuration file:
-
-        config = 
-        {
-        "Model": 
-                {
-                "normalized_shape": 201,
-                "linear_size": 28,
-                "vector_size": 201,
-                "attention_dropout": 0.4,
-                "attention_negative_slope": 0.01,
-                "attention_kernel_size": 40,
-                "attention_stride": 1,
-                "spatial_dropout": 0.5,
-                "out_channels": 2,
-                "position_kernel_size": 101,
-                "position_stride": 1,
-                "emb_negative_slope": 0.001,
-                "channel_kernel_size": 28,
-                "time_kernel_size": 40,
-                "time_stride": 1,
-                "slice_size": 15,
-                "depth": 5,
-                "num_heads": 5,
-                "transformer_dropout": 0.7,
-                "forward_expansion": 4,
-                "forward_dropout": 0.6,
-                "n_classes": 7
-                },
-        "Optimizer": 
-                {
-                "lr": 0.01,
-                "b1": 0.9,
-                "b2": 0.999
-                }, 
-        "Training": 
-                {
-                "batch_size": 4,
-                "num_workers": 4,
-                "balanced": true,
-                "Epochs": 50,
-                "Mix-up": False,
-                "BETA": 0.6
-                }
-        }
-    
     """
+    # Tensor format
+    Tensor = torch.FloatTensor
+    LongTensor = torch.LongTensor
+            
+    # Recover model, optimizer and training configuration
+    training_config , model_config, optimizer_config = config['Training'], config['Model'], config['Optimizer']
+
+    # Recover training parameters
+    batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
+    test_data, test_labels, test_spike_events = test_set
     
-    model = Transformer_classification(**config['Model']) 
+    if task == 'spike_counting':
+        
+        # Create dataloader
+        test_dataloader = get_dataloader(test_data, test_labels, batch_size, True, num_workers)
+
+        # Define model
+        model = ClassificationBertMEEG(**model_config)
+
+    elif task == "spike_detection':
     
+        # Create dataloader
+        test_dataloader = get_dataloader(test_data, test_spike_events, batch_size, True, num_workers)
+
+        # Define model
+        n_time_windows = model_config['n_time_windows']
+        model = DetectionBertMEEG(**model_config)
+
     # Move model to gpu if available
     available, device = define_device(gpu_id)
     if available:
@@ -324,135 +326,141 @@ def test_accuracy(config, model_state, test_set, gpu_id):
     
     # Set evaluation mode 
     model.eval()
-    
-    # Recover test data and labels
-    data_test, labels_test = test_set
-    data_test = np.expand_dims(data_test, axis = 1)
-    
-    # Tensor format
-    Tensor = torch.FloatTensor
-    LongTensor = torch.LongTensor
-    
-    # Create dataloader
-    training_config = config['Training']
-    batch_size, num_workers = training_config['batch_size'], training_config['num_workers']
-    test_dataloader = get_dataloader(data_test, labels_test, batch_size, num_workers, False)
-    
-    correct = 0
-    total = 0
-    F1_score = 0.0
-    steps = 0
 
-    with torch.no_grad():
-        for i, (data, labels) in enumerate(test_dataloader):
-            data = Variable(data.type(Tensor), requires_grad = True)
-            labels = Variable(labels.type(LongTensor))
-            data, labels = data.to(device), labels.to(device)
-            _, outputs = model(data)
-            predicted = torch.max(outputs, 1)[1]
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            F1_score += f1_score(labels.cpu().detach().numpy(), predicted.cpu().detach().numpy(), average = 'weighted')
-            steps += 1
+    if task == 'spike_counting':
+
+        # Initialize metrics
+        Accuracy, Specificity, Recall, Precision, F1_score = 0, 0, 0, 0, 0
+        steps = 0
+        
+        with torch.no_grad():
+            for i, (data, labels) in enumerate(self.test_dataloader):
+                
+                # Format conversion and move to device
+                data = Variable(data.type(self.Tensor), requires_grad=True)
+                labels = Variable(labels.type(self.LongTensor))
+                data, labels = data.to(device), labels.to(device)
             
-    logger.info("Finished evaluating")
-    accuracy = (correct / total) 
-    F1_score /= steps
-    return accuracy, F1_score
+                # Inference
+                _, outputs = model(data)
+                pred = torch.max(outputs.data, -1)[1]
+                
+                # Detach from device
+                labels = labels.cpu().detach()
+                pred = pred.cpu().detach()
+                
+                # Recover metrics
+                Accuracy += accuracy(pred, labels, average='micro').cpu().detach().item()
+                Specificity += specificity(pred, labels, average='macro', num_classes=self.n_classes).cpu().detach().item()
+                precision, recall = precision_recall(pred, labels, average='macro', num_classes=self.n_classes)
+                Recall += recall.cpu().detach().item()
+                Precision += precision.cpu().detach().item()
+                F1_score += f1_score(pred, labels, average='macro', num_classes=self.n_classes).cpu().detach().item()
+                steps += 1
 
+            Accuracy /= steps
+            Specificity /= steps
+            Recall /= steps
+            Precision /= steps
+            F1_score /= steps
+        
+        logger.info('Evaluation finished')
+        
+        print('Average Accuracy on test set:', "%.4f" % round(Accuracy, 4))
+        print('Average Specificity on test set:', "%.4f" % round(Specificity, 4))
+        print('Average Recall on test set:', "%.4f" % round(Recall, 4))
+        print('Average Precision on test set:', "%.4f" % round(Precision, 4))
+        print('Average F1 score on test set:', "%.4f" % round(F1_score, 4))
+        
+    elif task == 'spike_detection':
+        
+        # Initialize confusion_matrix
+        confusion_matrix = np.zeros((2,2)) # Here the positive class is the class 1
+        
+        with torch.no_grad():
+            for i, (data, labels) in enumerate(self.test_dataloader):
+                
+                # Apply time window reduction
+                labels = get_spike_windows(labels, n_time_windows)
+                
+                # Format conversion and move to device
+                data = Variable(data.type(self.Tensor), requires_grad=True)
+                labels = Variable(labels.type(self.LongTensor))
+                data, labels = data.to(device), labels.to(device)
+            
+                # Inference
+                _, outputs = model(data)
+                pred = torch.max(outputs.data, -1)[1]
+                
+                # Detach from device
+                labels = labels.cpu().detach()
+                pred = pred.cpu().detach()
 
-def get_config(tuning_config_path):
+                # Recover confusion matrix
+                for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
+                    confusion_matrix[t.long(), p.long()] += 1
+                    
+            TP = confusion_matrix[1][1]
+            TN = confusion_matrix[0][0] 
+            FP = confusion_matrix[0][1] 
+            FN = confusion_matrix[1][0] 
+
+            P = TP + FN
+            N = TN + FP
+            
+            Accuracy = (TP+TN) / (P+N)
+            Specificity = TN/N
+            Sensitivity = TP/P
+            Precision = TP / (TP+FP)
+            F1_score = 2 * (Sensitivity*Precision) / (Sensitivity+Precision)
+        
+        logger.info('Evaluation finished')
+        
+        print('Average Accuracy on test set:', "%.4f" % round(Accuracy, 4))
+        print('Average Specificity on test set:', "%.4f" % round(Specificity, 4))
+        print('Average Sensitivity on test set:', "%.4f" % round(Sensitivity, 4))
+        print('Average Precision on test set:', "%.4f" % round(Precision, 4))
+        print('Average F1 score on test set:', "%.4f" % round(F1_score, 4))
+
+        
+
+def get_tuning_config(tuning_config):
     
     """
     Function to obtain the search domain for hyperparameters.
-    ! *** Warning --> slice_size must be a multiple of num_heads *** !
+    `<num_heads>` must be a dividor of `<emb_size>`.
 
     Args:
-        tuning_config (dict): Dictionnary of dictionnary containing in list format search model for model hyperparamaters, optimizer parameters 
-                       and training configuration --> dataloaders parameters (batch size, number of workers),
-                       number of epochs, mix-up parameters.
+        tuning_config (dict): Dictionnary containing search domain in list format 
+                              of training configuration, model and optimizer hyperparameters.
 
     Returns:
-        tuning_config (dict): Dictionnary of dictionnary containing in categorical format search model hyperparamaters, optimizer parameters 
-                and training configuration --> dataloaders parameters (batch size, number of workers),
-                number of epochs, mix-up parameters.
-            
-    Example of tuning configuration file:
-
-        config = 
-        {
-        "Model": 
-                {
-                'normalized_shape': normalized_shape,
-                'linear_size': linear_size,
-                'vector_size': vector_size,
-                'attention_dropout': dropout_list,
-                'attention_negative_slope': slope_list,
-                'attention_kernel_size': [10,20,30,40],
-                'attention_stride': stride_list,
-                'spatial_dropout': dropout_list,
-                'out_channels': out_channels,
-                'position_kernel_size': [1,11,21,31,41,51,61,71,81,91,101],
-                'position_stride': position_stride,
-                'emb_negative_slope': slope_list,
-                'channel_kernel_size': channel_kernel_size,
-                'time_kernel_size': [10,20,30,40],
-                'time_stride': stride_list,
-                'slice_size': [5,10,15,20,25,30],
-                'depth': [2,3,4,5,6],
-                'num_heads': [5],
-                'transformer_dropout': dropout_list,
-                'forward_expansion': [3,4,5],
-                'forward_dropout': dropout_list,
-                'n_classes': n_classes
-                },
-        "Optimizer": 
-                {
-                'lr': [1e-2, 1e-3, 1e-4],
-                'b1': [0.9],
-                'b2': [0.999]
-                }, 
-        "Training": 
-                {
-                'batch_size': [4,8,16,32,64],
-                'num_workers': 4,
-                'balanced': balanced,
-                'Epochs': n_epochs,
-                'Mix-up': mix_up,
-                'BETA': [0.4,0.6]
-                }
-        }
+        tuning_config (dict): Dictionnary containing search domain in categorical format
+                              of training configuration, model and optimizer hyperparameters.
     """
     
-    # Recover tuning config dictionnary
-    with open(tuning_config_path) as f:
-        tuning_config = json.loads(f.read())
-        
-    config = tuning_config 
+    config = tuning_config.copy()
+    
     config['Model']['attention_dropout'] = tune.choice(tuning_config['Model']['attention_dropout'])
-    config['Model']['attention_negative_slope'] = tune.choice(tuning_config['Model']['attention_negative_slope'])
-    config['Model']['attention_kernel_size'] = tune.choice(tuning_config['Model']['attention_kernel_size'])
+    config['Model']['attention_kernel'] = tune.choice(tuning_config['Model']['attention_kernel'])
     config['Model']['attention_stride'] = tune.choice(tuning_config['Model']['attention_stride'])
     config['Model']['spatial_dropout'] = tune.choice(tuning_config['Model']['spatial_dropout'])
-    config['Model']['position_kernel_size'] = tune.choice(tuning_config['Model']['position_kernel_size'])
-    config['Model']['emb_negative_slope'] = tune.choice(tuning_config['Model']['emb_negative_slope'])
-    config['Model']['time_kernel_size'] = tune.choice(tuning_config['Model']['time_kernel_size'])
+    config['Model']['position_kernel'] = tune.choice(tuning_config['Model']['position_kernel'])
+    config['Model']['time_kernel'] = tune.choice(tuning_config['Model']['time_kernel'])
     config['Model']['time_stride'] = tune.choice(tuning_config['Model']['time_stride'])
-    config['Model']['slice_size'] = tune.choice(tuning_config['Model']['slice_size']) # A multiple of each num_heads possible value
+    config['Model']['emb_size'] = tune.choice(tuning_config['Model']['emb_size']) 
     config['Model']['depth'] = tune.choice(tuning_config['Model']['depth'])
-    config['Model']['num_heads'] = tune.choice(tuning_config['Model']['num_heads']) # A divider of each slice_size possible value
+    config['Model']['num_heads'] = tune.choice(tuning_config['Model']['num_heads']) 
     config['Model']['transformer_dropout'] = tune.choice(tuning_config['Model']['transformer_dropout'])
     config['Model']['forward_expansion'] = tune.choice(tuning_config['Model']['forward_expansion'])
-    config['Model']['forward_dropout'] = tune.choice(tuning_config['Model']['forward_dropout'])
-    
-    config['Optimizer']['lr'] = tune.choice(tuning_config['Optimizer']['lr'])
-    config['Optimizer']['b1'] = tune.choice(tuning_config['Optimizer']['b1'])
-    config['Optimizer']['b2'] = tune.choice(tuning_config['Optimizer']['b2'])
-    
-    config['Training']['batch_size'] = tune.choice(tuning_config['Training']['batch_size'])
-    config['Training']['BETA'] = tune.choice(tuning_config['Training']['BETA'])
-    
+    config['Model']['transformer_dropout'] = tune.choice(tuning_config['Model']['transformer_dropout'])
+
     return config
+
+
+from os import listdir
+from os.path import isfile, join
+from parser import get_tune_parser
 
 
 def main(validation_size = 0.15):
@@ -474,52 +482,6 @@ def main(validation_size = 0.15):
             [path to save best corresponding configuration file] -gpu [index of the cuda device to use if available] --n_samples [number of samples in Ray]
             --max_n_epochs [number of maxima epochs for each trial] --gpu_resources [gpu resources] --cpu_resources [cpu resources]
             --metric [metric to tune on ("loss" for instance)] --mode [mode to tune on ("min" for instance)]
-
-    Example of tuning configuration file:
-
-        config = 
-        {
-        "Model": 
-                {
-                'normalized_shape': normalized_shape,
-                'linear_size': linear_size,
-                'vector_size': vector_size,
-                'attention_dropout': dropout_list,
-                'attention_negative_slope': slope_list,
-                'attention_kernel_size': [10,20,30,40],
-                'attention_stride': stride_list,
-                'spatial_dropout': dropout_list,
-                'out_channels': out_channels,
-                'position_kernel_size': [1,11,21,31,41,51,61,71,81,91,101],
-                'position_stride': position_stride,
-                'emb_negative_slope': slope_list,
-                'channel_kernel_size': channel_kernel_size,
-                'time_kernel_size': [10,20,30,40],
-                'time_stride': stride_list,
-                'slice_size': [5,10,15,20,25,30],
-                'depth': [2,3,4,5,6],
-                'num_heads': [5],
-                'transformer_dropout': dropout_list,
-                'forward_expansion': [3,4,5],
-                'forward_dropout': dropout_list,
-                'n_classes': n_classes
-                },
-        "Optimizer": 
-                {
-                'lr': [1e-2, 1e-3, 1e-4],
-                'b1': [0.9],
-                'b2': [0.999]
-                }, 
-        "Training": 
-                {
-                'batch_size': [4,8,16,32,64],
-                'num_workers': 4,
-                'balanced': balanced,
-                'Epochs': n_epochs,
-                'Mix-up': mix_up,
-                'BETA': [0.4,0.6]
-                }
-        }
     """
 
 
@@ -576,7 +538,11 @@ def main(validation_size = 0.15):
     test_set = (data_test, labels_test)
     
     # Recover tuning config dictionnary
-    config = get_config(tuning_config_path)
+    with open(tuning_config_path) as f:
+        tuning_config = json.loads(f.read())
+        
+    # Recover tuning config dictionnary
+    config = get_config(tuning_config)
     
     scheduler = ASHAScheduler(
         metric = "loss",
