@@ -33,58 +33,40 @@ def get_parser():
      
     # COMMAND ARGUMENTS
 
-    command_group = parser.add_mutually_exclusive_group(required = True)
+    command_group = parser.add_mutually_exclusive_group(required=True)
 
     
-    command_group.add_argument('--train', dest = 'train', action = 'store_true',
-                               help = 'Perform training on data.')
+    command_group.add_argument('--train', dest='train', action='store_true',
+                               help='Perform training and validation on data.')
     
-    command_group.add_argument('--test', dest = 'test', action = 'store_true',
-                               help = 'Perform testing on trained model.')
+    command_group.add_argument('--test', dest='test', action='store_true',
+                               help='Perform testing on trained model.')
     
     
     # ARGUMENTS
     
-    parser.add_argument('-pd', '--path-data', dest = 'path_data', required = True, type = dir_path,
-                               help = 'Path to data in .mat format')
+    parser.add_argument('--path-data', dest='path_data', required=False, type=dir_path,
+                               help='Path to data in .mat format')
     
-    parser.add_argument('-pcd', '--path-config_data', dest = 'path_config_data', required = True, type = file_path,
-                               help = 'Path to configuration dictionnary for data.')   
+    parser.add_argument('--path-channel', dest='path_channel', required=False, type=file_path,
+                               help='Path to channel file in .mat format')
     
-    parser.add_argument('-pct', '--path-config_training', dest = 'path_config_training', required = True, type = file_path,
-                               help = 'Path to configuration dictionnary for training.')
+    parser.add_argument('--path-config', dest='path_config', required=True, type=file_path,
+                               help='Path to configuration file in .json format')   
     
-    parser.add_argument('-pm', '--path-model', dest = 'path_model', required = True, type = file_path,
-                               help = 'Path to save model state.')
+    parser.add_argument('--path-output', dest='path_output', required=False, type=dir_path,
+                               help='Path to output folder.')
     
-    parser.add_argument('-pc', '--path-config', dest = 'path_config', required = True, type = file_path,
-                               help = 'Path to save training configuration file.')
-    
-    parser.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = True, type = int,
-                               help = 'Id of the wanted gpu device.') 
+    parser.add_argument('--gpu_id', dest='gpu_id', required=True, type=int,
+                               help='Id of the cuda device to use if available.') 
     
 
     # OPTIONAL ARGUMENTS
     
     optional_args = parser.add_argument_group('OPTIONAL ARGUMENTS')
    
-    optional_args.add_argument('--save', dest = 'save', action = 'store_true', required = False,
-                               help = 'Save model and optimizer states as well as training configuration file.')
-    
-    optional_args.add_argument('--scheduler', dest = 'scheduler', action = 'store_true', required = False,
-                               help = 'Use a scheduler on the learning rate.')
-    
-    optional_args.add_argument('--amsgrad', dest = 'amsgrad', action = 'store_true', required = False,
-                               help = 'Use AMSGrad instead of ADAM as optimizer algorithm.')
-    
-    optional_args.add_argument('-weight_decay', dest = 'weight_decay', required = False, type = float,
-                               help = 'Weight_decay in optimizer for L2 regularization.')
-
-    optional_args.add_argument('-l1_weight', dest = 'l1_weight', required = False, type = float,
-                               help = 'Weight for L1 regularization.')
-
-    optional_args.add_argument('-l2_weight', dest = 'l2_weight', required = False, type = float,
-                               help = 'Weight for L2 regularization.')
+    optional_args.add_argument('--save', dest='save', action='store_true', required=False,
+                               help='Save training and validation information, model parameters and config file.')
     
     return parser
 
