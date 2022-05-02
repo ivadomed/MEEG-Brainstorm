@@ -43,10 +43,9 @@ def common_spatial_pattern(data, labels, selected_rows):
     
     # Binary classification
     if N <= 2:
-        
-        idx_one = idx[0]
+        idx_one = range(len(labels)) #idx[0]
         idx_rest = idx[1] 
-
+        
         # Compute covariance matrices for all trials
         cov_one = np.zeros([n_channels, n_channels, len(idx_one)])
         cov_rest = np.zeros([n_channels, n_channels, len(idx_rest)])
@@ -64,7 +63,7 @@ def common_spatial_pattern(data, labels, selected_rows):
         # Mean covariance matrices
         cov_one = np.mean(cov_one, axis=2)
         cov_rest = np.mean(cov_rest, axis=2)
-        cov_total = cov_one + cov_rest  
+        cov_total = cov_one #+ cov_rest  
 
         # Eigendecomposition of CovTotal
         lambd, V = eig(cov_total)
