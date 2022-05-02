@@ -9,6 +9,7 @@ Usage: type "from models import <class>" to use one of its classes.
 Contributors: Ambroise Odonnat.
 """
 
+import sys
 import torch
 
 import numpy as np
@@ -51,50 +52,21 @@ class ResidualAdd(nn.Module):
 
 class ChannelAttention(nn.Module):
     
-    def __init__(self, seq_len, emb_size, dropout, kernel, stride):
+    def __init__(self, emb_size, num_heads, dropout):
         
         """    
+        Multi-head attention inspired by:
+        `"Attention Is All You Need" <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
+        Trials were padded with zero channels to have the same sequence dimension in a given batch.
         Args:
-            seq_len (int): Length of sequence (corresponds to number of channels after CSP Projection).
-            emb_size (int): Size of embedding vectors.
-            dropout (float): Dropout value.
-            kernel (int): Size of kernel in average pooling.
-            stride (int): Stride in average pooling.
+            emb_size (int): Size of embedding vectors. (! Warning: num_heads must be a dividor of emb_size !).
+            num_heads (int): Number of heads in multi-head block.
+            dropout (float): Dropout value in multi-head block.
         """
         
         super().__init__()
-
-        # Query layer
-        self.query = nn.Sequential(nn.Linear(seq_len, seq_len),
-                                   nn.LayerNorm(seq_len),  
-                                   nn.Dropout(dropout))
         
-        # Key layer
-        self.key = nn.Sequential(nn.Linear(seq_len, seq_len),
-                                 nn.LayerNorm(seq_len),
-                                 nn.Dropout(dropout))
-
-        # Final projection layer
-        self.projection = nn.Sequential(nn.Linear(seq_len, seq_len),
-                                        nn.LeakyReLU(),
-                                        nn.LayerNorm(seq_len),
-                                        nn.Dropout(dropout))
-        self.dropout = nn.Dropout(0.5)
-        
-        # Average pooling layer
-        self.pooling = nn.AvgPool2d(kernel_size=(1, kernel), stride=(1, stride)) 
-
-        # Compute Query dimension after average pooling
-        query_size = (emb_size-kernel) / stride
-        query_size += 1
-        self.scaling = query_size ** (1/2) 
-        
-        # Weights initialization
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight, gain=1)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0.0)
+        self.attention = nn.MultiheadAttention(emb_size, num_heads, dropout)
 
     def forward(self, x):
 
@@ -102,35 +74,19 @@ class ChannelAttention(nn.Module):
         Apply spatial transforming.
 
         Args:
-            x (torch tensor): Batches of trials after CSP projection 
-                              of dimension [batch_size x 1 x n_channels x n_time_points].
+            x (torch tensor): Batches of trials of dimension [batch_size x 1 x n_channels x n_time_points].
 
         Returns:
             out (tensor): Batches of trials of dimension [batch_size x 1 x n_channels x n_time_points].
         """
         
-        temp = rearrange(x, 'b o c t -> b o t c')
-
-        # Compute query Q
-        temp_query = rearrange(self.query(temp), 'b o t c -> b o c t')
-        channel_query = self.pooling(temp_query)
-        
-        # Compute key K
-        temp_key = rearrange(self.key(temp), 'b o t c -> b o c t')
-        channel_key = self.pooling(temp_key)
-
-        # Compute attention score
-        channel_atten = torch.einsum('b o c t, b o m t -> b o c m', channel_query, channel_key) / self.scaling
-        channel_atten_score = F.softmax(channel_atten, dim=-1)
-        channel_atten_score = self.dropout(channel_atten_score)
-
-        # Multiply by value V = x
-        out = torch.einsum('b o c t, b o c m -> b o c t', x, channel_atten_score)
-
-        # Apply projection
-        out = rearrange(out, 'b o c t -> b o t c')
-        out = self.projection(out)
-        out = rearrange(out, 'b o t c -> b o c t')
+        # Multi-head attention
+        x = torch.squeeze(x)
+        #key_padding_mask = (x.mean(dim=-1) == -sys.maxsize)&(x.std(dim=-1) == 0) # padded channels should be ignored in self-attention 
+        x = rearrange(x, 'b s e -> s b e')
+        out, _ = self.attention(x, x, x)
+        out = rearrange(out, 's b e -> b s e')
+        out = torch.unsqueeze(out,1)
         return out
 
     
@@ -171,7 +127,7 @@ class PatchEmbedding(nn.Module):
                                            nn.Conv2d(2, emb_size, (n_channels, time_kernel),
                                                      stride=(1, time_stride),
                                                      padding=(0,time_padding)), 
-                                           Rearrange('b o (c) (t) -> b (c t) o')) # [batch size x seq_len x emb_size]       
+                                           Rearrange('b o (c) (t) -> b (c t) o')) # [batch size x seq_len x emb_size]   
         else:
             
             # Position encoding and compression of channel axis via convolutional layer
@@ -183,7 +139,8 @@ class PatchEmbedding(nn.Module):
                                                      stride=(1, time_stride)), 
                                            Rearrange('b o (c) (t) -> b (c t) o')) # [batch size x new_seq_len x emb_size]
         
-    def forward(self, x: Tensor) -> Tensor:
+
+    def forward(self, x: Tensor):
 
         """
         Create embeddings with positional encoding. 
@@ -223,7 +180,7 @@ class TimeEmbedding(nn.Module):
         
         self.embedding = Time2Vec(seq_len, emb_size, n_channels)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
 
         """
         Args:
@@ -258,7 +215,7 @@ class MultiHeadAttention(nn.Module):
         
         self.attention = nn.MultiheadAttention(emb_size, num_heads, dropout)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
        
         """
         Apply multi-head attention.
@@ -269,9 +226,10 @@ class MultiHeadAttention(nn.Module):
         Returns:
              out: Batch of trials with dimension [batch_size x seq_len x emb_size].
         """
-        
+        x = rearrange(x, 'b s e -> s b e')
         out, _ = self.attention(x, x, x)
-        
+        out = rearrange(out, 's b e -> b s e')
+
         return out    
     
     
@@ -406,7 +364,7 @@ class DetectionBertMEEG(nn.Sequential):
     Output (tensor): Tensor of logits of dimension [batch_size x n_time_windows x 2].
     """
     
-    def __init__(self, n_channels, n_time_points, attention_dropout, attention_kernel, attention_stride, spatial_dropout,
+    def __init__(self, n_channels, n_time_points, attention_num_heads, attention_dropout, spatial_dropout,
                  position_kernel, position_stride, emb_size, time_kernel, time_stride,embedding_dropout, depth, num_heads,
                  expansion, transformer_dropout, n_time_windows, detector_dropout): 
       
@@ -414,10 +372,8 @@ class DetectionBertMEEG(nn.Sequential):
         Args:
             n_channels (int): Number of channels in EEG/MEG trials after CSP Projection.
             n_time_points (int): Number of time points in EEF/MEG trials.
+            attention_num_heads (int): Number of heads in channel attention layer.
             attention_dropout (float): Dropout value in channel_attention layer.
-            attention_kernel (int): Average pooling kernel size in channel_attention layer.
-            attention_stride (int): Average pooling stride in channel_attention layer.
-            spatial_dropout (float): Dropout value after Spatial transforming block.
             position_kernel (int): Kernel size in convolution for positional encoding.
             position_stride (int): Stride in convolution for positional encoding.
             emb_size (int): Size of embedding vectors in Temporal transforming block.
@@ -433,15 +389,14 @@ class DetectionBertMEEG(nn.Sequential):
         """
         
         super().__init__(ResidualAdd(nn.Sequential(nn.LayerNorm(n_time_points),
-                                                   ChannelAttention(n_channels, n_time_points,
-                                                                    attention_dropout,
-                                                                    attention_kernel,
-                                                                    attention_stride),
+                                                   ChannelAttention(n_time_points,
+                                                                    attention_num_heads,
+                                                                    attention_dropout),
                                                    nn.Dropout(spatial_dropout))), # Spatial transforming,
-            
+
                          PatchEmbedding(True, n_time_points, position_kernel, position_stride,
                                         emb_size, n_channels, time_kernel, time_stride), # Embedding and positional encoding
-            
+
                          nn.Dropout(embedding_dropout),
 
                          TransformerEncoder(depth, emb_size, num_heads, expansion, transformer_dropout), # Temporal transforming
