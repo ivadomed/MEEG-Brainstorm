@@ -17,7 +17,7 @@ import seaborn as sns
 
 from loguru import logger
 from torch.autograd import Variable
-
+  
 
 def get_spike_events(spike_time_points, n_time_points, freq):
 
@@ -132,6 +132,16 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
+def reset_weights(m):
+
+    """
+    Try resetting model weights to avoid weight leakage
+    """
+    for layer in m.children():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
+              
+                
 def l1_regularization(w):
     
     """
