@@ -1,4 +1,3 @@
-import torch
 from torch import nn
 
 
@@ -13,13 +12,20 @@ class fukumori2021RNN():
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        # First LSTM
         x = self.LSTM_1(x)
         x = self.tanh(x)
         x = self.avgPool(x)
+
+        # Self-attention Layer
         x, attention_weights = self.selfattention(x) 
+
+        # Second LSTM
         x = self.LSTM_2(x)
         x = self.tanh(x)
         x = self.avgPool(x)
+
+        # Classifier
         x = self.classifier(x.flatten())
          
         return self.sigmoid(x), attention_weights
