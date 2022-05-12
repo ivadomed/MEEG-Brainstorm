@@ -6,7 +6,7 @@ to count the number of spikes inspired by:
 `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
 <https://arxiv.org/pdf/2106.11170.pdf>`_.
 
-Usage: type "from models import <class>" to use one of its classes.
+Usage: type "from models import <class>" to use one class.
 
 Contributors: Ambroise Odonnat.
 """
@@ -23,14 +23,14 @@ from heads import Mish, RobertaClassifier, SpikeDetector
 
 
 class ResidualAdd(nn.Module):
-    
+
     def __init__(self, fn):
-        
-        """  
+
+        """
         Args:
             fn: Sequence of layers.
         """
-        
+
         super().__init__()
         self.fn = fn
 
@@ -38,21 +38,21 @@ class ResidualAdd(nn.Module):
         res = x
         x = self.fn(x, **kwargs)
         x += res
-        
+
         return x
-    
-    
+
+
 """ ********** Spatial transforming ********** """
 
 
 class ChannelAttention(nn.Module):
-    
+
     def __init__(self, emb_size, num_heads, dropout):
-        
+
         """ Multi-head attention inspired by:
             `"Attention Is All You Need"
             <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
-                    
+
         Args:
             emb_size (int): Size of embedding vectors (here: n_time_points).
                             Warning -> num_heads must be a
@@ -60,16 +60,16 @@ class ChannelAttention(nn.Module):
             num_heads (int): Number of heads in multi-head block.
             dropout (float): Dropout value in multi-head block.
         """
-        
+
         super().__init__()
-        
+
         self.attention = nn.MultiheadAttention(emb_size, num_heads, dropout)
 
     def forward(self, x: Tensor):
 
         """ Apply spatial transforming.
             Trials can be padded with zeros channels for same sequence length.
-        
+
         Args:
             x (torch tensor): Batches of trials of dimension
                               [batch_size x 1 x n_channels x n_time_points].
@@ -81,15 +81,15 @@ class ChannelAttention(nn.Module):
 
         x = x.squeeze()
 
-        # padded channels should be ignored in self-attention 
-        key_padding_mask = (x.mean(dim=-1) == 0) & (x.std(dim=-1) == 0) 
+        # padded channels should be ignored in self-attention
+        key_padding_mask = (x.mean(dim=-1) == 0) & (x.std(dim=-1) == 0)
 
         # Multi-head attention
         x = rearrange(x, 'b s e -> s b e')
         out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask)
         out = rearrange(out, 's b e -> b s e')
         out = out.unsqueeze(1)
-        
+
         return out
 
 
@@ -97,26 +97,26 @@ class ChannelAttention(nn.Module):
 
 
 class PatchEmbedding(nn.Module):
-    
+
     def __init__(self, padding, seq_len, emb_size, n_channels, position_kernel,
                  position_stride, time_kernel, time_stride):
-        
-        """    
+
+        """
         Args:
             padding (bool): If True, apply padding.
             seq_len (int): Sequence length (here: n_time_points).
             emb_size (int): Size of embedding vectors.
             n_channels (int): Number of channels after CSP Projection.
             position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding. 
+            position_stride (float): Stride for positional encoding.
             time_kernel (int): Kernel size in convolutional layer on time axis.
             time_stride (int): Stride in convolutional layer on channel axis.
         """
-        
+
         super().__init__()
 
         if padding:
-            
+
             # Padding values to preserve seq_len
             position_padding = ((position_stride-1) * seq_len -
                                 (position_stride+1) + position_kernel)
@@ -126,7 +126,7 @@ class PatchEmbedding(nn.Module):
             time_padding = ((time_stride-1) * seq_len -
                             (time_stride+1) + time_kernel)
             time_padding = int(time_padding / 2) + 1
-            
+
             # Embedding and positional encoding
             self.embedding = nn.Sequential(
                                 nn.Conv2d(1, 2, (1, position_kernel),
@@ -141,7 +141,7 @@ class PatchEmbedding(nn.Module):
                                 Rearrange('b o (c) (t) -> b (c t) o')
                                 )
         else:
-            
+
             # Embedding and positional encoding
             self.embedding = nn.Sequential(
                                 nn.Conv2d(1, 2, (1, position_kernel),
@@ -153,10 +153,10 @@ class PatchEmbedding(nn.Module):
                                           stride=(1, time_stride)),
                                 Rearrange('b o (c) (t) -> b (c t) o')
                                 )
-        
+
     def forward(self, x: Tensor):
 
-        """ Create embeddings with positional encoding. 
+        """ Create embeddings with positional encoding.
 
         Args:
             x (tensor): Batch of trials of dimension
@@ -172,19 +172,19 @@ class PatchEmbedding(nn.Module):
         x = self.embedding(x)
 
         return x
-    
-    
+
+
 """ ********** Multi-head attention ********** """
 
 
 class MultiHeadAttention(nn.Module):
-    
+
     def __init__(self, emb_size, num_heads, dropout):
-        
+
         """ Multi-head attention inspired by:
             `"Attention Is All You Need"
             <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
-                    
+
         Args:
             emb_size (int): Size of embedding vectors (here: n_time_points).
                             Warning -> num_heads must be a
@@ -192,13 +192,13 @@ class MultiHeadAttention(nn.Module):
             num_heads (int): Number of heads in multi-head block.
             dropout (float): Dropout value in multi-head block.
         """
-        
+
         super().__init__()
-        
+
         self.attention = nn.MultiheadAttention(emb_size, num_heads, dropout)
 
     def forward(self, x: Tensor):
-       
+
         """ Apply multi-head attention.
 
         Args:
@@ -213,50 +213,50 @@ class MultiHeadAttention(nn.Module):
         out, _ = self.attention(x, x, x)
         out = rearrange(out, 's b e -> b s e')
 
-        return out    
-       
-    
+        return out
+
+
 """ ********** Feed-forward block ********** """
 
 
 class FeedForwardBlock(nn.Sequential):
-    
+
     def __init__(self, emb_size, expansion, dropout):
-        
-        """ Inspired by: `"Attention Is All You Need" 
+
+        """ Inspired by: `"Attention Is All You Need"
             <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
-            ! Novel method: Feed Forward with Mish activation 
+            ! Novel method: Feed Forward with Mish activation
                             instead of GELU activation.
-        
+
         Args:
             emb_size (int): Size of embedding vectors.
             expansion (int): Expansion coefficient to obtain inner size.
             dropout (float): Dropout value.
         """
-        
+
         super().__init__(nn.Linear(emb_size, expansion * emb_size),
                          Mish(),
                          nn.Dropout(dropout),
                          nn.Linear(expansion * emb_size, emb_size))
-        
-        
+
+
 """ ********** Temporal transforming ********** """
 
 
 class TransformerEncoderBlock(nn.Sequential):
-    
+
     def __init__(self, emb_size, num_heads, expansion, dropout):
 
         """ Inspired by: `"Generating Long Sequences with Sparse Transformers"
             <https://arxiv.org/pdf/1904.10509.pdf>`_.
-          
+
         Args:
             emb_size (int): Size of embedding vectors.
             num_heads (int): Number of heads in multi-head block.
             expansion (int): Expansion coefficient in FF block.
             dropout (float): Dropout value.
         """
-        
+
         super().__init__(ResidualAdd(
                             nn.Sequential(
                                 nn.LayerNorm(emb_size),
@@ -266,7 +266,7 @@ class TransformerEncoderBlock(nn.Sequential):
                                 nn.Dropout(dropout)
                                 )
                             ),  # MHA block
-                         
+
                          ResidualAdd(
                             nn.Sequential(nn.LayerNorm(emb_size),
                                           FeedForwardBlock(emb_size,
@@ -275,14 +275,14 @@ class TransformerEncoderBlock(nn.Sequential):
                                           nn.Dropout(dropout)
                                           )
                             )  # Novel Feed forward block
-                         ) 
+                         )
 
-        
+
 class TransformerEncoder(nn.Sequential):
-    
+
     def __init__(self, depth, emb_size, num_heads, expansion, dropout):
 
-        """    
+        """
         Args:
             depth (int): Number of Transformer layers.
             emb_size (int): Size of embedding vectors.
@@ -290,34 +290,34 @@ class TransformerEncoder(nn.Sequential):
             expansion (int): Expansion coefficient in FF block.
             forward_dropout (float): Dropout value.
         """
-        
+
         super().__init__(*[TransformerEncoderBlock(emb_size, num_heads,
                                                    expansion, dropout)
                            for _ in range(depth)])
 
-    
+
 """ ********** Classification Model ********** """
 
 
 class ClassificationBertMEEG(nn.Sequential):
-    
+
     """ Determine the number of spikes in an EEG/MEG trial. Inspired by:
         `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
         <https://arxiv.org/pdf/2106.11170.pdf>`_.
-    
+
     Input (tensor): Batch of trials of dimension
                     [batch_size x 1 x n_channels x n_time_points].
     Output (tensor): Tensor of logits of dimension
                      [batch_size x n_classes].
     """
-    
+
     def __init__(self, n_classes, n_channels, n_time_points,
                  attention_num_heads, attention_dropout, spatial_dropout,
                  position_kernel, position_stride, emb_size, time_kernel,
                  time_stride, embedding_dropout, depth, num_heads,
-                 expansion, transformer_dropout, classifier_dropout): 
-      
-        """    
+                 expansion, transformer_dropout, classifier_dropout):
+
+        """
         Args:
             n_classes (int): Number of classes in the dataset.
             n_channels (int): Number of channels in input trials.
@@ -327,7 +327,7 @@ class ClassificationBertMEEG(nn.Sequential):
             spatial_dropout (float): Dropout value after Spatial transforming.
             emb_size (int): Size of embedding vectors in Temporal transforming.
             position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding. 
+            position_stride (float): Stride for positional encoding.
             time_kernel (int): Kernel size in convolutional layer on time axis.
             time_stride (int): Stride in convolutional layer on channel axis.
             embedding_dropout (float): Dropout value after embedding block.
@@ -339,7 +339,7 @@ class ClassificationBertMEEG(nn.Sequential):
             transformer_dropout (float): Dropout value in Transformer.
             classifier_dropout (float): Dropout value in Classifier.
         """
-        
+
         super().__init__(ResidualAdd(
                             nn.Sequential(
                                 nn.LayerNorm(n_time_points),
@@ -356,7 +356,7 @@ class ClassificationBertMEEG(nn.Sequential):
                                         position_stride, time_kernel,
                                         time_stride),
                          # Embedding and positional encoding
-                         
+
                          nn.Dropout(embedding_dropout),
 
                          TransformerEncoder(depth, emb_size, num_heads,
@@ -367,13 +367,13 @@ class ClassificationBertMEEG(nn.Sequential):
                                            classifier_dropout)
                          # Classifier
                          )
-        
-        
+
+
 """ ********** Classification Model ********** """
 
-        
+
 class DetectionBertMEEG(nn.Sequential):
-    
+
     """ Detect spikes events times in an EEG/MEG trial. Inspired by:
         `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
         <https://arxiv.org/pdf/2106.11170.pdf>`_.
@@ -383,14 +383,14 @@ class DetectionBertMEEG(nn.Sequential):
     Output (tensor): Tensor of logits of dimension
                      [batch_size x n_classes].
     """
-    
+
     def __init__(self, n_channels, n_time_points, attention_num_heads,
                  attention_dropout, spatial_dropout, position_kernel,
                  position_stride, emb_size, time_kernel, time_stride,
                  embedding_dropout, depth, num_heads, expansion,
                  transformer_dropout, n_time_windows, detector_dropout):
-      
-        """    
+
+        """
         Args:
             n_channels (int): Number of channels in input trials.
             n_time_points (int): Number of time points in EEF/MEG trials.
@@ -399,7 +399,7 @@ class DetectionBertMEEG(nn.Sequential):
             spatial_dropout (float): Dropout value after Spatial transforming.
             emb_size (int): Size of embedding vectors in Temporal transforming.
             position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding. 
+            position_stride (float): Stride for positional encoding.
             time_kernel (int): Kernel size in convolutional layer on time axis.
             time_stride (int): Stride in convolutional layer on channel axis.
             embedding_dropout (float): Dropout value after embedding block.
@@ -410,7 +410,7 @@ class DetectionBertMEEG(nn.Sequential):
             n_time_windows (int): Number of time windows.
             detector_dropout (float): Dropout value in spike detector block.
         """
-        
+
         super().__init__(ResidualAdd(
                             nn.Sequential(
                                 nn.LayerNorm(n_time_points),
@@ -419,7 +419,7 @@ class DetectionBertMEEG(nn.Sequential):
                                                  attention_dropout),
                                 nn.Dropout(spatial_dropout)
                                 )
-                            ), 
+                            ),
                          # Spatial transforming,
 
                          PatchEmbedding(True, n_time_points, emb_size,
@@ -427,7 +427,7 @@ class DetectionBertMEEG(nn.Sequential):
                                         position_stride, time_kernel,
                                         time_stride),
                          # Embedding and positional encoding
-                         
+
                          nn.Dropout(embedding_dropout),
 
                          TransformerEncoder(depth, emb_size, num_heads,

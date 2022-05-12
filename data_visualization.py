@@ -18,6 +18,78 @@ import numpy as np
 import pandas as pd
 
 
+def csp_visualization(allData, csp_allData, allLabels, allSpikeTimePoints, allTimes,\
+                         label_1, label_2, width, height, seed = 0, show_spikes = False):
+
+    """
+    Plots of signals of all channels before and after Common Spatial Pattern projection.
+    
+    Args:
+        allData (array): Raw trials (n_trials)x(n_channels)x(n_sample_points),
+        csp_allDatas (array): Trials after CSP algorithm (n_trials)x(Nr)x(n_sample_points),
+        allLabels (array): Corresponding labels,
+        allSpikeTimePoints (array): Corresponding spike times,
+        allTimes (array): Time points.
+    
+    """
+
+    # First set of signals
+    random.seed(seed)
+    index_1 = random.choice(np.where(allLabels[50] == label_1)[0]) 
+    X_EEG1, X_MEG1 =  allData[50][index_1], allData[274][index_1] 
+    X_cspEEG1, X_cspMEG1 = csp_allData[index_1], csp_allData[655 + index_1]
+    spikeTimePoints1 = allSpikeTimePoints[50][index_1]
+    times = allTimes[50][index_1]
+
+
+    # Second set of signals
+    index_2 = random.choice(np.where(allLabels[50] == label_2)[0]) 
+    X_EEG2, X_MEG2 =  allData[50][index_2], allData[274][index_2] 
+    X_cspEEG2, X_cspMEG2 = csp_allData[index_2], csp_allData[655 + index_2]
+    spikeTimePoints2 = allSpikeTimePoints[50][index_2]
+
+
+    data = [X_EEG1, X_cspEEG1, X_EEG2, X_cspEEG2, X_MEG1, X_cspMEG1, X_MEG2, X_cspMEG2]
+
+    # Plot signals
+    titles = ['EEG','csp_EEG','EEG','csp_EEG','MEG','csp_MEG','MEG','csp_MEG']
+    axes=[]
+    rows, cols = 4,2 # As we have 8 signals to plot
+    fig=plt.figure(1, figsize=(width,height))
+    for a in range(rows*cols):
+        axes.append(fig.add_subplot(rows, cols, a+1))
+
+        for x in data[a]:
+            plt.plot(times,x)
+
+        if a in [0,1,4,5]: 
+            if label_1 != 0:
+                subplot_title=(""+titles[a]+'_seizure_'+str(index_1))
+                axes[-1].set_title(subplot_title)
+                if show_spikes:
+                    for spike in spikeTimePoints1:
+                        plt.axvline(x=spike, color = 'black')
+            else:
+                subplot_title=(""+titles[a]+'_'+str(index_1))
+                axes[-1].set_title(subplot_title)
+        else:
+            if label_2 != 0:          
+                subplot_title=(""+titles[a]+'_seizure_'+str(index_2))
+                axes[-1].set_title(subplot_title)
+                if show_spikes:
+                    for spike in spikeTimePoints2:
+                        plt.axvline(x=spike, color = 'black')
+            else:
+                subplot_title=(""+titles[a]+'_'+str(index_2))
+                axes[-1].set_title(subplot_title)
+
+    fig.tight_layout()    
+    plt.show()
+    print('index trial 1: %s '%index_1, 'index trial 2: %s '%index_2,'\n',\
+          'EEG shape ', 'before CSP : ',X_EEG1.shape,' after CSP: ', X_cspEEG1.shape,'\n',\
+         'MEG shape ', 'before CSP : ',X_MEG1.shape,' after CSP: ', X_cspMEG1.shape)
+    
+    
 def mat_to_df(trial_fname, channel_fname, wanted_event_label, wanted_channel_type, output=False):
     
     """

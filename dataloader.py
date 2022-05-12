@@ -9,7 +9,6 @@ Usage: type "from model import <class>" to use one of its classes.
 Contributors: Ambroise Odonnat.
 """
 
-import sys
 import torch
 
 import numpy as np 
@@ -32,8 +31,8 @@ def pad_tensor(x, n_pads, dim):
 
     pad_size = list(x.shape)
     pad_size[dim] = n_pads-x.shape[dim]
-    lowest_val = -sys.maxsize
-    return torch.cat([torch.Tensor(x), lowest_val*torch.ones(*pad_size)], dim=dim)
+    
+    return torch.cat([torch.Tensor(x), torch.zeros(*pad_size)], dim=dim)
 
 
 class PadCollate:

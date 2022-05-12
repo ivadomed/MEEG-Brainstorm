@@ -16,15 +16,15 @@ import pandas as pd
 import seaborn as sns
 
 from loguru import logger
-  
+
 
 def define_device(gpu_id):
-    
+
     """ Define the device used for the process of interest.
-    
+
     Args:
         gpu_id (int): ID of the cuda device.
-        
+
     Returns:
         cuda_available (bool): If True, cuda is available.
         device (str): Cuda device.
@@ -36,7 +36,7 @@ def define_device(gpu_id):
 
     # Check cuda availability
     if cuda_available:
-        
+
         # Set the GPU
         gpu_id = int(gpu_id)
         torch.cuda.set_device(gpu_id)
@@ -44,109 +44,109 @@ def define_device(gpu_id):
     else:
         logger.info("Cuda is not available.")
         logger.info("Working on {}.".format(device))
-    
+
     return cuda_available, device
 
 
 def get_class_distribution(labels, display=False, save=False, title=None):
- 
+
     """ Plot the distribution of labels.
- 
+
     Args:
         labels (array): Labels in the dataset.
         display (bool): Display histogram of class repartition.
         save (bool): Save image.
         title (str): Name and format of saved file.
-        
+
     Returns:
         count_labels (dictionnary): Keys - >labels; values ->  proportions.
     """
-    
+
     count_labels = {k: 0 for k in labels[::-1]}
     for k in labels:
         count_labels[k] += 1
-        
+
     # Force dictionnary to be ordered by keys
     count_labels = dict(sorted(count_labels.items(), key=lambda item: item[0]))
-    
+
     # Plot distribution
     if display:
         print("Class Distribution: \n", count_labels)
         sns.barplot(data=pd.DataFrame.from_dict([count_labels]).melt(),
                     x="variable", y="value").set_title('Class Distribution')
     if save:
-        plt.savefig(title) 
-        
+        plt.savefig(title)
+
     return count_labels
 
 
 def get_spike_events(spike_time_points, n_time_points, freq):
 
-    """ Compute array of dimension [n_time_points] 
+    """ Compute array of dimension [n_time_points]
         with 1 when a spike occurs and 0 otherwise.
-    
+
     Args:
         spike_time_points (array): Contains time points of spike events.
         n_time_points (int): Number of time points.
         freq (int): Sample frequence of the EEG/MEG signals.
-        
+
     Returns:
-        spike_events (array): Binary array of dimension [n_time_points] 
-                              with 1 when a spike occurs and 0 otherwise. 
+        spike_events (array): Binary array of dimension [n_time_points]
+                              with 1 when a spike occurs and 0 otherwise.
     """
-    
+
     spike_events = np.zeros(n_time_points)
     for time in spike_time_points:
         index = int(freq*time)
         spike_events[index] = 1
-        
+
     return spike_events.astype(int)
 
 
 def get_spike_windows(spike_events, n_time_windows):
-    
+
     """
-    Compute tensor of dimension [batch_size x n_time_windows] 
+    Compute tensor of dimension [batch_size x n_time_windows]
     with 1 when a spike occurs in the time window and 0 otherwise.
-    
+
     Args:
-        spike_events (tensor): Tensor of dimension [batch_size x n_time_points] 
-                               whith 1 when a spike occurs and 0 otherwise. 
+        spike_events (tensor): Tensor of dimension [batch_size x n_time_points]
+                               whith 1 when a spike occurs and 0 otherwise.
         n_time_windows (int): Number of time windows.
-        
+
     Return:
-        spike_windows (tensor): Tensor of dimension 
-                                [batch_size x n_time_windows] 
-                                with 1 when a spike occurs 
+        spike_windows (tensor): Tensor of dimension
+                                [batch_size x n_time_windows]
+                                with 1 when a spike occurs
                                 in the time window and 0 otherwise.
     """
-    
+
     # Split spike_events in n_time_windows time windows
     batch_size = spike_events.shape[0]
     spike_windows = np.zeros((n_time_windows, batch_size))
     chunks = torch.chunk(spike_events, n_time_windows, dim=-1)
-    
+
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
         is_spike = (chunk.sum(dim=-1) > 0).int()
         spike_windows[i] = is_spike
     spike_windows = torch.Tensor(spike_windows).t()
-    
+
     return spike_windows
-          
-            
+
+
 def reset_weights(m):
 
     """
     Reset model weights to avoid weight leakage
-    
-    Args: 
+
+    Args:
         m (nn.Module): Model to reset.
     """
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
-              
-                
+
+
 
 

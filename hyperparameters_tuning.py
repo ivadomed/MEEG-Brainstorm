@@ -86,7 +86,7 @@ def train_validation(task, config, train_set, val_set, n_classes, cost_sensitive
         train_criterion_cls = get_classification_loss(n_classes, cost_sensitive, lambd)
         val_criterion_cls = torch.nn.CrossEntropyLoss()
     
-    elif task == "spike_detection':
+    elif task == 'spike_detection':
     
         # Create dataloader
         train_dataloader = get_dataloader(train_data, train_spike_events, batch_size, True, num_workers)
@@ -305,7 +305,7 @@ def test(config, test_set, model_state, gpu_id):
         # Define model
         model = ClassificationBertMEEG(**model_config)
 
-    elif task == "spike_detection':
+    elif task == 'spike_detection':
     
         # Create dataloader
         test_dataloader = get_dataloader(test_data, test_spike_events, batch_size, True, num_workers)

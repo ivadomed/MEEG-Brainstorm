@@ -20,12 +20,12 @@ def whitening(data, r):
 
     """ Compute whitening matrix to apply
         Principal Component Analysis whitening.
-        
+
     Args:
         data (array): Set of trials of dimension
                       [n_trials x n_channels x n_time_points].
         r (int): Number of first and last rows to select.
- 
+
     Returns:
         whitening_matrix (array): Whitening matrix of dimension
                                   [(2xselected_rows) x n_channels]
@@ -82,7 +82,7 @@ def common_spatial_pattern(data, labels, r):
                       [n_trials x n_channels x n_time_sample_points].
         labels (array): Array of corresponding labels of dimension [n_trials].
         r (int): Number of first and last rows to select on each subfilter.
-  
+
     Returns:
         CSP_projection (array): CSP projection array of dimension
                                 [(2r) x n_channels] if binary classification.
@@ -96,15 +96,15 @@ def common_spatial_pattern(data, labels, r):
     idx = [n_class for n_class in range(N)]
     for n_class in range(N):
         idx[n_class] = np.where(labels == unique_labels[n_class])[0]
- 
+
     # Recover number of electrode channels in the trials
     n_channels = data.shape[1]
-    
+
     # Binary classification
     if N <= 2:
         idx_one = idx[0]
         idx_rest = idx[1]
-          
+
         # Compute covariance matrices for all trials
         cov_one = np.zeros([n_channels, n_channels, len(idx_one)])
         cov_rest = np.zeros([n_channels, n_channels, len(idx_rest)])
@@ -139,7 +139,7 @@ def common_spatial_pattern(data, labels, r):
         """
         epsilon = 1e-10
 
-        # Compute P and B   
+        # Compute P and B
         Ptmp = np.sqrt(np.diag(np.power(eig_values + epsilon, -1)))
         P = np.dot(Ptmp, eig_vectors.transpose())
 
@@ -164,7 +164,7 @@ def common_spatial_pattern(data, labels, r):
     # Multi-classification with N classes
     else:
         CSP_projection = []
-    
+
         # Apply One-vs-Rest strategy (N binary classifications)
         for n_class in range(N):
 
