@@ -8,16 +8,11 @@ import torch
 from torch.nn import CrossEntropyLoss
 
 
-
 def _do_train(
     model,
-    method,
     loader,
     optimizer,
     criterion,
-    parameters,
-    epoch,
-    n_epochs,
 ):
     # training loop
     model.train()
@@ -33,19 +28,23 @@ def _do_train(
 
         optimizer.zero_grad()
 
-        batch_x = batch_x.to(device=device)
+        batch_x = batch_x.to(torch.float).to(device=device)
         batch_y = batch_y.to(device=device)
         output, _ = model(batch_x)
         loss = criterion(output, batch_y)
         loss.backward()
         optimizer.step()
         train_loss.append(loss.item())
-        y_pred_all.append(output.cpu().numpy())
-        y_true_all.append(batch_y.cpu().numpy())
+        y_pred_all.append(output.detach().cpu().numpy())
+        y_true_all.append(batch_y.detach().cpu().numpy())
 
     y_pred = np.concatenate(y_pred_all)
     y_true = np.concatenate(y_true_all)
-    perf = f1_score(y_true, y_pred)
+
+    y_pred_binary = np.zeros(len(y_pred))
+    y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
+
+    perf = f1_score(y_true, y_pred_binary)
     return np.mean(train_loss), perf
 
 
@@ -58,9 +57,9 @@ def _validate(model, loader, criterion):
     y_pred_all, y_true_all = list(), list()
     with torch.no_grad():
         for idx_batch, (batch_x, batch_y) in enumerate(loader):
-            batch_x = batch_x.to(device=device)
+            batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(device=device)
-            _, output = model.forward(batch_x)
+            output, _ = model.forward(batch_x)
 
             loss = criterion(output, batch_y)
             val_loss[idx_batch] = loss.item()
@@ -70,7 +69,10 @@ def _validate(model, loader, criterion):
 
     y_pred = np.concatenate(y_pred_all)
     y_true = np.concatenate(y_true_all)
-    perf = f1_score(y_true, y_pred)
+
+    y_pred_binary = np.zeros(len(y_pred))
+    y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
+    perf = f1_score(y_true, y_pred_binary)
 
     return np.mean(val_loss), perf
 
@@ -120,25 +122,19 @@ def train(
     history = list()
     best_valid_loss = np.inf
     best_model = copy.deepcopy(model)
-
     print(
         "epoch \t train_loss \t valid_loss \t train_perf \t valid_perf"
     )
     print("-" * 80)
 
     for epoch in range(1, n_epochs + 1):
-        
+
         train_loss, train_perf = _do_train(
             model,
-            method,
             loader,
             optimizer,
             criterion,
-            parameters,
-            epoch,
-            n_epochs,
         )
-
 
         valid_loss, valid_perf = _validate(model, loader_valid, criterion)
 

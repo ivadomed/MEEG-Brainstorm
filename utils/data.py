@@ -15,31 +15,50 @@ from loguru import logger
 from os import listdir
 from os.path import isfile, join
 from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
 
-from utils import get_spike_events
+def get_spike_events(spike_time_points, n_time_points, freq):
+
+    """
+    Compute array of dimension [n_time_points] with 1 when a spike occurs and 0 otherwise.
+
+    Args:
+        spike_time_points (array): Contains time points when a spike occurs if any.
+        n_time_points (int): Number of time points.
+        freq (int): Sample frequence of the EEG/MEG signals.
+
+    Returns:
+        spike_events (array): Array of dimension [n_time_points] containing 1 when a spike occurs and 0 otherwise.
+    """
+
+    spike_events = np.zeros(n_time_points)
+    for time in spike_time_points:
+        index = int(freq*time)
+        spike_events[index] = 1
+
+    return spike_events.astype(int)
 
 
 class Data:
-    
+
     def __init__(self, path_root, wanted_event_label, wanted_channel_type, binary_classification):
-        
-        """    
+
+        """
         Args:
             path_root (str): Path to subjects data.
-            wanted_event_label (str): Annotation of wanted event. 
+            wanted_event_label (str): Annotation of wanted event.
                                       Example: 'saw_EST' corresponds to peaks of spikes.
             wanted_channel_type (list): List of the types of channels wanted. Example: ['EEG'].
-            binary_classification (bool): If True, we label trials with no seizure/seizure as 0/1. 
+            binary_classification (bool): If True, we label trials with no seizure/seizure as 0/1.
             selected_rows (int): Number of first and last selected rows in each sub-spatial
                                  filter to create global spatial filter.
         """
-            
+
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
         self.wanted_channel_type = wanted_channel_type
         self.binary_classification = binary_classification
 
-        
     def get_trial(self, trial_fname, channel_fname, wanted_event_label, wanted_channel_type):
 
         """
@@ -47,7 +66,7 @@ class Data:
         Args:
             trial_fname (str): Path to trial file (matlab dictionnary).
             channel_fname (str): Path to channel file (matlab dictionnary).
-            wanted_event_label (str): Annotation of wanted event. 
+            wanted_event_label (str): Annotation of wanted event.
                                       Example: 'saw_EST' corresponds to peaks of spikes.
             wanted_channel_type (list): List of the types of channels wanted. Example: ['EEG'].
         Returns:
@@ -68,15 +87,15 @@ class Data:
             if channel_type in wanted_channel_type:
                 wanted_channels.append(i)
 
-        # Recover data and time points        
+        # Recover data and time points
         F = trial['F'][wanted_channels]
         times = trial['Time'][0]
 
         # Count seizure events and recover spikes events times
         count_spikes = 0
-        spike_time_points=[]
+        spike_time_points = []
         event_label = trial['Events']['label'][0][0][0]
-        if  event_label == wanted_event_label:
+        if event_label == wanted_event_label:
             count_spikes += trial['Events']['times'][0][0].shape[1]
             spike_time_points = np.round(trial['Events']['times'][0][0][0],2) # In seconds
 
@@ -84,7 +103,6 @@ class Data:
 
         return data, n_spike, spike_time_points, times
 
-    
     def get_dataset(self, folder, channel_fname, wanted_event_label, wanted_channel_type, binary_classification):
 
         """
@@ -95,7 +113,7 @@ class Data:
             wanted_event_label (str): Annotation of wanted event.
                                       Example: 'saw_EST' corresponds to peaks of spikes.
             wanted_channel_type (list): List of the types of channels we want. Example: ['EEG'].
-            binary_classification (bool): If True, we label trials with no seizure/seizure as 0/1. 
+            binary_classification (bool): If True, we label trials with no seizure/seizure as 0/1.
         Returns:
             all_data (array): Trials of dimension [n_trials x n_channels x n_time_points].
             all_labels (array): Corresponding labels of dimension [n_trials].
@@ -112,55 +130,56 @@ class Data:
 
         # Loop on trials
         for trial_fname in folder:
-            data, n_spike, spike_time_points, times = self.get_trial(trial_fname, channel_fname, 
-                                                                     wanted_event_label, wanted_channel_type)
-            
+            data, n_spike, spike_time_points, times = self.get_trial(trial_fname, 
+                                                                     channel_fname,
+                                                                     wanted_event_label,
+                                                                     wanted_channel_type)
+
             # Apply binary classification: label = 1 if at least one spike occurs, label = 0 otherwise
             if binary_classification:
                 n_spike = int((n_spike > 0))
 
-            # Append data and labels from each trial 
+            # Append data and labels from each trial
             all_data.append(data)
             all_n_spikes.append(n_spike)
-            
+
             # Get vector with 1 when a spike occurs and 0 elsewhere
             N = len(times)
-            freq = 100 # In our dataset, the sample frequence is 100 Hz.
+            freq = 100  # In our dataset, the sample frequence is 100 Hz.
             spike_events = get_spike_events(spike_time_points, N, freq)
             all_spike_events.append(spike_events)
 
         # Stack Dataset along axis 0
-        all_data = np.stack(all_data, axis = 0)
+        all_data = np.stack(all_data, axis=0)
         all_n_spikes = np.asarray(all_n_spikes)
         all_spike_events = np.asarray(all_spike_events, dtype='int64')
-        
+
         """
         Label creation
         We have n_classes different number of spikes in the dataset.
         Number of spikes ordered by increasing order in an array of dimension [n_classes]. Class i has label i.
         Example: trials have only 1 or 3 spikes in the dataset, labels will be 0 and 1 respectively.
         """
-        
+
         unique_n_spike = np.unique(all_n_spikes)
         all_labels = np.asarray([np.where(unique_n_spike == s)[0][0] for s in all_n_spikes])
-        
+
         # Insure that the labels correspond to the number of spike events if multi-classification
         if binary_classification:
             logger.info("Label creation: No Spike / Spikes mapped on "
-                        "labels {}".format(np.unique(all_labels)))  
+                        "labels {}".format(np.unique(all_labels)))
         else:
             logger.info("Label creation: number of spikes {} mapped on "
                         "labels {}".format(np.unique(all_n_spikes), np.unique(all_labels)))
-             
+
         return all_data, all_labels, all_spike_events
-    
-    
+
     def get_all_datasets(self, path_root, wanted_event_label, wanted_channel_type, binary_classification):
-        
+
         all_data = {}
         all_labels = {}
         all_spike_events = {}
-        
+
         for item in os.listdir(path_root):
             if not item.startswith('.'):
                 subject_path = path_root+item+'/'
@@ -171,19 +190,31 @@ class Data:
                     if os.path.isdir(path):
                         path += '/'
                         folder = [path+f for f in listdir(path) if isfile(join(path, f))]
-                        
+
                 # Get dataset, labels, spike time points and time points
-                logger.info("Recover data for {}".format(item)) 
-                data, labels, spike_events = self.get_dataset(folder,channel_fname, wanted_event_label, 
+                logger.info("Recover data for {}".format(item))
+                data, labels, spike_events = self.get_dataset(folder, 
+                                                              channel_fname, wanted_event_label,
                                                                           wanted_channel_type, binary_classification)
 
                 all_data[item] = data
                 all_labels[item] = labels
                 all_spike_events[item] = spike_events
-                
+
         return all_data, all_labels, all_spike_events
-    
-    
+
     def all_datasets(self):
-        
-        return self.get_all_datasets(self.path_root, self.wanted_event_label,self.wanted_channel_type, self.binary_classification)
+
+        return self.get_all_datasets(self.path_root, self.wanted_event_label, self.wanted_channel_type, self.binary_classification)
+
+
+class SpikeDetectionDataset(Dataset):
+    def __init__(self, data, labels):
+        self.data = data
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx], self.labels[idx]
