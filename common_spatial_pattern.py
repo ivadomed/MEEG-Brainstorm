@@ -18,8 +18,7 @@ from numpy.linalg import eig
 
 def whitening(data, r):
 
-    """ Compute whitening matrix to apply
-        Principal Component Analysis whitening.
+    """ Apply Principal Component Analysis.
 
     Args:
         data (array): Set of trials of dimension
@@ -27,7 +26,7 @@ def whitening(data, r):
         r (int): Number of first and last rows to select.
 
     Returns:
-        whitening_matrix (array): Whitening matrix of dimension
+        whitening_matrix (array): Array of dimension
                                   [(2xselected_rows) x n_channels]
     """
 
@@ -60,12 +59,11 @@ def whitening(data, r):
 
     # Compute whitening matrix
     Ptmp = np.sqrt(np.diag(np.power(eig_values + epsilon, -1)))
-    P = np.dot(Ptmp, eig_vectors.transpose())
+    P = np.dot(Ptmp,  eig_vectors.transpose())
 
     # Select r first and last rows of w (r = selected_rows)
     n_rows = P.shape[0]
-    whitening_matrix = np.concatenate((P[:r],
-                                       P[n_rows-r:]), axis=0)
+    whitening_matrix = np.concatenate((P[:r], P[n_rows-r:]), axis=0)
 
     return whitening_matrix
 
