@@ -121,7 +121,6 @@ class Data:
         all_data = []
         all_n_spikes = []
         all_spike_events = []
-        all_times = []
 
         # Loop on trials
         for trial_fname in folder:
@@ -234,10 +233,3 @@ class Data:
                                      self.wanted_channel_type,
                                      self.sample_frequence,
                                      self.binary_classification)
-
-
-
-
-
-
-

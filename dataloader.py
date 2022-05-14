@@ -37,9 +37,8 @@ def pad_tensor(x, n_pads, dim):
 
 class PadCollate:
 
-    """
-    Custom collate_fn that pads according to the longest sequence in
-    a batch of sequences.
+    """ Custom collate_fn that pads according to the longest sequence in
+        a batch of sequences.
     """
 
     def __init__(self, dim=1):
@@ -82,8 +81,7 @@ class PadCollate:
 
 def get_dataloader(data, labels, batch_size, shuffle, num_workers):
 
-    """
-    Get dataloader.
+    """ Get dataloader.
 
     Args:
         data (array): Array of trials of dimension
@@ -109,9 +107,8 @@ def get_dataloader(data, labels, batch_size, shuffle, num_workers):
 def get_pad_dataloader(data, labels, batch_size,
                        shuffle, num_workers):
 
-    """
-    Get dataloaders with padding according to the highest
-    number of channels in each batch of trials.
+    """ Get dataloaders with padding according to the highest
+        number of channels in each batch of trials.
 
     Args:
         data (list): List of array of trials of dimension

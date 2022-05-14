@@ -1,133 +1,70 @@
 #!/opt/anaconda3/bin/python
 
 """
-This script is used to parse command line arguments. 
+This script is used to parse command line arguments.
 
 Usage: type "from parser import <function>" to use one of its functions.
-       
+
 Contributors: Ambroise Odonnat.
 """
 
 import argparse
-import os 
+import os
 
 
 def dir_path(path):
     if os.path.isdir(path):
         return path
     else:
-        raise argparse.ArgumentTypeError("readable_dir: {} is not a valid direction path".format(path))
+        raise argparse.ArgumentTypeError('readable_dir: {} '
+                                         'is not a valid '
+                                         'direction path'.format(path))
 
-    
+
 def file_path(path):
     return path
-    
-    
+
+
 def get_parser():
-    
+
     parser = argparse.ArgumentParser(
-        prog = os.path.basename(__file__).strip('.py'),
-        description = 'Get command instruction and configuration file',
-        add_help = True  
+        prog=os.path.basename(__file__).strip('.py'),
+        description='Get command instruction and configuration file',
+        add_help=True
     )
-     
+
     # COMMAND ARGUMENTS
 
     command_group = parser.add_mutually_exclusive_group(required=True)
 
-    
     command_group.add_argument('--train', dest='train', action='store_true',
-                               help='Perform training and validation on data.')
-    
+                               help='Perform cross-validation on data.')
+
     command_group.add_argument('--test', dest='test', action='store_true',
                                help='Perform testing on trained model.')
-    
-    
+
     # ARGUMENTS
-    
-    parser.add_argument('--path-data', dest='path_data', required=False, type=dir_path,
-                               help='Path to data in .mat format')
-    
-    parser.add_argument('--path-channel', dest='path_channel', required=False, type=file_path,
-                               help='Path to channel file in .mat format')
-    
-    parser.add_argument('--path-config', dest='path_config', required=True, type=file_path,
-                               help='Path to configuration file in .json format')   
-    
-    parser.add_argument('--path-output', dest='path_output', required=False, type=dir_path,
-                               help='Path to output folder.')
-    
+
+    parser.add_argument('--path-root', dest='path_root', required=True,
+                        type=dir_path, help='Path to data in .mat format')
+
+    parser.add_argument('--path-config', dest='path_config', required=True,
+                        type=file_path,
+                        help='Path to configuration file in .json format')
+
+    parser.add_argument('--path-output', dest='path_output', required=True,
+                        type=dir_path, help='Path to output folder.')
+
     parser.add_argument('--gpu_id', dest='gpu_id', required=True, type=int,
-                               help='Id of the cuda device to use if available.') 
-    
+                        help='Id of the cuda device to use if available.')
 
     # OPTIONAL ARGUMENTS
-    
+
     optional_args = parser.add_argument_group('OPTIONAL ARGUMENTS')
-   
-    optional_args.add_argument('--save', dest='save', action='store_true', required=False,
-                               help='Save training and validation information, model parameters and config file.')
-    
-    return parser
 
+    optional_args.add_argument('--save', dest='save', action='store_true',
+                               required=False,
+                               help='Save training and validation information,'
+                               ' model parameters and config file.')
 
-def get_tune_parser():
-    
-    parser = argparse.ArgumentParser(
-        prog = os.path.basename(__file__).strip('.py'),
-        description = 'Get command instruction and configuration file',
-        add_help = True  
-    )
-
-    # COMMAND ARGUMENTS
-    
-    command_group = parser.add_mutually_exclusive_group(required = False)
-
-    
-    command_group.add_argument('--tune', dest = 'tune', action = 'store_true',
-                               help = 'Tune hyperparameters on model.')
-    
-    
-
-    # ARGUMENTS
-
-    parser.add_argument('-pd', '--path-data', dest = 'path_data', required = True, type = dir_path,
-                               help = 'Path to data in .mat format')
-    
-    parser.add_argument('-pcd', '--path-config_data', dest = 'path_config_data', required = True, type = file_path,
-                               help = 'Path to configuration dictionnary for data.')   
-
-    parser.add_argument('-ptc', '--path-tuning_config', dest = 'path_tuning_config', required = True, type = file_path,
-                               help = 'Path to tuning configuration dictionnary for hyperparameters tuning.') 
-
-    parser.add_argument('-r', '--path-results', dest = 'path_results', required = True, type = dir_path,
-                               help = 'Path to folder results.')
-    
-    parser.add_argument('-pbm', '--path-best_states', dest = 'path_best_states', required = True, type = file_path,
-                               help = 'Path to save best model and optimizer states.')
-    
-    parser.add_argument('-pc', '--path-best_config', dest = 'path_best_config', required = True, type = file_path,
-                               help = 'Path to save best model configuration file.')
-
-    parser.add_argument('-n', '--n_samples', dest = 'n_samples', required = True, type = int,
-                               help = 'Number of samples per trial during hyperparameters search.')
-    
-    parser.add_argument('-me', '--max_n_epochs', dest = 'max_n_epochs', required = True, type = int,
-                               help = 'Maximum number of iterations per trial during hyperparameters search.')
-    
-    parser.add_argument('-gpu', '--gpu_id', dest = 'gpu_id', required = True, type = int,
-                               help = 'Id of the wanted gpu device.')
-    
-    parser.add_argument('-gpu_res', '--gpu_resources', dest = 'gpu_resources', required = True, type = int,
-                               help = 'Number of gpus to used per trial.')
-    
-    parser.add_argument('-cpu_res', '--cpu_resources', dest = 'cpu_resources', required = True, type = int,
-                               help = 'Number of cpus to used per trial.')
-    
-    parser.add_argument('-m', '--metric', dest = 'metric', required = True, type = str,
-                               help = 'Metric to tune hyperparameters in Ray tune.')
-    
-    parser.add_argument('-mo', '--mode', dest = 'mode', required = True, type = str,
-                               help = 'Mode to tune hyperparameters in Ray tune.')
-    
     return parser

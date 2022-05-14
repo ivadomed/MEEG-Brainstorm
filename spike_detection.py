@@ -68,11 +68,10 @@ class DetectionTransformer():
 
     def cross_validation(self, config, save, path_output, gpu_id):
 
-        """
-        Train and evaluate a detection model using
-        a repeated k-fold cross-validation.
-        If save is True, the best model parameters and the training and
-        validation information are saved to path_output.
+        """ Train and evaluate a detection model using
+            a repeated k-fold cross-validation.
+            If save is True, the best model parameters and the training and
+            validation information are saved to path_output.
 
         Args:
             config (dict): Dictionnary containing information
@@ -472,7 +471,7 @@ class DetectionTransformer():
 
             # Print fold results
             print('INTRA-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
-                  'FOR {} FOLDS'.format(n_splits*n_repeats))
+                  ' FOR {} FOLDS'.format(n_splits*n_repeats))
             print('--------------------------------')
             avg_acc = np.mean([results[fold]['Accuracy']
                                for fold in range(n_splits*n_repeats)])
@@ -508,7 +507,8 @@ class DetectionTransformer():
 
                 logger.info('Saving configuration file.')
                 config_path = path_output + 'config_' + subject_id + '.json'
-                config['save'] = {'model': model_path,
+                config['save'] = {'output': path_output,
+                                  'model': model_path,
                                   'spatial_filter': filter_path,
                                   'results': results_path,
                                   'config': config_path}
@@ -516,6 +516,7 @@ class DetectionTransformer():
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
                 json.dump(config, open(config_path, 'w'))
+                logger.info('Information saved in {}'.format(path_output))
 
             return results
 
@@ -825,7 +826,7 @@ class DetectionTransformer():
 
             # Print fold results
             print('CROSS-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
-                  'FOR {} FOLDS'.format(n_splits*n_repeats))
+                  ' FOR {} FOLDS'.format(n_splits*n_repeats))
             print('--------------------------------')
             avg_acc = np.mean([results[fold]['Accuracy']
                                for fold in range(n_splits*n_repeats)])
@@ -861,7 +862,8 @@ class DetectionTransformer():
 
                 logger.info('Saving configuration file.')
                 config_path = path_output + 'config.json'
-                config['save'] = {'model': model_path,
+                config['save'] = {'output': path_output,
+                                  'model': model_path,
                                   'spatial_filter': filter_path,
                                   'results': results_path,
                                   'config': config_path}
@@ -869,35 +871,34 @@ class DetectionTransformer():
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
                 json.dump(config, open(config_path, 'w'))
+                logger.info('Information saved in {}'.format(path_output))
 
             return results
 
 
-def evaluate(path_root, path_config, path_results, gpu_id):
+def evaluate(path_root, config, save, path_output, gpu_id):
 
-    """
-    Detect epilepetic spikes on a given dataset.
+    """ Detect epilepetic spikes on a given dataset.
 
     Args:
         path_root (str): Path to the dataset.
-        path_config (str): Path to the configuration file.
-        path_results (str): Path to save the model's performances.
+        config (dict): Configuration file.
+        save (bool): If True, save the results and predictions.
+        path_output (str): Path to save the model's performances
+                           and predictions.
         gpu_id (int): Id of the cuda device to use if available.
 
     Return:
         results (dict): Contains performances of the model.
+        all_events (dict): Contains the start and end point
+                           of predicted spike events.
     """
     # Data format
     Float = torch.FloatTensor
     Long = torch.LongTensor
 
-    # Recover configuration file
-    with open(path_config) as f:
-        config = json.loads(f.read())
-
     # Recover data configuration
     data_config = config['loader_parameters']
-    path_root = data_config['path_root']
     wanted_event_label = data_config['wanted_event_label']
     wanted_channel_type = data_config['wanted_channel_type']
     sample_frequence = data_config['sample_frequence']
@@ -921,6 +922,9 @@ def evaluate(path_root, path_config, path_results, gpu_id):
 
     available, device = define_device(gpu_id)
 
+    # Recover predictions
+    all_events = {}
+
     # Recover subjects id
     subject_ids = np.asarray(list(all_data.keys()))
 
@@ -942,6 +946,7 @@ def evaluate(path_root, path_config, path_results, gpu_id):
         n_rows = all_data.shape[1]
         selected_rows = config['selected_rows']
         if n_rows > 2*selected_rows:
+            logger.info(' Common spatial pattern algorithm is applied')
             filter_path = save_config['spatial_filter']
             _ = filter_path.seek(0)
             spatial_filter = np.load(filter_path)
@@ -973,7 +978,7 @@ def evaluate(path_root, path_config, path_results, gpu_id):
         # Create training dataloader
         dataloader = get_pad_dataloader(all_data,
                                         all_spike_events,
-                                        batch_size, True,
+                                        batch_size, False,
                                         num_workers)
 
     # Recover detection neural network
@@ -992,6 +997,12 @@ def evaluate(path_root, path_config, path_results, gpu_id):
     # Set evaluation mode
     model.eval()
 
+    # Recover time windows
+    n_time_points = model_config['n_time_points']
+    n_time_windows = model_config['n_time_windows']
+    time = torch.Tensor([i/sample_frequence for i in range(n_time_points)])
+    time_windows = torch.chunk(time, n_time_windows)
+
     # Initialize confusion_matrix
     # Here the positive class is the class 1
     confusion_matrix = np.zeros((2, 2))
@@ -1000,7 +1011,6 @@ def evaluate(path_root, path_config, path_results, gpu_id):
         for i, (data, labels) in enumerate(dataloader):
 
             # Apply time window reduction
-            n_time_windows = model_config['n_time_windows']
             labels = get_spike_windows(labels, n_time_windows)
 
             # Format conversion and move to device
@@ -1009,13 +1019,26 @@ def evaluate(path_root, path_config, path_results, gpu_id):
             labels = Variable(labels.type(Long))
             data, labels = data.to(device), labels.to(device)
 
-            # Inference
+            # Forward
             _, outputs = model(data)
             pred = torch.max(outputs.data, -1)[1]
 
             # Detach from device
             labels = labels.cpu().detach()
             pred = pred.cpu().detach()
+
+            # Recover predicted spike events start and end times
+            events = {}
+            for b in range(pred.size(0)):
+                index = (pred[b] == 1).int().nonzero().numpy()
+                w = []
+                for i in index:
+                    i = i[0]
+                    time_window = time_windows[i].numpy()
+                    start, end = time_window[0], time_window[-1]
+                    w.append((start, end))
+                events[b] = w
+            all_events[i] = events
 
             # Recover confusion matrix
             for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
@@ -1053,229 +1076,181 @@ def evaluate(path_root, path_config, path_results, gpu_id):
                    'Precision': Precision,
                    'F1_score': F1_score}
 
-        logger.info('Saving results.\n')
-        results_path = path_results + 'results.json'
-        json.dump(results, open(results_path, 'w'))
+        if save:
+            logger.info('Saving results.\n')
+            results_path = path_output + 'results.json'
+            json.dump(results, open(results_path, 'w'))
 
-        return results
+            logger.info('Saving predicted events.\n')
+            events_path = path_output + 'predicted_events.json'
+            json.dump(all_events, open(events_path, 'w'))
+
+            logger.info('Information saved in {}'.format(path_output))
+
+        return results, all_events
 
 
 def main():
-    """
-      Example of config file:
+
+    """ Train or evaluate DetectionBertMEEG.
+
+        Training: run the following command in terminal to perform
+                  cross-validation and save the best model.
+
+                python spike_detection.py --train --save
+                --path-root [path to data]
+                --path-config [path to config file]
+                --path-output [path to output folder] --gpu_id 0
+
+            Example of config file:
 
             config = {
-                'loader_parameters': {
-                    'path_data': '../EEG_signals/seconds_2_trials/',
-                    'path_channel': '../EEG_signals/channel_ctf_acc1.mat',
-                    'wanted_event_label': 'saw_EST',
-                    'wanted_channel_type': ['EEG'] ,
-                    'binary_classification': True
-                    },
-                'intra_subject': True,
-                'selected_rows': 10,
-                'training_parameters': {
-                    'k_folds': 10,
-                    'n_cross_validation': 10,
-                    'batch_size': 8,
-                    'num_workers': 0,
-                    'Epochs': 100,
-                    'Mix-up': True,
-                    'BETA': 0.4,
-                    'use_cost_sensitive': True,
-                    'lambda': 10,
-                    },
-                'model': {
-                    'n_channels': 20,
-                    'n_time_points': 201,
-                    'attention_num_heads': 3,
-                    'attention_dropout': 0.8,
-                    'attention_kernel': 30,
-                    'attention_stride': 5,
-                    'spatial_dropout': 0.8,
-                    'position_kernel': 20,
-                    'position_stride': 1,
-                    'emb_size': 30,
-                    'time_kernel': 20,
-                    'time_stride': 1,
-                    'embedding_dropout': 0,
-                    'depth': 3,
-                    'num_heads': 10,
-                    'expansion': 4,
-                    'transformer_dropout': 0,
-                    'n_time_windows': 10,
-                    'detector_dropout': 0
-                    },
-                'optimizer': {
-                    'lr': 1e-3,
-                    'b1': 0.9,
-                    'b2': 0.999,
-                    'weight_decay': 0,
-                    'use_amsgrad': False,
-                    'learning_rate_warmup': 0,
-                    'scheduler': {
-                        'use_scheduler': False,
-                        'patience': 20,
-                        'factor': 0.5,
-                        'min_lr': 1e-5
-                        }
-                    }
-                'cross_validation': {
-                    'n_splits': n_splits,
-                    'n_repeats': n_repeats,
-                    'random_state': random_state
-                    }
-                }
-        """
-
-    """
-    Train or evaluate DetectionBertMEEG.
-
-    Training: run the following command in terminal to train and save the trained model.
-
-            python spike_detection.py --train --save --path-data [path to data] --path-channel [path to channel file]
-            --path-config [path to config file] --path-output [path to output folder] --gpu_id 0
-
-        Example of config file: path_data and path_channel can be already written in the config file but do not need to.
-
-            config = {
-                'loader_parameters': {
-                    'path_data': '../../Neuropoly_Internship/MEEG_data/EEG_signals/seconds_2_trials/',
-                    'path_channel': '../../Neuropoly_Internship/MEEG_data/EEG_signals/channel_ctf_acc1.mat',
-                    'wanted_event_label': 'saw_EST',
-                    'wanted_channel_type': ['EEG'] ,
-                    'binary_classification': True,
+                    'loader_parameters': {
+                        'path_root': '../EEG_signals/',
+                        'wanted_event_label': 'saw_EST',
+                        'wanted_channel_type': ['EEG'] ,
+                        'sample_frequence': 100,
+                        'binary_classification': True
+                        },
+                    'intra_subject': True,
                     'selected_rows': 10,
-                    'train_size': 0.6,
-                    'test_size': 0.25,
-                    'shuffle': True,
-                    'random_state': 42
-                    },
-                'training_parameters': {
-                    'batch_size': 8,
-                    'num_workers': 0,
-                    'Epochs': 100
-                    'Mix-up': True,
-                    'BETA': 0.4,
-                    'use_cost_sensitive': True,
-                    'lambda': 10,
-                    'early_stopping': {
-                        'patience': 20,
-                        'checkpoint': 'detection_EEG_checkpoint.pt'
+                    'training_parameters': {
+                        'batch_size': 8,
+                        'num_workers': 0,
+                        'Epochs': 100,
+                        'Mix-up': True,
+                        'BETA': 0.4,
+                        'use_cost_sensitive': True,
+                        'lambda': 10,
+                        },
+                    'model': {
+                        'n_time_points': 201,
+                        'attention_num_heads': 3,
+                        'attention_dropout': 0.8,
+                        'attention_kernel': 30,
+                        'attention_stride': 5,
+                        'spatial_dropout': 0.8,
+                        'emb_size': 30,
+                        'n_maps': 5,
+                        'position_kernel': 20,
+                        'position_stride': 1,
+                        'channels_kernel': 20,
+                        'channels_stride': 1,
+                        'time_kernel': 20,
+                        'time_stride': 1,
+                        'embedding_dropout': 0,
+                        'depth': 3,
+                        'num_heads': 10,
+                        'expansion': 4,
+                        'transformer_dropout': 0,
+                        'n_time_windows': 10,
+                        'detector_dropout': 0
+                        },
+                    'optimizer': {
+                        'lr': 1e-3,
+                        'b1': 0.9,
+                        'b2': 0.999,
+                        'weight_decay': 0,
+                        'use_amsgrad': False,
+                        'learning_rate_warmup': 0,
+                        'scheduler': {
+                            'use_scheduler': False,
+                            'patience': 20,
+                            'factor': 0.5,
+                            'min_lr': 1e-5
+                            }
                         }
-                    },
-                'model': {
-                    'n_channels': 20,
-                    'n_time_points': 201,
-                    'attention_dropout': 0.8,
-                    'attention_kernel': 30,
-                    'attention_stride': 5,
-                    'spatial_dropout': 0.8,
-                    'position_kernel': 20,
-                    'position_stride': 1,
-                    'emb_size': 30,
-                    'time_kernel': 20,
-                    'time_stride': 1,
-                    'embedding_dropout': 0,
-                    'depth': 3,
-                    'num_heads': 10,
-                    'expansion': 4,
-                    'transformer_dropout': 0,
-                    'n_time_windows': 10,
-                    'detector_dropout': 0
-                    },
-                'optimizer': {
-                    'lr': 1e-3,
-                    'b1': 0.9,
-                    'b2': 0.999,
-                    'weight_decay': 0,
-                    'use_amsgrad': False,
-                    'learning_rate_warmup': 0,
-                    'scheduler': {
-                        'use_scheduler': False,
-                        'patience': 20,
-                        'factor': 0.5,
-                        'min_lr': 1e-5
+                    'cross_validation': {
+                        'n_splits': n_splits,
+                        'n_repeats': n_repeats,
+                        'random_state': random_state
                         }
                     }
-                }
 
-    Test: run the following command in terminal to test the trained model.
+        Test: run the following command in terminal to realise inference
+              with the best model from cross-validation.
 
-            python spike_detection.py --test --path-config [path to config file] --gpu_id 0
+                python spike_detection.py --test --save
+                --path-root [path to data]
+                --path-config [path to config file]
+                --path-output [path to output folder] --gpu_id 0
 
-        Example of config file: path_data and path_channel must be already written in the config file.
+            Example of config file:
 
             config = {
-                'loader_parameters': {
-                    'path_data': '../../Neuropoly_Internship/MEEG_data/EEG_signals/seconds_2_trials/',
-                    'path_channel': '../../Neuropoly_Internship/MEEG_data/EEG_signals/channel_ctf_acc1.mat',
-                    'wanted_event_label': 'saw_EST',
-                    'wanted_channel_type': ['EEG'] ,
-                    'binary_classification': True,
+                    'loader_parameters': {
+                        'path_root': '../EEG_signals/',
+                        'wanted_event_label': 'saw_EST',
+                        'wanted_channel_type': ['EEG'] ,
+                        'sample_frequence': 100,
+                        'binary_classification': True
+                        },
+                    'intra_subject': True,
                     'selected_rows': 10,
-                    'train_size': 0.6,
-                    'test_size': 0.25,
-                    'shuffle': True,
-                    'random_state': 42
-                    },
-                'training_parameters': {
-                    'batch_size': 8,
-                    'num_workers': 0,
-                    'Epochs': 100
-                    'Mix-up': True,
-                    'BETA': 0.4,
-                    'use_cost_sensitive': True,
-                    'lambda': 10,
-                    'early_stopping': {
-                        'patience': 20,
-                        'checkpoint': 'detection_EEG_checkpoint.pt'
+                    'training_parameters': {
+                        'batch_size': 8,
+                        'num_workers': 0,
+                        'Epochs': 100,
+                        'Mix-up': True,
+                        'BETA': 0.4,
+                        'use_cost_sensitive': True,
+                        'lambda': 10,
+                        },
+                    'model': {
+                        'n_time_points': 201,
+                        'attention_num_heads': 3,
+                        'attention_dropout': 0.8,
+                        'attention_kernel': 30,
+                        'attention_stride': 5,
+                        'spatial_dropout': 0.8,
+                        'emb_size': 30,
+                        'n_maps': 5,
+                        'position_kernel': 20,
+                        'position_stride': 1,
+                        'channels_kernel': 20,
+                        'channels_stride': 1,
+                        'time_kernel': 20,
+                        'time_stride': 1,
+                        'embedding_dropout': 0,
+                        'depth': 3,
+                        'num_heads': 10,
+                        'expansion': 4,
+                        'transformer_dropout': 0,
+                        'n_time_windows': 10,
+                        'detector_dropout': 0
+                        },
+                    'optimizer': {
+                        'lr': 1e-3,
+                        'b1': 0.9,
+                        'b2': 0.999,
+                        'weight_decay': 0,
+                        'use_amsgrad': False,
+                        'learning_rate_warmup': 0,
+                        'scheduler': {
+                            'use_scheduler': False,
+                            'patience': 20,
+                            'factor': 0.5,
+                            'min_lr': 1e-5
+                            }
                         }
-                    },
-                'model': {
-                    'n_channels': 20,
-                    'n_time_points': 201,
-                    'attention_dropout': 0.8,
-                    'attention_kernel': 30,
-                    'attention_stride': 5,
-                    'spatial_dropout': 0.8,
-                    'position_kernel': 20,
-                    'position_stride': 1,
-                    'emb_size': 30,
-                    'time_kernel': 20,
-                    'time_stride': 1,
-                    'embedding_dropout': 0,
-                    'depth': 3,
-                    'num_heads': 10,
-                    'expansion': 4,
-                    'transformer_dropout': 0,
-                    'n_time_windows': 10,
-                    'detector_dropout': 0
-                    },
-                'optimizer': {
-                    'lr': 1e-3,
-                    'b1': 0.9,
-                    'b2': 0.999,
-                    'weight_decay': 0,
-                    'use_amsgrad': False,
-                    'learning_rate_warmup': 0,
-                    'scheduler': {
-                        'use_scheduler': False,
-                        'patience': 20,
-                        'factor': 0.5,
-                        'min_lr': 1e-5
+                    'cross_validation': {
+                        'n_splits': n_splits,
+                        'n_repeats': n_repeats,
+                        'random_state': random_state
+                        }
+                    'save': {'output': ../EEG_signals/,
+                        'model': ../model.pt,
+                        'spatial_filter': ../filter.npy,
+                        'results': ../results.json,
+                        'config': ../config.json
+                        },
+                    'z_score': {'mean': 0.7,
+                        'std': 0.1
+                        },
+                    'split': {'train': [0, 2, 3, 4],
+                        'test': [1, 5]
                         }
                     }
-                'path_output': {
-                    'folder_output': '../Trained_MEEG_models/spike_detection/',
-                    'timeID': 2022_04_20-14_24_22,
-                    'path_config': '../Trained_MEEG_models/spike_detection/config_2022_04_20-14_24_22.json',
-                    'path_model': '../Trained_MEEG_models/spike_detection/model_2022_04_20-14_24_22',
-                    'path_training_info': '../Trained_MEEG_models/spike_detection/train_info_2022_04_20-14_24_22.csv',
-                    'path_validation_info': '../Trained_MEEG_models/spike_detection/val_info_2022_04_20-14_24_22.csv',
-                    'path_test_info': '../Trained_MEEG_models/spike_detection/test_info_2022_04_20-14_24_22.csv'
-                    }
-                }
     """
 
     parser = get_parser()
@@ -1285,8 +1260,13 @@ def main():
     train = args.train
     test = args.test
 
-    # Recover data
+    # Recover paths
     path_config = args.path_config
+    path_output = args.path_output
+
+    # Recover config dictionnary
+    with open(path_config) as f:
+        config = json.loads(f.read())
 
     # Recover save and gpu
     save = args.save
@@ -1294,31 +1274,17 @@ def main():
 
     # Train model
     if train:
-        path_data = args.path_data
-        path_channel = args.path_channel
-
-        # Recover config dictionnary and update path to data
-        with open(path_config) as f:
-            config = json.loads(f.read())
-        config['loader_parameters']['path_data'] = path_data
-        config['loader_parameters']['path_channel'] = path_channel
-
-        # Initialize class DetectionTransformer
+        path_root = args.path_root
+        config['loader_parameters']['path_root'] = path_root
         detection = DetectionTransformer(config)
-        path_output = args.path_output
-        train_results = detection.train(config, save, path_output, gpu_id)
+        train_results = detection.cross_validation(config, save,
+                                                   path_output, gpu_id)
 
     # Evaluate model
     elif test:
-
-        # Recover config dictionnary and update path to data
-        with open(path_config) as f:
-            config = json.loads(f.read())
-
-        # Initialize class DetectionTransformer
-        detection = DetectionTransformer(config)
-        test_results = detection.evaluate(path_config, gpu_id)
-
+        path_root = args.path_root
+        test_results = evaluate(path_root, config, save,
+                                path_output, gpu_id)
 
 
 if __name__ == "__main__":
