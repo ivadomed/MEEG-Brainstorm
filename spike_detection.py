@@ -14,12 +14,13 @@ Contributors: Ambroise Odonnat.
 """
 
 import json
+import os
 import torch
 import warnings
 
 import numpy as np
-import pandas as pd
 
+from datetime import datetime
 from einops import rearrange
 from loguru import logger
 from sklearn.model_selection import RepeatedKFold
@@ -493,20 +494,31 @@ class DetectionTransformer():
             # Saving the best model
             print('Best F1 score for fold {}.\n'.format(best_fold))
             if save:
-                logger.info('Saving model.\n')
-                model_path = path_output + 'model_' + subject_id + '.pth'
+                
+                # Create unique folder ID based on time
+                eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                path = path_output + 'spike_detection_attempt_' + eventid + '/'
+                try:
+                    os.mkdir(path)
+                except OSError:
+                    logger.info('Creation of the directory %s failed' % path)
+                else:
+                    logger.info('Successfully created folder %s \n' % path)
+
+                # Save information
+                model_path = path + 'model_' + subject_id + '.pth'
                 torch.save(models[best_fold], model_path)
 
                 logger.info('Saving spatial filter.\n')
-                filter_path = path_output + 'filter_' + subject_id + '.npy'
+                filter_path = path + 'filter_' + subject_id + '.npy'
                 np.save(filter_path, spatial_filter[best_fold])
 
                 logger.info('Saving results.\n')
-                results_path = path_output + 'results_' + subject_id + '.json'
+                results_path = path + 'results_' + subject_id + '.json'
                 json.dump(results, open(results_path, 'w'))
 
                 logger.info('Saving configuration file.')
-                config_path = path_output + 'config_' + subject_id + '.json'
+                config_path = path + 'config_' + subject_id + '.json'
                 config['save'] = {'output': path_output,
                                   'model': model_path,
                                   'spatial_filter': filter_path,
@@ -848,6 +860,17 @@ class DetectionTransformer():
             # Saving the best model
             print('Best F1 score for fold {}.\n'.format(best_fold))
             if save:
+
+                # Create unique folder ID based on time
+                eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                path = path_output + 'spike_detection_attempt_' + eventid + '/'
+                try:
+                    os.mkdir(path)
+                except OSError:
+                    logger.info('Creation of the directory %s failed' % path)
+                else:
+                    logger.info('Successfully created folder %s \n' % path)
+
                 logger.info('Saving model.\n')
                 model_path = path_output + 'model.pth'
                 torch.save(models[best_fold], model_path)
