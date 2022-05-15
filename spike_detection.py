@@ -162,8 +162,8 @@ class DetectionTransformer():
                 print('FOLD {}'.format(fold))
                 print('--------------------------------')
 
-                train_index[fold] = train_ids
-                test_index[fold] = test_ids
+                train_index[fold] = str(train_ids)
+                test_index[fold] = str(test_ids)
 
                 # Recover training dataset
                 train_data = all_data[train_ids]
@@ -529,8 +529,8 @@ class DetectionTransformer():
                 print(f'FOLD {fold}')
                 print('--------------------------------')
 
-                train_index[fold] = train_ids
-                test_index[fold] = test_ids
+                train_index[fold] = str(train_ids)
+                test_index[fold] = str(test_ids)
 
                 # Recover training dataset
                 train_subject_ids = self.subject_ids[train_ids]
