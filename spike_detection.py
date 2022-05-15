@@ -163,6 +163,9 @@ class DetectionTransformer():
                 print('FOLD {}'.format(fold))
                 print('--------------------------------')
 
+                train_index[fold] = str(train_ids)
+                test_index[fold] = str(test_ids)
+
                 # Recover training dataset
                 train_data = all_data[train_ids]
                 train_labels = all_labels[train_ids]
@@ -522,6 +525,8 @@ class DetectionTransformer():
                                   'results': results_path,
                                   'config': config_path}
                 config['z_score'] = z_scores[best_fold]
+                config['split'] = {'train': train_index[best_fold],
+                                   'test': test_index[best_fold]}
                 json.dump(config, open(config_path, 'w'))
                 logger.info('Information saved in {}'.format(path_output))
 
