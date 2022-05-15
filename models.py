@@ -11,13 +11,13 @@ Usage: type "from models import <class>" to use one class.
 Contributors: Ambroise Odonnat.
 """
 
+import torch
 
 from einops import rearrange
-from einops.layers.torch import Rearrange, Reduce
+from einops.layers.torch import Reduce
 from torch import nn
 from torch import Tensor
 from heads import Mish, RobertaClassifier, SpikeDetector
-import matplotlib.pyplot as plt
 
 
 """ ********** Residual connection for better training ********** """
@@ -80,7 +80,7 @@ class ChannelAttention(nn.Module):
                           [batch_size x 1 x n_channels x n_time_points].
         """
 
-        x = x.squeeze()
+        x = torch.squeeze(x, dim=1)
 
         # padded channels should be ignored in self-attention
         key_padding_mask = (x.mean(dim=-1) == 0) & (x.std(dim=-1) == 0)
