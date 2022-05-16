@@ -388,13 +388,13 @@ class DetectionTransformer():
                         lr_scheduler.step(train_loss)
 
                 # Training finished
-                logger.info('Training process has finished.')
+                logger.info('Training process finished.')
 
                 # Recover model parameters
                 models[fold] = model.state_dict()
 
                 # Print about testing
-                logger.info('Starting testing.')
+                logger.info('Start testing.')
 
                 # Set evaluation mode
                 model.eval()
@@ -497,7 +497,12 @@ class DetectionTransformer():
                 
                 # Create unique folder ID based on time
                 eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                path = path_output + 'spike_detection_attempt_' + eventid + '/'
+                if config['loader_parameters']['wanted_channel_type'] == ['EEG']:
+                    path = path_output + 'EEG_spike_detection_attempt_' + eventid + '/'
+                elif config['loader_parameters']['wanted_channel_type'] == ['MEG']:
+                    path = path_output + 'MEG_spike_detection_attempt_' + eventid + '/'
+                else:
+                    path = path_output + 'MEEG_spike_detection_attempt_' + eventid + '/'
                 try:
                     os.mkdir(path)
                 except OSError:
@@ -527,8 +532,8 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'))
-                logger.info('Information saved in {}'.format(path_output))
+                json.dump(config, open(config_path, 'w'), indent=4, sort_keys=True)
+                logger.info('Information saved in {}'.format(path))
 
             return results
 
@@ -754,13 +759,13 @@ class DetectionTransformer():
                         lr_scheduler.step(train_loss)
 
                 # Training finished
-                logger.info('Training process has finished.')
+                logger.info('Training process finished.')
 
                 # Recover model parameters
                 models[fold] = model.state_dict()
 
                 # Print about testing
-                logger.info('Starting testing.')
+                logger.info('Start testing.')
 
                 # Set evaluation mode
                 model.eval()
@@ -863,7 +868,12 @@ class DetectionTransformer():
 
                 # Create unique folder ID based on time
                 eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                path = path_output + 'spike_detection_attempt_' + eventid + '/'
+                if config['loader_parameters']['wanted_channel_type'] == ['EEG']:
+                    path = path_output + 'EEG_spike_detection_attempt_' + eventid + '/'
+                elif config['loader_parameters']['wanted_channel_type'] == ['MEG']:
+                    path = path_output + 'MEG_spike_detection_attempt_' + eventid + '/'
+                else:
+                    path = path_output + 'MEEG_spike_detection_attempt_' + eventid + '/'
                 try:
                     os.mkdir(path)
                 except OSError:
@@ -893,8 +903,8 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'))
-                logger.info('Information saved in {}'.format(path_output))
+                json.dump(config, open(config_path, 'w'), indent=4, sort_keys=True)
+                logger.info('Information saved in {}'.format(path))
 
             return results
 
@@ -1015,7 +1025,7 @@ def evaluate(path_root, config, save, path_output, gpu_id):
             model = torch.nn.DataParallel(model)
     model.to(device)
 
-    logger.info('Starting testing.')
+    logger.info('Start testing.')
 
     # Set evaluation mode
     model.eval()
@@ -1102,11 +1112,11 @@ def evaluate(path_root, config, save, path_output, gpu_id):
         if save:
             logger.info('Saving results.\n')
             results_path = path_output + 'results.json'
-            json.dump(results, open(results_path, 'w'))
+            json.dump(results, open(results_path, 'w'), indent=4, sort_keys=True)
 
             logger.info('Saving predicted events.\n')
             events_path = path_output + 'predicted_events.json'
-            json.dump(all_events, open(events_path, 'w'))
+            json.dump(all_events, open(events_path, 'w'), indent=4, sort_keys=True)
 
             logger.info('Information saved in {}'.format(path_output))
 
