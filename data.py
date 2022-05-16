@@ -48,7 +48,8 @@ class Data:
                   wanted_event_label, wanted_channel_type):
 
         """ Recover as numpy array a trial with corresponding number of spikes,
-            spike events times and time points.
+            spike events times and time points. Trials with bad channels
+            contain the event 'BAD' and must be discarded from the experiment.
 
         Args:
             trial_fname (str): Path to trial file (matlab dictionnary).
@@ -63,6 +64,7 @@ class Data:
             label (int): Number of seizures in the trial.
             spikeTimePoints (array): Spike events times.
             times (array): Time points.
+            bad_trial (int): If nonzero, trial is further discarded.
         """
 
         # Load the trial and corresponding channels
@@ -83,20 +85,22 @@ class Data:
         # Count seizure events and recover spikes events times
         count_spikes = 0
         spike_time_points = []
-        event_label = trial['Events']['label'][0][0][0]
-        if event_label == wanted_event_label:
-            count_spikes += trial['Events']['times'][0][0].shape[1]
-            spike_time_points = np.round(trial['Events']['times'][0][0][0], 2)
-
+        bad_trial = 0
+        for iEvent in range(len(trial['Events'])):
+            if trial['Events']['label'][0][iEvent] == wanted_event_label:
+                count_spikes += trial['Events']['times'][0][iEvent].shape[1]
+                spike_time_points = trial['Events']['times'][0][iEvent][0]
+            elif trial['Events']['label'][0][iEvent] == 'BAD':
+                bad_trial += 1
         data, n_spike = np.asarray(F, dtype='float64'), count_spikes
 
-        return data, n_spike, spike_time_points, times
+        return data, n_spike, spike_time_points, times, bad_trial
 
     def get_dataset(self, folder, channel_fname, wanted_event_label,
                     wanted_channel_type, sample_frequence,
                     binary_classification):
 
-        """ Get trial with corresponding labels and spike events array
+        """ Get trials with corresponding labels and spike events array
             (1 when a spike occurs and 0 elsewhere).
 
         Args:
@@ -126,22 +130,23 @@ class Data:
         for trial_fname in folder:
             dataset = self.get_trial(trial_fname, channel_fname,
                                      wanted_event_label, wanted_channel_type)
-            data, n_spike, spike_time_points, times = dataset
+            data, n_spike, spike_time_points, times, bad_trial = dataset
 
             # Apply binary classification
             # label = 1 if at least one spike occurs, label = 0 otherwise
             if binary_classification:
                 n_spike = int((n_spike > 0))
 
-            # Append data and labels from each trial
-            all_data.append(data)
-            all_n_spikes.append(n_spike)
+            # Append data and labels from each good trial
+            if bad_trial == 0:
+                all_data.append(data)
+                all_n_spikes.append(n_spike)
 
-            # Get vector with 1 when a spike occurs and 0 elsewhere
-            N = len(times)
-            spike_events = get_spike_events(spike_time_points, N,
-                                            sample_frequence)
-            all_spike_events.append(spike_events)
+                # Get vector with 1 when a spike occurs and 0 elsewhere
+                N = len(times)
+                spike_events = get_spike_events(spike_time_points, N,
+                                                sample_frequence)
+                all_spike_events.append(spike_events)
 
         # Stack Dataset along axis 0
         all_data = np.stack(all_data, axis=0)
@@ -197,7 +202,8 @@ class Data:
         all_data = {}
         all_labels = {}
         all_spike_events = {}
-
+# MODIFY TO ACCESS EVERY SESSION OF EACH SUBJECT
+# BUT ONLY ONE TIME THE CHANNEL.MAT FILE
         for item in os.listdir(path_root):
             if not item.startswith('.'):
                 subject_path = path_root+item+'/'
@@ -218,6 +224,9 @@ class Data:
                                            sample_frequence,
                                            binary_classification)
                 data, labels, spike_events = dataset
+
+# APPEND EACH DATA (because multiple sessions per subject)
+# and concatenate after to have a big array for each subject
 
                 all_data[item] = data
                 all_labels[item] = labels
