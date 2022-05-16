@@ -36,7 +36,7 @@ for participant_id in participant_ids:
     config_json["path_output"] = path_output + '_' + participant_id
     config_json_name = f"config_for_training_{participant_id}.json"
 
-    with open(config_json_name, 'w') as json_file:
+    with open(os.path.join(path_data, config_json_name), 'w') as json_file:
         json.dump(config_json, json_file, indent=4, sort_keys=True)
 
     os.system(f'ivadomed -c {config_json_name}')
