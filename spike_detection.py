@@ -494,15 +494,19 @@ class DetectionTransformer():
             # Saving the best model
             print('Best F1 score for fold {}.\n'.format(best_fold))
             if save:
-                
+
                 # Create unique folder ID based on time
                 eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                if config['loader_parameters']['wanted_channel_type'] == ['EEG']:
-                    path = path_output + 'EEG_spike_detection_attempt_' + eventid + '/'
-                elif config['loader_parameters']['wanted_channel_type'] == ['MEG']:
-                    path = path_output + 'MEG_spike_detection_attempt_' + eventid + '/'
+                data_config = config['loader_parameters']
+                if data_config['wanted_channel_type'] == ['EEG']:
+                    path = path_output + 'EEG_spike_detection_attempt_'
+                    path += eventid + '/'
+                elif data_config['wanted_channel_type'] == ['MEG']:
+                    path = path_output + 'MEG_spike_detection_attempt_'
+                    path += eventid + '/'
                 else:
-                    path = path_output + 'MEEG_spike_detection_attempt_' + eventid + '/'
+                    path = path_output + 'MEEG_spike_detection_attempt_'
+                    path += eventid + '/'
                 try:
                     os.mkdir(path)
                 except OSError:
@@ -532,7 +536,8 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'), indent=4, sort_keys=True)
+                json.dump(config, open(config_path, 'w'), indent=4,
+                          sort_keys=True)
                 logger.info('Information saved in {}'.format(path))
 
             return results
@@ -868,12 +873,16 @@ class DetectionTransformer():
 
                 # Create unique folder ID based on time
                 eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                if config['loader_parameters']['wanted_channel_type'] == ['EEG']:
-                    path = path_output + 'EEG_spike_detection_attempt_' + eventid + '/'
-                elif config['loader_parameters']['wanted_channel_type'] == ['MEG']:
-                    path = path_output + 'MEG_spike_detection_attempt_' + eventid + '/'
+                data_config = config['loader_parameters']
+                if data_config['wanted_channel_type'] == ['EEG']:
+                    path = path_output + 'EEG_spike_detection_attempt_'
+                    path += eventid + '/'
+                elif data_config['wanted_channel_type'] == ['MEG']:
+                    path = path_output + 'MEG_spike_detection_attempt_'
+                    path += eventid + '/'
                 else:
-                    path = path_output + 'MEEG_spike_detection_attempt_' + eventid + '/'
+                    path = path_output + 'MEEG_spike_detection_attempt_'
+                    path += eventid + '/'
                 try:
                     os.mkdir(path)
                 except OSError:
@@ -903,7 +912,8 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'), indent=4, sort_keys=True)
+                json.dump(config, open(config_path, 'w'),
+                          indent=4, sort_keys=True)
                 logger.info('Information saved in {}'.format(path))
 
             return results
@@ -1112,11 +1122,13 @@ def evaluate(path_root, config, save, path_output, gpu_id):
         if save:
             logger.info('Saving results.\n')
             results_path = path_output + 'results.json'
-            json.dump(results, open(results_path, 'w'), indent=4, sort_keys=True)
+            json.dump(results, open(results_path, 'w'),
+                      indent=4, sort_keys=True)
 
             logger.info('Saving predicted events.\n')
             events_path = path_output + 'predicted_events.json'
-            json.dump(all_events, open(events_path, 'w'), indent=4, sort_keys=True)
+            json.dump(all_events, open(events_path, 'w'),
+                      indent=4, sort_keys=True)
 
             logger.info('Information saved in {}'.format(path_output))
 
