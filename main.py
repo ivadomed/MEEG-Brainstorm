@@ -55,7 +55,7 @@ all_dataset = dataset.all_datasets()
 n_epochs = 100
 patience = 10
 
-assert method in ("Classic")
+assert method in ("Fukumori")
 
 num_workers = 0  # Number of processes to use for the data loading process; 0 is the main Python process
 
@@ -65,7 +65,7 @@ results_per_class = []
 loaders_train, loader_valid, loader_test = 
 
 
-if method=="Fukumori":
+if method == "Fukumori":
     model = fukumori2021RNN()
 
 lr = 1e-3  # Learning rate

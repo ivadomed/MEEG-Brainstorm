@@ -5,7 +5,6 @@ import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
 
 import torch
-from torch.nn import CrossEntropyLoss
 
 
 def _do_train(
@@ -29,9 +28,9 @@ def _do_train(
         optimizer.zero_grad()
 
         batch_x = batch_x.to(torch.float).to(device=device)
-        batch_y = batch_y.to(device=device)
+        batch_y = batch_y.to(torch.float).to(device=device)
         output, _ = model(batch_x)
-        loss = criterion(output, batch_y)
+        loss = criterion(output[:, 0], batch_y)
         loss.backward()
         optimizer.step()
         train_loss.append(loss.item())
@@ -58,10 +57,10 @@ def _validate(model, loader, criterion):
     with torch.no_grad():
         for idx_batch, (batch_x, batch_y) in enumerate(loader):
             batch_x = batch_x.to(torch.float).to(device=device)
-            batch_y = batch_y.to(device=device)
+            batch_y = batch_y.to(torch.float).to(device=device)
             output, _ = model.forward(batch_x)
 
-            loss = criterion(output, batch_y)
+            loss = criterion(output[:, 0], batch_y)
             val_loss[idx_batch] = loss.item()
 
             y_pred_all.append(output.cpu().numpy())
