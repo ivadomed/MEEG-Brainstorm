@@ -202,35 +202,37 @@ class Data:
         all_data = {}
         all_labels = {}
         all_spike_events = {}
-# MODIFY TO ACCESS EVERY SESSION OF EACH SUBJECT
-# BUT ONLY ONE TIME THE CHANNEL.MAT FILE
         for item in os.listdir(path_root):
             if not item.startswith('.'):
-                subject_path = path_root+item+'/'
-                for subject_item in os.listdir(subject_path):
-                    path = subject_path+subject_item
-                    if os.path.isfile(path):
-                        channel_fname = path
-                    if os.path.isdir(path):
-                        path += '/'
-                        folder = [path+f for f in listdir(path)
-                                  if isfile(join(path, f))]
-
-                # Get dataset, labels, spike time points and time points
                 logger.info("Recover data for {}".format(item))
-                dataset = self.get_dataset(folder, channel_fname,
-                                           wanted_event_label,
-                                           wanted_channel_type,
-                                           sample_frequence,
-                                           binary_classification)
-                data, labels, spike_events = dataset
+                subject_data, subject_labels, subject_spike_events = [], [], []
+                subject_path = path_root+item+'/'
+                channels_file = [f.path for f in os.scandir(subject_path)
+                                 if f.is_file()]
+                sessions = [f.path for f in os.scandir(subject_path)
+                            if f.is_dir()]
+                channel_fname = channels_file[0]
 
-# APPEND EACH DATA (because multiple sessions per subject)
-# and concatenate after to have a big array for each subject
+                # Recover trials, labels and spike events
+                for i in range(len(sessions)):
+                    path = sessions[i] + '/'
+                    folder = [path + f for f in listdir(path)
+                              if isfile(join(path, f))]
+                    dataset = self.get_dataset(folder, channel_fname,
+                                               wanted_event_label,
+                                               wanted_channel_type,
+                                               sample_frequence,
+                                               binary_classification)
+                    data, labels, spike_events = dataset
+                    subject_data.append(data)
+                    subject_labels.append(labels)
+                    subject_spike_events.append(spike_events)
 
-                all_data[item] = data
-                all_labels[item] = labels
-                all_spike_events[item] = spike_events
+                # Recover trials for each subject
+                all_data[item] = np.concatenate(subject_data, axis=0)
+                all_labels[item] = np.concatenate(subject_labels, axis=0)
+                all_spike_events[item] = np.concatenate(subject_spike_events,
+                                                        axis=0)
 
         return all_data, all_labels, all_spike_events
 
