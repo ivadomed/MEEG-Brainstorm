@@ -524,7 +524,7 @@ class DetectionTransformer():
 
                 logger.info('Saving results.\n')
                 results_path = path + 'results_' + subject_id + '.json'
-                json.dump(results, open(results_path, 'w'))
+                json.dump(results, open(results_path, 'w'), indent=4)
 
                 logger.info('Saving configuration file.')
                 config_path = path + 'config_' + subject_id + '.json'
@@ -536,8 +536,7 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'), indent=4,
-                          sort_keys=True)
+                json.dump(config, open(config_path, 'w'), indent=4)
                 logger.info('Information saved in {}'.format(path))
 
             return results
@@ -900,7 +899,7 @@ class DetectionTransformer():
 
                 logger.info('Saving results.\n')
                 results_path = path_output + 'results.json'
-                json.dump(results, open(results_path, 'w'))
+                json.dump(results, open(results_path, 'w'), indent=4)
 
                 logger.info('Saving configuration file.')
                 config_path = path_output + 'config.json'
@@ -912,8 +911,7 @@ class DetectionTransformer():
                 config['z_score'] = z_scores[best_fold]
                 config['split'] = {'train': train_index[best_fold],
                                    'test': test_index[best_fold]}
-                json.dump(config, open(config_path, 'w'),
-                          indent=4, sort_keys=True)
+                json.dump(config, open(config_path, 'w'), indent=4)
                 logger.info('Information saved in {}'.format(path))
 
             return results
@@ -1122,13 +1120,11 @@ def evaluate(path_root, config, save, path_output, gpu_id):
         if save:
             logger.info('Saving results.\n')
             results_path = path_output + 'results.json'
-            json.dump(results, open(results_path, 'w'),
-                      indent=4, sort_keys=True)
+            json.dump(results, open(results_path, 'w'), indent=4)
 
             logger.info('Saving predicted events.\n')
             events_path = path_output + 'predicted_events.json'
-            json.dump(all_events, open(events_path, 'w'),
-                      indent=4, sort_keys=True)
+            json.dump(all_events, open(events_path, 'w'), indent=4)
 
             logger.info('Information saved in {}'.format(path_output))
 
