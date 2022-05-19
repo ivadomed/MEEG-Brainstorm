@@ -13,15 +13,14 @@ class fukumori2021RNN(nn.Module):
         self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
         self.selfattention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
         self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1)
-        self.classifier = nn.Linear(96, 1)
+        self.classifier = nn.Linear(256, 1)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        # h0 = torch.randn(1, self.input_size, 8)
-        # c0 = torch.randn(1, self.input_size, 8)
-
+        h0 = torch.randn(1, 512, 8)
+        c0 = torch.randn(1, 512, 8)
         # First LSTM
-        x, (_, _) = self.LSTM_1(x)
+        x, (_, _) = self.LSTM_1(x) #, (h0, c0))
         x = self.tanh(x)
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
@@ -30,8 +29,10 @@ class fukumori2021RNN(nn.Module):
         x_attention, attention_weights = self.selfattention(x, x, x)
         x = x + x_attention
 
+        h0 = torch.randn(1, 128, 8)
+        c0 = torch.randn(1, 128, 8)
         # Second LSTM
-        x, (_, _) = self.LSTM_2(x)
+        x, (_, _) = self.LSTM_2(x) #, (h0, c0))
         x = self.tanh(x)
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)

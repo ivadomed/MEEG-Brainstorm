@@ -72,7 +72,6 @@ def _validate(model, loader, criterion):
     y_pred_binary = np.zeros(len(y_pred))
     y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
     perf = f1_score(y_true, y_pred_binary)
-
     return np.mean(val_loss), perf
 
 

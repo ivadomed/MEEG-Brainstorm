@@ -86,7 +86,7 @@ class Data:
             channel_type = channel_mat['Channel'][0, i]['Type'].tolist()[0]
             if channel_type in wanted_channel_type:
                 wanted_channels.append(i)
-
+        wanted_channels = 326
         # Recover data and time points
         F = trial['F'][wanted_channels]
         times = trial['Time'][0]
@@ -95,6 +95,7 @@ class Data:
         count_spikes = 0
         spike_time_points = []
         event_label = trial['Events']['label'][0][0][0]
+        print(trial['Events']['label'])
         if event_label == wanted_event_label:
             count_spikes += trial['Events']['times'][0][0].shape[1]
             spike_time_points = np.round(trial['Events']['times'][0][0][0],2) # In seconds
