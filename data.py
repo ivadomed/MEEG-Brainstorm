@@ -8,7 +8,7 @@ Usage: type "from data import <class>" to use one of its classes.
 Contributors: Ambroise Odonnat.
 """
 
-
+import glob
 import os
 import scipy.io
 
@@ -207,17 +207,17 @@ class Data:
                 logger.info("Recover data for {}".format(item))
                 subject_data, subject_labels, subject_spike_events = [], [], []
                 subject_path = path_root+item+'/'
-                channels_file = [f.path for f in os.scandir(subject_path)
-                                 if f.is_file()]
                 sessions = [f.path for f in os.scandir(subject_path)
                             if f.is_dir()]
-                channel_fname = channels_file[0]
 
                 # Recover trials, labels and spike events
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
                               if isfile(join(path, f))]
+                    channel_fname = glob.glob(path + "channel_ctf_acc1.mat",
+                                              recursive=True)[0]
+                    folder.remove(channel_fname)
                     dataset = self.get_dataset(folder, channel_fname,
                                                wanted_event_label,
                                                wanted_channel_type,
