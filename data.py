@@ -87,10 +87,10 @@ class Data:
         spike_time_points = []
         bad_trial = 0
         for iEvent in range(len(trial['Events'])):
-            if trial['Events']['label'][0][iEvent] == wanted_event_label:
-                count_spikes += trial['Events']['times'][0][iEvent].shape[1]
-                spike_time_points = trial['Events']['times'][0][iEvent][0]
-            elif trial['Events']['label'][0][iEvent] == 'BAD':
+            if trial['Events'][iEvent]['label'][0] == wanted_event_label:
+                count_spikes += trial['Events'][iEvent]['times'][0].shape[1]
+                spike_time_points = trial['Events'][iEvent]['times'][0][0]
+            elif trial['Events'][iEvent]['label'][0] == 'BAD':
                 bad_trial += 1
         data, n_spike = np.asarray(F, dtype='float64'), count_spikes
 
@@ -163,14 +163,9 @@ class Data:
         unique_n_spike = np.unique(all_n_spikes)
         all_labels = np.asarray([np.where(unique_n_spike == s)[0][0]
                                  for s in all_n_spikes])
-
-        if binary_classification:
-            logger.info("Label creation: No Spike / Spikes mapped on "
-                        "labels {}".format(np.unique(all_labels)))
-        else:
-            logger.info("Label creation: number of spikes {} mapped on "
-                        "labels {}".format(np.unique(all_n_spikes),
-                                           np.unique(all_labels)))
+        logger.info("Label creation: number of spikes {} mapped on "
+                    "labels {}".format(np.unique(all_n_spikes),
+                                       np.unique(all_labels)))
 
         return all_data, all_labels, all_spike_events
 
@@ -229,10 +224,9 @@ class Data:
                     subject_spike_events.append(spike_events)
 
                 # Recover trials for each subject
-                all_data[item] = np.concatenate(subject_data, axis=0)
-                all_labels[item] = np.concatenate(subject_labels, axis=0)
-                all_spike_events[item] = np.concatenate(subject_spike_events,
-                                                        axis=0)
+                all_data[item] = subject_data
+                all_labels[item] = subject_labels
+                all_spike_events[item] = subject_spike_events
 
         return all_data, all_labels, all_spike_events
 
