@@ -152,9 +152,9 @@ class DetectionTransformer():
         if intra_subject:
             subject_id = self.subject_ids[0]
             logger.info('Spike detection for subject {}.'.format(subject_id))
-            all_data = self.all_data[subject_id]
-            all_labels = self.all_labels[subject_id]
-            spike_events = self.all_spike_events[subject_id]
+            all_data = self.all_data[subject_id][0]
+            all_labels = self.all_labels[subject_id][0]
+            spike_events = self.all_spike_events[subject_id][0]
             index = [i for i in range(all_data.shape[0])]
 
             # Loop on the folds
@@ -555,9 +555,16 @@ class DetectionTransformer():
 
                 # Recover training dataset
                 train_subject_ids = self.subject_ids[train_ids]
-                train_data = [self.all_data[id] for id in train_subject_ids]
-                train_spike_events = [self.all_spike_events[id]
-                                      for id in train_subject_ids]
+                train_data = []
+                for id in train_subject_ids:
+                    sessions_trials = self.all_data[id]
+                    for trials in sessions_trials:
+                        train_data.append(trials)
+                train_spike_events = []
+                for id in train_subject_ids:
+                    sessions_events = self.all_spike_events[id]
+                    for events in sessions_events:
+                        train_spike_events.append(events)
 
                 # Z-score standardization
                 target_mean = np.mean([np.mean(data) for data in train_data])
@@ -576,9 +583,16 @@ class DetectionTransformer():
 
                 # Recover test dataset
                 test_subject_ids = self.subject_ids[test_ids]
-                test_data = [self.all_data[id] for id in test_subject_ids]
-                test_spike_events = [self.all_spike_events[id]
-                                     for id in test_subject_ids]
+                test_data = []
+                for id in test_subject_ids:
+                    sessions_trials = self.all_data[id]
+                    for trials in sessions_trials:
+                        test_data.append(trials)
+                test_spike_events = []
+                for id in test_subject_ids:
+                    sessions_events = self.all_spike_events[id]
+                    for events in sessions_events:
+                        test_spike_events.append(events)
 
                 # Z-score standardization
                 test_data = [np.expand_dims((data-target_mean) / target_std,
