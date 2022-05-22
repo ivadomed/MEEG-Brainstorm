@@ -7,6 +7,7 @@
     "intra_subject": true,
     "loader_parameters": {
         "binary_classification": true,
+        "label_position": true,
         "path_root": "../../Neuropoly_Internship/MEEG_data/EEG_signals/",
         "sample_frequence": 100,
         "wanted_channel_type": [
