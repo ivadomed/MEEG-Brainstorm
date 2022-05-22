@@ -14,7 +14,7 @@ Contributors: Ambroise Odonnat.
 import torch
 
 from einops import rearrange
-from einops.layers.torch import Reduce
+from einops.layers.torch import Reduce, Rearrange
 from torch import nn
 from torch import Tensor
 from heads import Mish, RobertaClassifier, SpikeDetector
@@ -65,6 +65,7 @@ class ChannelAttention(nn.Module):
         super().__init__()
 
         self.attention = nn.MultiheadAttention(emb_size, num_heads, dropout)
+        self.gamma = nn.Parameter(torch.zeros(1))
 
     def forward(self, x: Tensor):
 
@@ -89,7 +90,7 @@ class ChannelAttention(nn.Module):
         x = rearrange(x, 'b s e -> s b e')
         out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask)
         out = rearrange(out, 's b e -> b s e')
-        out = out.unsqueeze(1)
+        out = self.gamma * out.unsqueeze(1)
 
         return out
 
@@ -99,13 +100,16 @@ class ChannelAttention(nn.Module):
 
 class PatchEmbedding(nn.Module):
 
-    def __init__(self, padding, seq_len, emb_size, n_maps, position_kernel,
+    def __init__(self, seq_len, emb_size, n_maps, position_kernel,
                  position_stride, channels_kernel, channels_stride,
-                 time_kernel, time_stride):
+                 time_kernel, time_stride, dropout):
 
-        """
+        """Positional encoding and embedding. Inspired by:
+            `"EEGNet: a compact convolutional neural network for EEG-based
+            brain–computer interfaces"
+            <https://iopscience.iop.org/article/10.1088/1741-2552/aace8c/pdf>`_.
+
         Args:
-            padding (bool): If True, apply padding.
             seq_len (int): Sequence length (here: n_time_points).
             emb_size (int): Size of embedding vectors.
             n_maps (int): Number of feature maps for positional encoding.
@@ -115,56 +119,43 @@ class PatchEmbedding(nn.Module):
             channels_stride (int): Stride for convolution on channels.
             time_kernel (int): Kernel size for convolution on time axis.
             time_stride (int): Stride for convolution on channel axis.
+            dropout (float): Dropout value.
         """
 
         super().__init__()
 
-        if padding:
+        # Padding values to preserve seq_len
+        position_padding = ((position_stride-1) * seq_len -
+                            (position_stride+1) + position_kernel)
+        position_padding = int(position_padding / 2)
+        new_seq_len = (((seq_len + 1 - position_stride)
+                        / position_stride) + 1)
+        new_seq_len = int(new_seq_len / 2)
+        time_padding = ((time_stride-1) * new_seq_len -
+                        (time_stride+1) + time_kernel)
+        time_padding = int(time_padding / 2) + 1
 
-            # Padding values to preserve seq_len
-            position_padding = ((position_stride-1) * seq_len -
-                                (position_stride+1) + position_kernel)
-            position_padding = int(position_padding / 2)
-            seq_len = (((seq_len + 1 - position_stride) / position_stride) + 1)
-            seq_len = int(seq_len / 2)
-            time_padding = ((time_stride-1) * seq_len -
-                            (time_stride+1) + time_kernel)
-            time_padding = int(time_padding / 2) + 1
-
-            # Embedding and positional encoding
-            self.embedding = nn.Sequential(
-                                nn.Conv2d(1, n_maps, (1, position_kernel),
-                                          stride=(1, position_stride),
-                                          padding=(0, position_padding)),
-                                nn.BatchNorm2d(n_maps),
-                                nn.LeakyReLU(),
-                                nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
-                                          stride=(channels_stride, 1),
-                                          groups=n_maps),
-                                nn.Conv2d(n_maps, emb_size, (1, time_kernel),
-                                          stride=(1, time_stride),
-                                          padding=(0, time_padding)),
-                                nn.BatchNorm2d(emb_size),
-                                nn.LeakyReLU(),
-                                Reduce('b o c t -> b t o', reduction='mean')
-                                )
-        else:
-
-            # Embedding and positional encoding
-            self.embedding = nn.Sequential(
-                                nn.Conv2d(1, n_maps, (1, position_kernel),
-                                          stride=(1, position_stride)),
-                                nn.BatchNorm2d(n_maps),
-                                nn.LeakyReLU(),
-                                nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
-                                          stride=(channels_stride, 1),
-                                          groups=n_maps),
-                                nn.Conv2d(n_maps, emb_size, (1, time_kernel),
-                                          stride=(1, time_stride)),
-                                nn.BatchNorm2d(emb_size),
-                                nn.LeakyReLU(),
-                                Reduce('b o c t -> b t o', reduction='mean')
-                                )
+        # Embedding and positional encoding
+        self.embedding = nn.Sequential(
+                            nn.AdaptiveAvgPool2d(((channels_kernel,
+                                                   seq_len))),
+                            nn.Conv2d(1, n_maps, (1, position_kernel),
+                                      stride=(1, position_stride),
+                                      padding=(0, position_padding)),
+                            nn.BatchNorm2d(n_maps),
+                            nn.LeakyReLU(),
+                            nn.Dropout(dropout),
+                            nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
+                                      stride=(channels_stride, 1),
+                                      groups=n_maps),
+                            nn.Conv2d(n_maps, emb_size, (1, time_kernel),
+                                      stride=(1, time_stride),
+                                      padding=(0, time_padding)),
+                            nn.BatchNorm2d(emb_size),
+                            nn.LeakyReLU(),
+                            nn.Dropout(dropout),
+                            Rearrange('b o c t -> b (c t) o')
+                            )
 
     def forward(self, x: Tensor):
 
@@ -182,7 +173,6 @@ class PatchEmbedding(nn.Module):
 
         # Create embeddings with positional encoding
         x = self.embedding(x)
-
         return x
 
 
@@ -326,9 +316,9 @@ class ClassificationBertMEEG(nn.Sequential):
     def __init__(self, n_classes, n_time_points, attention_num_heads,
                  attention_dropout, spatial_dropout, emb_size, n_maps,
                  position_kernel, position_stride, channels_kernel,
-                 channels_stride, time_kernel, time_stride, embedding_dropout,
-                 depth, num_heads, expansion, transformer_dropout,
-                 classifier_dropout):
+                 channels_stride, time_kernel, time_stride, positional_dropout,
+                 embedding_dropout, depth, num_heads, expansion,
+                 transformer_dropout, classifier_dropout):
 
         """
         Args:
@@ -346,6 +336,7 @@ class ClassificationBertMEEG(nn.Sequential):
             channels_stride (int): Stride for convolution on channels.
             time_kernel (int): Kernel size for convolution on time axis.
             time_stride (int): Stride for convolution on channel axis.
+            positional_dropout (float): Dropout value for positional encoding.
             embedding_dropout (float): Dropout value after embedding block.
             depth (int): Depth of the Transformer encoder.
             num_heads (int): Number of heads in multi-attention layer.
@@ -367,11 +358,11 @@ class ClassificationBertMEEG(nn.Sequential):
                             ),
                          # Spatial transforming
 
-                         PatchEmbedding(True, n_time_points, emb_size,
+                         PatchEmbedding(n_time_points, emb_size,
                                         n_maps, position_kernel,
                                         position_stride, channels_kernel,
                                         channels_stride, time_kernel,
-                                        time_stride),
+                                        time_stride, positional_dropout),
                          # Embedding and positional encoding
 
                          nn.Dropout(embedding_dropout),
@@ -404,8 +395,9 @@ class DetectionBertMEEG(nn.Sequential):
     def __init__(self, n_time_points, attention_num_heads, attention_dropout,
                  spatial_dropout,  emb_size, n_maps, position_kernel,
                  position_stride, channels_kernel, channels_stride,
-                 time_kernel, time_stride, embedding_dropout, depth,
-                 num_heads, expansion, transformer_dropout, n_time_windows,
+                 time_kernel, time_stride, positional_dropout,
+                 embedding_dropout, depth, num_heads, expansion,
+                 transformer_dropout, n_time_windows,
                  detector_dropout):
 
         """
@@ -422,6 +414,7 @@ class DetectionBertMEEG(nn.Sequential):
             channels_stride (int): Stride for convolution on channels.
             time_kernel (int): Kernel size for convolution on time axis.
             time_stride (int): Stride for convolution on channel axis.
+            positional_dropout (float): Dropout value for positional encoding.
             embedding_dropout (float): Dropout value after embedding block.
             depth (int): Depth of the Transformer encoder.
             num_heads (int): Number of heads in multi-attention layer.
@@ -442,11 +435,11 @@ class DetectionBertMEEG(nn.Sequential):
                             ),
                          # Spatial transforming,
 
-                         PatchEmbedding(True, n_time_points, emb_size,
+                         PatchEmbedding(n_time_points, emb_size,
                                         n_maps, position_kernel,
                                         position_stride, channels_kernel,
                                         channels_stride, time_kernel,
-                                        time_stride),
+                                        time_stride, positional_dropout),
                          # Embedding and positional encoding
 
                          nn.Dropout(embedding_dropout),
