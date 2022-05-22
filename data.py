@@ -23,12 +23,15 @@ from utils import get_spike_events
 
 class Data:
 
-    def __init__(self, path_root, wanted_event_label, wanted_channel_type,
-                 sample_frequence, binary_classification):
+    def __init__(self, path_root, label_position, wanted_event_label,
+                 wanted_channel_type, sample_frequence,
+                 binary_classification):
 
         """
         Args:
             path_root (str): Path to subjects data.
+            label_position (bool): If True, event labels are in first position.
+                          Else, they are in last position.
             wanted_event_label (str): Annotation of wanted event.
                                       Example: 'saw_EST' -> peaks of spikes.
             wanted_channel_type (list): List of the types of channels wanted.
@@ -39,6 +42,7 @@ class Data:
         """
 
         self.path_root = path_root
+        self.label_position = label_position
         self.wanted_event_label = wanted_event_label
         self.wanted_channel_type = wanted_channel_type
         self.sample_frequence = sample_frequence
@@ -87,11 +91,19 @@ class Data:
         spike_time_points = []
         bad_trial = 0
         for iEvent in range(len(trial['Events'])):
-            if trial['Events'][iEvent]['label'][0] == wanted_event_label:
-                count_spikes += trial['Events'][iEvent]['times'][0].shape[1]
-                spike_time_points = trial['Events'][iEvent]['times'][0][0]
-            elif trial['Events'][iEvent]['label'][0] == 'BAD':
-                bad_trial += 1
+            event = trial['Events'][iEvent]
+            if self.label_position:
+                if event['label'][0] == wanted_event_label:
+                    count_spikes += event['times'][0].shape[1]
+                    spike_time_points = event['times'][0][0]
+                elif event['label'][0] == 'BAD':
+                    bad_trial += 1
+            else:
+                if event['label'][-1] == wanted_event_label:
+                    count_spikes += event['times'][-1].shape[1]
+                    spike_time_points = event['times'][-1][0]
+                elif event['label'][-1] == 'BAD':
+                    bad_trial += 1
         data, n_spike = np.asarray(F, dtype='float64'), count_spikes
 
         return data, n_spike, spike_time_points, times, bad_trial
