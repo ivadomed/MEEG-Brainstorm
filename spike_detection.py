@@ -15,7 +15,6 @@ Contributors: Ambroise Odonnat.
 
 import json
 import os
-import random
 import torch
 import warnings
 
@@ -133,10 +132,6 @@ class DetectionTransformer():
         # Keep track of results and model parameters
         results = {}
         models = {}
-        train_index = {}
-        val_index = {}
-        test_index = {}
-        spatial_filters = {}
         z_scores = {}
         best_F1 = 0
         best_fold = 0
@@ -145,7 +140,6 @@ class DetectionTransformer():
         n_splits = cross_validation_config['n_splits']
         n_repeats = cross_validation_config['n_repeats']
         random_state = cross_validation_config['random_state']
-        val_size = cross_validation_config['val_size']
 
         # Initialize RepeatedKFold
         rkf = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats,
@@ -158,6 +152,7 @@ class DetectionTransformer():
 
         # Perform intra-subject learning
         if intra_subject:
+            spatial_filters = {}
             subject_id = self.subject_ids[0]
             logger.info('Spike detection for subject {}.'.format(subject_id))
             all_data = self.all_data[subject_id][0]
@@ -172,11 +167,9 @@ class DetectionTransformer():
                 print('--------------------------------')
 
                 # Select a validation set to do early stopping
+                val_size = cross_validation_config['val_size']
                 train_ids, val_ids = train_test_split(train_ids,
                                                       test_size=val_size)
-                train_index[fold] = str(train_ids)
-                val_index[fold] = str(val_ids)
-                test_index[fold] = str(test_ids)
 
                 # Recover training dataset
                 train_data = all_data[train_ids]
@@ -661,9 +654,6 @@ class DetectionTransformer():
                                   'results': results_path,
                                   'config': config_path}
                 config['z_score'] = z_scores[best_fold]
-                config['split'] = {'train': train_index[best_fold],
-                                   'val': val_index[best_fold],
-                                   'test': test_index[best_fold]}
                 json.dump(config, open(config_path, 'w'), indent=4)
                 logger.info('Information saved in {}'.format(path))
 
@@ -672,10 +662,14 @@ class DetectionTransformer():
         # Perform cross-subject learning
         else:
             index = range(self.subject_ids.shape[0])
+            np.random.seed(random_state)
+            train_index = {}
+            val_index = {}
+            test_index = {}
             for fold, (train_ids, test_ids) in enumerate(rkf.split(index)):
 
                 # Print
-                print(f'FOLD {fold}')
+                print('FOLD {}'.format(fold))
                 print('--------------------------------')
 
                 validation_possible = len(train_ids) > 1
@@ -685,11 +679,15 @@ class DetectionTransformer():
                     index = np.random.randint(low=0, high=len(train_ids))
                     val_ids = np.array([train_ids[index]])
                     train_ids = np.delete(train_ids, index)
-                    val_index[fold] = str(val_ids)
+                    val_index[fold] = str(self.subject_ids[val_ids])
                 else:
                     val_index[fold] = 'None'
                 train_index[fold] = str(train_ids)
-                test_index[fold] = str(test_ids)
+                test_index[fold] = str(self.subject_ids[test_ids])
+
+                print('Validation on: {}, '
+                      'test on: {}'.format(val_index[fold],
+                                           test_index[fold]))
 
                 # Recover training dataset
                 train_subject_ids = self.subject_ids[train_ids]
@@ -1042,7 +1040,7 @@ class DetectionTransformer():
                         # Print loss
                         val_loss /= val_steps
                         if (e+1) % 5 == 0:
-                            logger.info('Validation loss at epoch'
+                            logger.info('Validation loss on {} at epoch '
                                         '{}: {}'.format(e+1, val_loss))
 
                         # Update learning rate if training loss
@@ -1140,25 +1138,26 @@ class DetectionTransformer():
                     print('--------------------------------')
 
                     # Recover metrics for fold
-                    results[fold] = {'Accuracy': Accuracy,
-                                     'Specificity': Specificity,
-                                     'Sensitivity': Sensitivity,
-                                     'Precision': Precision,
-                                     'F1_score': F1_score}
+                    subject = test_index[fold]
+                    results[subject] = {'Accuracy': Accuracy,
+                                        'Specificity': Specificity,
+                                        'Sensitivity': Sensitivity,
+                                        'Precision': Precision,
+                                        'F1_score': F1_score}
 
             # Print fold results
             print('CROSS-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
                   ' FOR {} FOLDS'.format(n_splits*n_repeats))
             print('--------------------------------')
-            avg_acc = np.mean([results[fold]['Accuracy']
+            avg_acc = np.mean([results[test_index[fold]]['Accuracy']
                                for fold in range(n_splits*n_repeats)])
-            avg_spec = np.mean([results[fold]['Specificity']
+            avg_spec = np.mean([results[test_index[fold]]['Specificity']
                                 for fold in range(n_splits*n_repeats)])
-            avg_sens = np.mean([results[fold]['Sensitivity']
+            avg_sens = np.mean([results[test_index[fold]]['Sensitivity']
                                 for fold in range(n_splits*n_repeats)])
-            avg_prec = np.mean([results[fold]['Precision']
+            avg_prec = np.mean([results[test_index[fold]]['Precision']
                                 for fold in range(n_splits*n_repeats)])
-            avg_F1 = np.mean([results[fold]['F1_score']
+            avg_F1 = np.mean([results[test_index[fold]]['F1_score']
                               for fold in range(n_splits*n_repeats)])
             results['Mean'] = {'Accuracy': avg_acc,
                                'Specificity': avg_spec,
@@ -1168,7 +1167,9 @@ class DetectionTransformer():
             print('Average results: {}\n'.format(results['Mean']))
 
             # Saving the best model
-            print('Best F1 score for fold {}.\n'.format(best_fold))
+            print('Best F1 score on fold {} '
+                  'for subject: '
+                  '{}.\n'.format(best_fold, test_index[best_fold]))
             if save:
 
                 # Create unique folder ID based on time
@@ -1191,22 +1192,21 @@ class DetectionTransformer():
                     logger.info('Successfully created folder %s \n' % path)
 
                 logger.info('Saving model.\n')
-                model_path = path_output + 'model.pth'
+                model_path = path + 'model.pth'
                 torch.save(models[best_fold], model_path)
 
                 logger.info('Saving results.\n')
-                results_path = path_output + 'results.json'
+                results_path = path + 'results.json'
                 json.dump(results, open(results_path, 'w'), indent=4)
 
                 logger.info('Saving configuration file.')
-                config_path = path_output + 'config.json'
-                config['save'] = {'output': path_output,
+                config_path = path + 'config.json'
+                config['save'] = {'output': path,
                                   'model': model_path,
-                                  'spatial_filter': filter_path,
                                   'results': results_path,
                                   'config': config_path}
                 config['z_score'] = z_scores[best_fold]
-                config['split'] = {'train': train_index[best_fold],
+                config['split'] = {'validation': val_index[best_fold],
                                    'test': test_index[best_fold]}
                 json.dump(config, open(config_path, 'w'), indent=4)
                 logger.info('Information saved in {}'.format(path))
