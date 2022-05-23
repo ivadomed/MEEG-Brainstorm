@@ -32,7 +32,7 @@ def get_parser():
     )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--method", type=str, default="Fukumori")
-    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--save-model", action="store_true")
     parser.add_argument("--path_data", type=str, default="../IvadomedNifti/")
 
@@ -120,7 +120,7 @@ best_model, history = train(
 )
 
 if args.save_model:
-    model_dir = 'results' / f"{method}"
+    model_dir = f"../results/{method}"
     if not os.path.exists(model_dir):
         os.mkdir(model_dir)
     torch.save(
@@ -142,7 +142,7 @@ results.append(
 )
 
 results_path = (
-    'results'
+    "../results"
     / "csv"
     / f"accuracy_results_spike_detection_method-{method}_seed-{expe_seed}.csv"
 )
