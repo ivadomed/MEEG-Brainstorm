@@ -1040,7 +1040,7 @@ class DetectionTransformer():
                         # Print loss
                         val_loss /= val_steps
                         if (e+1) % 5 == 0:
-                            logger.info('Validation loss on {} at epoch '
+                            logger.info('Validation loss at epoch '
                                         '{}: {}'.format(e+1, val_loss))
 
                         # Update learning rate if training loss
