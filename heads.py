@@ -70,11 +70,11 @@ class RobertaClassifier(nn.Sequential):
         """ Compute logits used to obtain probability vector on classes.
 
         Args:
-            x (tensor): Batch of trials after transformer of dimension
+            x (tensor): Batch of dimension
                         [batch_size x seq_len x emb_size].
 
         Returns:
-            x : Batch of trials after transformer of dimension
+            x : Batch of dimension
                 [batch_size x seq_len x emb_size].
             out: Tensor of logits of dimension [batch_size x n_classes].
         """
@@ -105,7 +105,8 @@ class SpikeDetector(nn.Sequential):
                             Mish(),
                             nn.Dropout(dropout),
                             nn.LayerNorm(emb_size),
-                            nn.Linear(emb_size, 2)
+                            Reduce('b v o -> b v', reduction='mean'),
+                            nn.Sigmoid()
                             )
 
         # Weight initialization
@@ -118,18 +119,17 @@ class SpikeDetector(nn.Sequential):
     def forward(self, x):
 
         """
-        Predict logits used to obtain probability of spike
-        in each time window w for w in n_time_windows.
+        Predicts probability of spike in each time window w.
 
         Args:
-            x (tensor): Batch of trial after transformer of dimension
+            x (tensor): Batch of dimension
                         [batch_size x seq_len x emb_size].
 
         Returns:
-            x : Batch of trial after transformer of dimension
+            x : Batch of dimension
                 [batch_size x seq_len x emb_size].
             out: Array of logits of dimension
-                 [batch_size x n_time_windows x 2].
+                 [batch_size x n_time_windows].
         """
 
         out = self.predictor(x)
