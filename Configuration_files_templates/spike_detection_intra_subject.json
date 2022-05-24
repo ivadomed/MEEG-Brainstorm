@@ -1,7 +1,6 @@
 {
     "loader_parameters": {
         "path_root": "../../Neuropoly_Internship/MEEG_data/EEG_signals/",
-        "label_position": true,
         "wanted_event_label": "saw_EST",
         "wanted_channel_type": [
             "EEG"
@@ -16,7 +15,8 @@
         "use_mix_up": true,
         "BETA": 0.4,
         "use_cost_sensitive": true,
-        "lambda": 10
+        "lambda": 0.5,
+        "l1_penalty": 0.5
     },
     "model": {
         "n_time_points": 201,
@@ -54,30 +54,15 @@
             "min_lr": 1e-05
         },
         "early_stopping": {
-            "patience": 15
+            "patience": 10
         }
     },
     "intra_subject": true,
     "selected_rows": 10,
     "cross_validation": {
-        "n_splits": 2,
+        "n_splits": 5,
         "n_repeats": 1,
         "random_state": 42,
         "val_size": 0.2
-    },
-    "save": {
-        "output": ".",
-        "model": ".EEG_spike_detection_attempt_2022-05-23_15-17-42/model_subject_1 .pth",
-        "spatial_filter": ".EEG_spike_detection_attempt_2022-05-23_15-17-42/filter_subject_1 .npy",
-        "results": ".EEG_spike_detection_attempt_2022-05-23_15-17-42/results_subject_1 .json",
-        "config": ".EEG_spike_detection_attempt_2022-05-23_15-17-42/config_subject_1 .json"
-    },
-    "z_score": {
-        "mean": -6.602149977948686e-08,
-        "std": 4.364720794861129e-05
-    },
-    "split": {
-        "validation": "['subject_1 ']",
-        "test": "['subject_0']"
     }
 }
