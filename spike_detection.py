@@ -56,7 +56,6 @@ class DetectionTransformer():
         # Recover data config
         data_config = config['loader_parameters']
         path_root = data_config['path_root']
-        label_position = data_config['label_position']
         wanted_event_label = data_config['wanted_event_label']
         wanted_channel_type = data_config['wanted_channel_type']
         sample_frequence = data_config['sample_frequence']
@@ -64,7 +63,7 @@ class DetectionTransformer():
 
         # Recover datasets
         logger.info("Get dataset")
-        self.dataset = Data(path_root, label_position, wanted_event_label,
+        self.dataset = Data(path_root, wanted_event_label,
                             wanted_channel_type, sample_frequence,
                             binary_classification)
         datasets = self.dataset.all_datasets()
@@ -105,6 +104,7 @@ class DetectionTransformer():
         mix_up, BETA = training_config['use_mix_up'], training_config['BETA']
         cost_sensitive = training_config['use_cost_sensitive']
         lambd = training_config['lambda']
+        l1_penalty = training_config['l1_penalty']
 
         # Recover optimizer parameters
         lr = optimizer_config['lr']
@@ -120,14 +120,15 @@ class DetectionTransformer():
         el_stop_config = optimizer_config['early_stopping']
         el_stop_patience = el_stop_config['patience']
 
-        # Define training and validation losses
-        self.train_criterion_cls = get_detection_loss(cost_sensitive, lambd)
-        self.val_criterion_cls = torch.nn.CrossEntropyLoss()
-
+        # Define training, validation and regularization losses
+        self.train_criterion = get_detection_loss(cost_sensitive, lambd)
+        self.val_criterion = torch.nn.MSELoss()
+        self.l1 = torch.nn.L1Loss()
         available, device = define_device(gpu_id)
         if available:
-            self.train_criterion_cls = self.train_criterion_cls.cuda()
-            self.val_criterion_cls = self.val_criterion_cls.cuda()
+            self.train_criterion = self.train_criterion.cuda()
+            self.val_criterion = self.val_criterion.cuda()
+            self.l1 = self.l1.cuda()
 
         # Keep track of results and model parameters
         results = {}
@@ -291,11 +292,11 @@ class DetectionTransformer():
                             """
 
                             # Roll a copy of the batch
-                            roll_factor = torch.randint(0, data.shape[0],
-                                                        (1,)).item()
-                            roll_data = torch.roll(data, roll_factor, dims=0)
-                            roll_labels = torch.roll(labels,
-                                                     roll_factor, dims=0)
+                            rl_factor = torch.randint(0, data.shape[0],
+                                                      (1,)).item()
+                            rl_data = torch.roll(data, rl_factor, dims=0)
+                            rl_labels = torch.roll(labels,
+                                                   rl_factor, dims=0)
 
                             # Create a tensor of lambdas sampled
                             # from the beta distribution
@@ -309,18 +310,18 @@ class DetectionTransformer():
                                                     (-1, 1, 1, 1))
 
                             # Mix samples
-                            mix_data = lambdas*data + (1-lambdas)*roll_data
+                            mix_data = lambdas*data + (1-lambdas)*rl_data
 
                             # Format conversion and move to device
                             mix_data = Variable(mix_data.type(self.Float),
                                                 requires_grad=True)
                             data = Variable(data.type(self.Float),
                                             requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
-                            roll_labels = Variable(roll_labels.type(self.Long))
+                            labels = Variable(labels.type(self.Float))
+                            rl_labels = Variable(rl_labels.type(self.Float))
                             mix_data = mix_data.to(device)
                             labels = labels.to(device)
-                            roll_labels = roll_labels.to(device)
+                            rl_labels = rl_labels.to(device)
 
                             # Zero the parameter gradients
                             optimizer.zero_grad()
@@ -328,22 +329,21 @@ class DetectionTransformer():
                             # Forward
                             _, mix_outputs = model(mix_data)
 
-                            # Concatenate the batches
-                            stack_mix_outputs = rearrange(mix_outputs,
-                                                          'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-                            stack_roll_labels = rearrange(roll_labels,
-                                                          'b v -> (b v)')
-
                             # Compute mix-up loss
                             lambdas = lambdas.squeeze().to(device)
-                            loss1 = self.train_criterion_cls(stack_mix_outputs,
-                                                             stack_labels)
-                            loss2 = self.train_criterion_cls(stack_mix_outputs,
-                                                             stack_roll_labels)
+                            loss1 = self.train_criterion(mix_outputs,
+                                                         labels)
+                            loss2 = self.train_criterion(mix_outputs,
+                                                         rl_labels)
                             loss = lambdas*loss1 + (1-lambdas)*loss2
                             loss = loss.sum()
+
+                            # Apply L1 regularization
+                            l1_loss = 0
+                            for param in model.parameters():
+                                l1_loss += self.l1(param,
+                                                   torch.zeros(param.size()))
+                            loss += l1_penalty*l1_loss
 
                             # Backward
                             loss.backward()
@@ -375,8 +375,15 @@ class DetectionTransformer():
                                                      'b v -> (b v)')
 
                             # Compute training loss
-                            loss = self.train_criterion_cls(stack_outputs,
-                                                            stack_labels)
+                            loss = self.train_criterion(stack_outputs,
+                                                        stack_labels)
+
+                            # Apply L1 regularization
+                            l1_loss = 0
+                            for param in model.parameters():
+                                l1_loss += self.l1(param,
+                                                   torch.zeros(param.size()))
+                            loss += l1_penalty*l1_loss
 
                             # Backward
                             loss.backward()
@@ -394,101 +401,25 @@ class DetectionTransformer():
                         # Apply time window reduction
                         n_time_windows = model_config['n_time_windows']
                         labels = get_spike_windows(labels, n_time_windows)
-                        if mix_up:
 
-                            """
-                            Apply a mix-up strategy for data augmentation.
-                            Inspired by:
-                            `"mixup: Beyond Empirical Risk Minimization"
-                            <https://arxiv.org/abs/1710.09412>`_.
-                            """
+                        # Format conversion and move to device
+                        data = Variable(data.type(self.Float),
+                                        requires_grad=True)
+                        labels = Variable(labels.type(self.Float))
+                        data, labels = data.to(device), labels.to(device)
 
-                            # Roll a copy of the batch
-                            roll_factor = torch.randint(0, data.shape[0],
-                                                        (1,)).item()
-                            roll_data = torch.roll(data, roll_factor, dims=0)
-                            roll_labels = torch.roll(labels,
-                                                     roll_factor, dims=0)
+                        # Forward
+                        _, outputs = model(data)
 
-                            # Create a tensor of lambdas sampled
-                            # from the beta distribution
-                            lambdas = np.random.beta(BETA, BETA, data.shape[0])
+                        # Compute training loss
+                        loss = self.val_criterion(outputs, labels)
 
-                            # Trick inspired by:
-                            # `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
-                            lambdas = torch.reshape(torch.tensor
-                                                    (np.maximum(lambdas,
-                                                                1-lambdas)),
-                                                    (-1, 1, 1, 1))
+                        # Detach from device
+                        loss = loss.cpu().detach().numpy()
 
-                            # Mix samples
-                            mix_data = lambdas*data + (1-lambdas)*roll_data
-
-                            # Format conversion and move to device
-                            mix_data = Variable(mix_data.type(self.Float),
-                                                requires_grad=True)
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
-                            roll_labels = Variable(roll_labels.type(self.Long))
-                            mix_data = mix_data.to(device)
-                            labels = labels.to(device)
-                            roll_labels = roll_labels.to(device)
-
-                            # Forward
-                            _, mix_outputs = model(mix_data)
-
-                            # Concatenate the batches
-                            stack_mix_outputs = rearrange(mix_outputs,
-                                                          'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-                            stack_roll_labels = rearrange(roll_labels,
-                                                          'b v -> (b v)')
-
-                            # Compute mix-up loss
-                            lambdas = lambdas.squeeze().to(device)
-                            loss1 = self.val_criterion_cls(stack_mix_outputs,
-                                                           stack_labels)
-                            loss2 = self.val_criterion_cls(stack_mix_outputs,
-                                                           stack_roll_labels)
-                            loss = lambdas*loss1 + (1-lambdas)*loss2
-                            loss = loss.sum()
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss and confusion matrix
-                            val_loss += loss
-                            val_steps += 1
-
-                        else:
-
-                            # Format conversion and move to device
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
-                            data, labels = data.to(device), labels.to(device)
-
-                            # Forward
-                            _, outputs = model(data)
-
-                            # Concatenate the batches
-                            stack_outputs = rearrange(outputs,
-                                                      'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-
-                            # Compute training loss
-                            loss = self.val_criterion_cls(stack_outputs,
-                                                          stack_labels)
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss and confusion matrix
-                            val_loss += loss
-                            val_steps += 1
+                        # Recover training loss and confusion matrix
+                        val_loss += loss
+                        val_steps += 1
 
                     # Print loss
                     val_loss /= val_steps
@@ -533,12 +464,12 @@ class DetectionTransformer():
                         # Format conversion and move to device
                         data = Variable(data.type(self.Float),
                                         requires_grad=True)
-                        labels = Variable(labels.type(self.Long))
+                        labels = Variable(labels.type(self.Float))
                         data, labels = data.to(device), labels.to(device)
 
                         # Inference
                         _, outputs = model(data)
-                        pred = torch.max(outputs.data, -1)[1]
+                        pred = (outputs > 0.5).int()
 
                         # Detach from device
                         labels = labels.cpu().detach()
@@ -554,7 +485,6 @@ class DetectionTransformer():
                     TN = confusion_matrix[0][0]
                     FP = confusion_matrix[0][1]
                     FN = confusion_matrix[1][0]
-
                     P = TP + FN
                     N = TN + FP
 
@@ -564,6 +494,20 @@ class DetectionTransformer():
                     Precision = TP / (TP+FP)
                     F1_score = 2 * ((Sensitivity*Precision)
                                     / (Sensitivity+Precision))
+
+                    # When no spike occurs
+                    if (TP == 0) & (FP == 0) & (FN == 0):
+                        Sensitivity = 1
+                        Precision = 1
+                        F1_score = 1
+                    elif (TP == 0) & (FP == 0) & (FN != 0):
+                        Sensitivity = 0
+                        Precision = 1
+                        F1_score = 0
+                    elif (TP == 0) & (FP != 0) & (FN == 0):
+                        Sensitivity = 1
+                        Precision = 0
+                        F1_score = 0
 
                     # Update best F1_score
                     if F1_score > best_F1:
@@ -821,11 +765,11 @@ class DetectionTransformer():
                             """
 
                             # Roll a copy of the batch
-                            roll_factor = torch.randint(0, data.shape[0],
-                                                        (1,)).item()
-                            roll_data = torch.roll(data, roll_factor, dims=0)
-                            roll_labels = torch.roll(labels,
-                                                     roll_factor, dims=0)
+                            rl_factor = torch.randint(0, data.shape[0],
+                                                      (1,)).item()
+                            rl_data = torch.roll(data, rl_factor, dims=0)
+                            rl_labels = torch.roll(labels,
+                                                   rl_factor, dims=0)
 
                             # Create a tensor of lambdas sampled
                             # from the beta distribution
@@ -839,18 +783,18 @@ class DetectionTransformer():
                                                     (-1, 1, 1, 1))
 
                             # Mix samples
-                            mix_data = lambdas*data + (1-lambdas)*roll_data
+                            mix_data = lambdas*data + (1-lambdas)*rl_data
 
                             # Format conversion and move to device
                             mix_data = Variable(mix_data.type(self.Float),
                                                 requires_grad=True)
                             data = Variable(data.type(self.Float),
                                             requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
-                            roll_labels = Variable(roll_labels.type(self.Long))
+                            labels = Variable(labels.type(self.Float))
+                            rl_labels = Variable(rl_labels.type(self.Float))
                             mix_data = mix_data.to(device)
                             labels = labels.to(device)
-                            roll_labels = roll_labels.to(device)
+                            rl_labels = rl_labels.to(device)
 
                             # Zero the parameter gradients
                             optimizer.zero_grad()
@@ -858,22 +802,21 @@ class DetectionTransformer():
                             # Forward
                             _, mix_outputs = model(mix_data)
 
-                            # Concatenate the batches
-                            stack_mix_outputs = rearrange(mix_outputs,
-                                                          'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-                            stack_roll_labels = rearrange(roll_labels,
-                                                          'b v -> (b v)')
-
                             # Compute mix-up loss
                             lambdas = lambdas.squeeze().to(device)
-                            loss1 = self.train_criterion_cls(stack_mix_outputs,
-                                                             stack_labels)
-                            loss2 = self.train_criterion_cls(stack_mix_outputs,
-                                                             stack_roll_labels)
+                            loss1 = self.train_criterion(mix_outputs,
+                                                         labels)
+                            loss2 = self.train_criterion(mix_outputs,
+                                                         rl_labels)
                             loss = lambdas*loss1 + (1-lambdas)*loss2
                             loss = loss.sum()
+
+                            # Apply L1 regularization
+                            l1_loss = 0
+                            for param in model.parameters():
+                                l1_loss += self.l1(param,
+                                                   torch.zeros(param.size()))
+                            loss += l1_penalty*l1_loss
 
                             # Backward
                             loss.backward()
@@ -887,7 +830,7 @@ class DetectionTransformer():
                             # Detach from device
                             loss = loss.cpu().detach().numpy()
 
-                            # Recover training loss and confusion matrix
+                            # Recover training loss
                             train_loss += loss
                             train_steps += 1
                         else:
@@ -895,7 +838,7 @@ class DetectionTransformer():
                             # Format conversion and move to device
                             data = Variable(data.type(self.Float),
                                             requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
+                            labels = Variable(labels.type(self.Float))
                             data, labels = data.to(device), labels.to(device)
 
                             # Zero the parameter gradients
@@ -904,15 +847,16 @@ class DetectionTransformer():
                             # Forward
                             _, outputs = model(data)
 
-                            # Concatenate the batches
-                            stack_outputs = rearrange(outputs,
-                                                      'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-
                             # Compute training loss
-                            loss = self.train_criterion_cls(stack_outputs,
-                                                            stack_labels)
+                            loss = self.train_criterion(outputs,
+                                                        labels)
+
+                            # Apply L1 regularization
+                            l1_loss = 0
+                            for param in model.parameters():
+                                l1_loss += self.l1(param,
+                                                   torch.zeros(param.size()))
+                            loss += l1_penalty*l1_loss
 
                             # Backward
                             loss.backward()
@@ -926,7 +870,7 @@ class DetectionTransformer():
                             # Detach from device
                             loss = loss.cpu().detach().numpy()
 
-                            # Recover training loss and confusion matrix
+                            # Recover training loss
                             train_loss += loss
                             train_steps += 1
 
@@ -939,103 +883,26 @@ class DetectionTransformer():
                             # Apply time window reduction
                             n_time_windows = model_config['n_time_windows']
                             labels = get_spike_windows(labels, n_time_windows)
-                            if mix_up:
 
-                                """
-                                Apply a mix-up strategy for data augmentation.
-                                Inspired by:
-                                `"mixup: Beyond Empirical Risk Minimization"
-                                <https://arxiv.org/abs/1710.09412>`_.
-                                """
+                            # Format conversion and move to device
+                            data = Variable(data.type(self.Float),
+                                            requires_grad=True)
+                            labels = Variable(labels.type(self.Float))
+                            data = data.to(device)
+                            labels = labels.to(device)
 
-                                # Roll a copy of the batch
-                                rl_factor = torch.randint(0, data.shape[0],
-                                                          (1,)).item()
-                                rl_data = torch.roll(data, rl_factor, dims=0)
-                                rl_labels = torch.roll(labels,
-                                                       rl_factor, dims=0)
+                            # Forward
+                            _, outputs = model(data)
 
-                                # Create a tensor of lambdas sampled
-                                # from the beta distribution
-                                lambd = np.random.beta(BETA, BETA,
-                                                       data.shape[0])
+                            # Compute training loss
+                            loss = self.val_criterion(outputs, labels)
 
-                                # Trick inspired by:
-                                # `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
-                                lambdas = torch.reshape(torch.tensor
-                                                        (np.maximum(lambd,
-                                                                    1-lambd)),
-                                                        (-1, 1, 1, 1))
+                            # Detach from device
+                            loss = loss.cpu().detach().numpy()
 
-                                # Mix samples
-                                mix_data = lambdas*data + (1-lambdas)*rl_data
-
-                                # Format conversion and move to device
-                                mix_data = Variable(mix_data.type(self.Float),
-                                                    requires_grad=True)
-                                data = Variable(data.type(self.Float),
-                                                requires_grad=True)
-                                labels = Variable(labels.type(self.Long))
-                                rl_labels = Variable(rl_labels.type(self.Long))
-                                mix_data = mix_data.to(device)
-                                labels = labels.to(device)
-                                rl_labels = rl_labels.to(device)
-
-                                # Forward
-                                _, mix_outputs = model(mix_data)
-
-                                # Concatenate the batches
-                                mix_outputs = rearrange(mix_outputs,
-                                                        'b v o -> (b v) o')
-                                labels = rearrange(labels,
-                                                   'b v -> (b v)')
-                                rl_labels = rearrange(rl_labels,
-                                                      'b v -> (b v)')
-
-                                # Compute mix-up loss
-                                lambdas = lambdas.squeeze().to(device)
-                                loss1 = self.val_criterion_cls(mix_outputs,
-                                                               labels)
-                                loss2 = self.val_criterion_cls(mix_outputs,
-                                                               rl_labels)
-                                loss = lambdas*loss1 + (1-lambdas)*loss2
-                                loss = loss.sum()
-
-                                # Detach from device
-                                loss = loss.cpu().detach().numpy()
-
-                                # Recover training loss and confusion matrix
-                                val_loss += loss
-                                val_steps += 1
-
-                            else:
-
-                                # Format conversion and move to device
-                                data = Variable(data.type(self.Float),
-                                                requires_grad=True)
-                                labels = Variable(labels.type(self.Long))
-                                data = data.to(device)
-                                labels = labels.to(device)
-
-                                # Forward
-                                _, outputs = model(data)
-
-                                # Concatenate the batches
-                                outputs = rearrange(outputs,
-                                                    'b v o -> (b v) o')
-                                labels = rearrange(labels,
-                                                   'b v -> (b v)')
-
-                                # Compute training loss
-                                loss = self.val_criterion_cls(outputs,
-                                                              labels)
-
-                                # Detach from device
-                                loss = loss.cpu().detach().numpy()
-
-                                # Recover training loss and confusion matrix
-                                val_loss += loss
-                                val_steps += 1
+                            # Recover training loss and confusion matrix
+                            val_loss += loss
+                            val_steps += 1
 
                         # Print loss
                         val_loss /= val_steps
@@ -1092,7 +959,7 @@ class DetectionTransformer():
 
                         # Inference
                         _, outputs = model(data)
-                        pred = torch.max(outputs.data, -1)[1]
+                        pred = (outputs > 0.5).int()
 
                         # Detach from device
                         labels = labels.cpu().detach()
@@ -1118,6 +985,20 @@ class DetectionTransformer():
                     Precision = TP / (TP+FP)
                     F1_score = 2 * ((Sensitivity*Precision)
                                     / (Sensitivity+Precision))
+
+                    # When no spike occurs
+                    if (TP == 0) & (FP == 0) & (FN == 0):
+                        Sensitivity = 1
+                        Precision = 1
+                        F1_score = 1
+                    elif (TP == 0) & (FP == 0) & (FN != 0):
+                        Sensitivity = 0
+                        Precision = 1
+                        F1_score = 0
+                    elif (TP == 0) & (FP != 0) & (FN == 0):
+                        Sensitivity = 1
+                        Precision = 0
+                        F1_score = 0
 
                     # Update best F1_score
                     if F1_score > best_F1:
@@ -1359,7 +1240,7 @@ def evaluate(path_root, config, save, path_output, gpu_id):
 
             # Forward
             _, outputs = model(data)
-            pred = torch.max(outputs.data, -1)[1]
+            pred = (outputs > 0.5).int()
 
             # Detach from device
             labels = labels.cpu().detach()
