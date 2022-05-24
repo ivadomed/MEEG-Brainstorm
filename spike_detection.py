@@ -341,8 +341,8 @@ class DetectionTransformer():
                             # Apply L1 regularization
                             l1_loss = 0
                             for param in model.parameters():
-                                l1_loss += self.l1(param,
-                                                   torch.zeros(param.size()))
+                                zeros = torch.zeros(param.size()).to(device)
+                                l1_loss += self.l1(param, zeros)
                             loss += l1_penalty*l1_loss
 
                             # Backward
@@ -381,8 +381,8 @@ class DetectionTransformer():
                             # Apply L1 regularization
                             l1_loss = 0
                             for param in model.parameters():
-                                l1_loss += self.l1(param,
-                                                   torch.zeros(param.size()))
+                                zeros = torch.zeros(param.size()).to(device)
+                                l1_loss += self.l1(param, zeros)
                             loss += l1_penalty*l1_loss
 
                             # Backward
@@ -814,8 +814,8 @@ class DetectionTransformer():
                             # Apply L1 regularization
                             l1_loss = 0
                             for param in model.parameters():
-                                l1_loss += self.l1(param,
-                                                   torch.zeros(param.size()))
+                                zeros = torch.zeros(param.size()).to(device)
+                                l1_loss += self.l1(param, zeros)
                             loss += l1_penalty*l1_loss
 
                             # Backward
@@ -854,8 +854,8 @@ class DetectionTransformer():
                             # Apply L1 regularization
                             l1_loss = 0
                             for param in model.parameters():
-                                l1_loss += self.l1(param,
-                                                   torch.zeros(param.size()))
+                                zeros = torch.zeros(param.size()).to(device)
+                                l1_loss += self.l1(param, zeros)
                             loss += l1_penalty*l1_loss
 
                             # Backward
