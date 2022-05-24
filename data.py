@@ -87,7 +87,7 @@ class Data:
         count_spikes = 0
         spike_time_points = []
         bad_trial = 0
-        if trial['Events']:
+        if len(trial['Events']):
             for iEvent in range(len(trial['Events'][0])):
                 event = trial['Events'][0][iEvent]
                 if event['label'][0] == wanted_event_label:
