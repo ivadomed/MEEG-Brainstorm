@@ -21,18 +21,16 @@ from torchmetrics.functional import f1_score, precision_recall
 
 class CostSensitiveLoss(nn.Module):
 
-    """
-    Implement a cost-sensitive loss inspired by:
-    `"Cost-Sensitive Regularization for Diabetic
-    Retinopathy Grading from Eye Fundus Images"
-    <https://arxiv.org/pdf/2010.00291.pdf>`_.
+    """ Implement a cost-sensitive loss inspired by:
+        `"Cost-Sensitive Regularization for Diabetic
+        Retinopathy Grading from Eye Fundus Images"
+        <https://arxiv.org/pdf/2010.00291.pdf>`_.
     """
 
-    def __init__(self, criterion, n_classes, lambd):
+    def __init__(self, n_classes, lambd):
 
         """
         Args:
-            criterion (Loss): Criterion.
             n_classes (int): Number of classes in the dataset.
             lambd (float): Modulate the influence of
                            the cost-sensitive regularization.
@@ -40,7 +38,7 @@ class CostSensitiveLoss(nn.Module):
 
         super().__init__()
 
-        self.criterion = criterion
+        self.criterion = nn.CrossEntropyLoss()
         self.n_classes = n_classes
         self.lambd = lambd
 
@@ -87,118 +85,82 @@ class CostSensitiveLoss(nn.Module):
 
 class DetectionLoss(nn.Module):
 
-    """
-    Implement a cost-sensitive loss inspired by:
-    `"Cost-Sensitive Regularization for Diabetic
-    Retinopathy Grading from Eye Fundus Images"
-    <https://arxiv.org/pdf/2010.00291.pdf>`_.
-    """
+    def __init__(self, lambd):
 
-    def __init__(self, criterion, n_classes, lambd):
-
-        """
+        """ Compute cost-sensitive MSE Loss.
         Args:
-            criterion (Loss): Criterion.
-            n_classes (int): Number of classes in the dataset.
-            lambd (float): Modulate the influence of
-                           the cost-sensitive regularization.
+            lambd (float): Modulate the cost-sensitive term.
         """
 
         super().__init__()
 
-        self.criterion = criterion
-        self.n_classes = n_classes
+        self.criterion = nn.MSELoss()
         self.lambd = lambd
-
-        # Compute cost-sensitive matrix
-        M = np.zeros((n_classes, n_classes))
-        for i in range(n_classes):
-            for j in range(i+1, n_classes):
-                M[i, j] = (j-i) ** 2
-
-        self.M = torch.from_numpy(M)
 
     def forward(self, outputs, labels):
 
-        """
-        Args:
-            outputs (tensor): Batches of logits of dimension
-                              [batch_size x seq_len x 2].
-            labels (tensor): Bacthes of labels of dimension
-                             [batch_size x seq_len].
+        # Compute MSE term
+        mse = self.criterion(outputs, labels)
 
-        Return:
-            loss (float): Mean loss value on the batch.
-        """
-
-        # Recover prediction
-        prediction = torch.max(outputs.data, 1)[1]
-
-        # Compute cost-sensitive regularization
-        coeff = self.lambd
-
-        # Modulate with the sensitivity and precision of the model
-        confusion_matrix = np.zeros((self.n_classes, self.n_classes))
-        for t, p in zip(labels.reshape(-1), prediction.reshape(-1)):
+        # Compute cost-sensitive term
+        confusion_matrix = np.zeros((2, 2))
+        pred = (outputs > 0.5).int()
+        for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
             confusion_matrix[t.long(), p.long()] += 1
-        TP = confusion_matrix[1][1]
-        TN = confusion_matrix[0][0]
-        FP = confusion_matrix[0][1]
-        FN = confusion_matrix[1][0]
-        if FN*TP*FP*TN:
-            coeff = - np.log(np.sqrt((TP/(TP+FN)) * (TP/(TP+FP))))
-            coeff *= self.lambd
 
-        # Compute mean loss on the batch
-        CS = self.M[prediction, labels]
-        loss = self.criterion(outputs, labels)
-        loss += coeff * CS.mean()
+        TP = confusion_matrix[1][1]
+        FN = confusion_matrix[1][0]
+        if (TP == 0) & (FN == 0):
+            coeff = 1
+        elif (TP == 0) & (FN != 0):
+            coeff = 0
+        else:
+            coeff = TP / (TP+FN)
+        cost_sensitive = - np.log(coeff+1e-10)
+
+        # Compute regularized loss
+        loss = mse + self.lambd*cost_sensitive
 
         return loss
 
 
 def get_classification_loss(n_classes, cost_sensitive, lambd):
 
-    """
-    Build a custom cross-entropy loss with a cost-sensitive regularization.
+    """ Build a custom cross-entropy loss with a cost-sensitive regularization.
 
     Args:
-        criterion (Loss): Criterion.
         n_classes (int): Number of classes in the dataset.
         cost_sensitive (bool): Build cost-sensitive cross entropy loss.
-        lambd (float): Modulate the influence of the cost-sensitive weight,
+        lambd (float): Modulate the influence of the cost-sensitive weigh.
 
     Return:
         criterion (Loss): Criterion.
     """
 
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
     # Apply cost-sensitive method
     if cost_sensitive:
-        return CostSensitiveLoss(criterion, n_classes, lambd)
+        return CostSensitiveLoss(n_classes, lambd)
     else:
         return criterion
 
 
 def get_detection_loss(cost_sensitive, lambd):
 
-    """
-    Build a custom cross-entropy loss with a cost-sensitive regularization.
+    """ Build a custom MSE loss with a cost-sensitive regularization.
 
     Args:
-        criterion (Loss): Criterion.
         cost_sensitive (bool): Build cost-sensitive cross entropy loss.
-        lambd (float): Modulate the influence of the cost-sensitive weight,
+        lambd (float): Modulate the influence of the cost-sensitive weight.
 
     Return:
         criterion (Loss): Criterion.
     """
-
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.MSELoss()
 
     # Apply cost-sensitive method
     if cost_sensitive:
-        return DetectionLoss(criterion, 2, lambd)
+        return DetectionLoss(lambd)
     else:
         return criterion
