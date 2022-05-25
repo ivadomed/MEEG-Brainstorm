@@ -17,6 +17,7 @@ import torch.nn.functional as F
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
+from math import floor
 from torch import nn
 from torch import Tensor
 from heads import Mish, RobertaClassifier, SpikeDetector
@@ -110,7 +111,7 @@ class ConstrainedConv2d(nn.Conv2d):
 class PatchEmbedding(nn.Module):
 
     def __init__(self, seq_len, emb_size, n_maps, position_kernel,
-                 position_stride, channels_kernel, channels_stride,
+                 channels_kernel, channels_stride,
                  time_kernel, time_stride, dropout):
 
         """Positional encoding and embedding. Inspired by:
@@ -123,7 +124,6 @@ class PatchEmbedding(nn.Module):
             emb_size (int): Size of embedding vectors.
             n_maps (int): Number of feature maps for positional encoding.
             position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding.
             channels_kernel (int): Kernel size for convolution on channels.
             channels_stride (int): Stride for convolution on channels.
             time_kernel (int): Kernel size for convolution on time axis.
@@ -134,11 +134,10 @@ class PatchEmbedding(nn.Module):
         super().__init__()
 
         # Padding values to preserve seq_len
-        position_padding = ((position_stride-1) * seq_len
-                            + position_kernel - position_stride)
+        position_padding = position_kernel-1
         position_padding = int(position_padding / 2) + 1
-        new_seq_len = int((seq_len + 2*position_padding
-                           - position_kernel) / position_stride + 1)
+        new_seq_len = int(seq_len + 2*position_padding
+                          - position_kernel + 1)
         time_padding = ((time_stride-1) * new_seq_len
                         + time_kernel) - time_stride
         time_padding = int(time_padding / 2) - 1
@@ -147,7 +146,7 @@ class PatchEmbedding(nn.Module):
         self.embedding = nn.Sequential(
                             ConstrainedConv2d(1, n_maps,
                                               (1, position_kernel),
-                                              stride=(1, position_stride),
+                                              stride=(1, 1),
                                               padding=(0, position_padding)),
                             nn.BatchNorm2d(n_maps),
                             nn.AdaptiveAvgPool2d(((channels_kernel,
@@ -404,7 +403,7 @@ class DetectionBertMEEG(nn.Sequential):
 
     def __init__(self, n_time_points, attention_num_heads, attention_dropout,
                  spatial_dropout,  emb_size, n_maps, position_kernel,
-                 position_stride, channels_kernel, channels_stride,
+                 channels_kernel, channels_stride,
                  time_kernel, time_stride, positional_dropout,
                  embedding_dropout, depth, num_heads, expansion,
                  transformer_dropout, n_time_windows,
@@ -419,7 +418,6 @@ class DetectionBertMEEG(nn.Sequential):
             emb_size (int): Size of embedding vectors in Temporal transforming.
             n_maps (int): Number of feature maps for positional encoding.
             position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding.
             channels_kernel (int): Kernel size for convolution on channels.
             channels_stride (int): Stride for convolution on channels.
             time_kernel (int): Kernel size for convolution on time axis.
@@ -448,7 +446,7 @@ class DetectionBertMEEG(nn.Sequential):
 
                          PatchEmbedding(n_time_points, emb_size,
                                         n_maps, position_kernel,
-                                        position_stride, channels_kernel,
+                                        channels_kernel,
                                         channels_stride, time_kernel,
                                         time_stride, positional_dropout),
                          # Embedding and positional encoding
