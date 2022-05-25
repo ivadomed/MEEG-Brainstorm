@@ -122,7 +122,7 @@ class DetectionTransformer():
 
         # Define training, validation and regularization losses
         self.train_criterion = get_detection_loss(cost_sensitive, lambd)
-        self.val_criterion = torch.nn.MSELoss()
+        self.val_criterion = torch.nn.BCEWithLogitsLoss()
         self.l1 = torch.nn.L1Loss()
         available, device = define_device(gpu_id)
         if available:
@@ -194,8 +194,8 @@ class DetectionTransformer():
                                                         train_labels,
                                                         selected_rows)
                 spatial_filters[fold] = spatial_filter
-                train_data = np.einsum('c d, n d t -> n c t',
-                                       spatial_filter, train_data)
+                #train_data = np.einsum('c d, n d t -> n c t',
+                                       #spatial_filter, train_data)
 
                 # Create training dataloader
                 train_data = np.expand_dims(train_data, axis=1)
@@ -212,8 +212,8 @@ class DetectionTransformer():
                 val_data = (val_data-target_mean) / target_std
 
                 # Apply spatial filter
-                val_data = np.einsum('c d, n d t -> n c t',
-                                     spatial_filter, val_data)
+                #val_data = np.einsum('c d, n d t -> n c t',
+                                     #spatial_filter, val_data)
 
                 # Create val dataloader
                 val_data = np.expand_dims(val_data, axis=1)
@@ -229,8 +229,8 @@ class DetectionTransformer():
                 test_data = (test_data-target_mean) / target_std
 
                 # Apply spatial filter
-                test_data = np.einsum('c d, n d t -> n c t',
-                                      spatial_filter, test_data)
+                #test_data = np.einsum('c d, n d t -> n c t',
+                                      #spatial_filter, test_data)
 
                 # Create test dataloader
                 test_data = np.expand_dims(test_data, axis=1)
@@ -272,6 +272,8 @@ class DetectionTransformer():
                 for e in range(n_epochs):
 
                     # Train and validate the model
+                    train_loss = 0
+                    train_steps = 0
                     val_loss = 0
                     val_steps = 0
 
@@ -354,12 +356,19 @@ class DetectionTransformer():
                             else:
                                 optimizer.step()
 
+                            # Detach from device
+                            loss = loss.cpu().detach().numpy()
+
+                            # Recover training loss and confusion matrix
+                            train_loss += loss
+                            train_steps += 1
+
                         else:
 
                             # Format conversion and move to device
                             data = Variable(data.type(self.Float),
                                             requires_grad=True)
-                            labels = Variable(labels.type(self.Long))
+                            labels = Variable(labels.type(self.Float))
                             data, labels = data.to(device), labels.to(device)
 
                             # Zero the parameter gradients
@@ -368,15 +377,9 @@ class DetectionTransformer():
                             # Forward
                             _, outputs = model(data)
 
-                            # Concatenate the batches
-                            stack_outputs = rearrange(outputs,
-                                                      'b v o -> (b v) o')
-                            stack_labels = rearrange(labels,
-                                                     'b v -> (b v)')
-
                             # Compute training loss
-                            loss = self.train_criterion(stack_outputs,
-                                                        stack_labels)
+                            loss = self.train_criterion(outputs,
+                                                        labels)
 
                             # Apply L1 regularization
                             l1_loss = 0
@@ -393,6 +396,19 @@ class DetectionTransformer():
                                 warmup_scheduler.step()
                             else:
                                 optimizer.step()
+
+                            # Detach from device
+                            loss = loss.cpu().detach().numpy()
+
+                            # Recover training loss and confusion matrix
+                            train_loss += loss
+                            train_steps += 1
+
+                    # Print loss
+                    train_loss /= train_steps
+                    if (e+1) % 1 == 0:
+                        logger.info('Training loss '
+                                    'at epoch {}: {}'.format(e+1, train_loss))
 
                     # Set evaluation mode
                     model.eval()
@@ -423,7 +439,7 @@ class DetectionTransformer():
 
                     # Print loss
                     val_loss /= val_steps
-                    if (e+1) % 5 == 0:
+                    if (e+1) % 1 == 0:
                         logger.info('Validation loss '
                                     'at epoch {}: {}'.format(e+1, val_loss))
 
@@ -874,6 +890,11 @@ class DetectionTransformer():
                             train_loss += loss
                             train_steps += 1
 
+                    # Print loss
+                    train_loss /= train_steps
+                    if (e+1) % 1 == 0:
+                        logger.info('Training loss '
+                                    'at epoch {}: {}'.format(e+1, train_loss))
                     if validation_possible:
 
                         # Set evaluation mode
@@ -906,7 +927,7 @@ class DetectionTransformer():
 
                         # Print loss
                         val_loss /= val_steps
-                        if (e+1) % 5 == 0:
+                        if (e+1) % 1 == 0:
                             logger.info('Validation loss at epoch '
                                         '{}: {}'.format(e+1, val_loss))
 
