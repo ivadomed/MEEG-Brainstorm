@@ -343,7 +343,7 @@ class DetectionTransformer():
                             for param in model.parameters():
                                 zeros = torch.zeros(param.size()).to(device)
                                 l1_loss += self.l1(param, zeros)
-                            loss += l1_penalty*l1_loss
+                            loss += l1_penality*l1_loss
 
                             # Backward
                             loss.backward()
@@ -383,7 +383,7 @@ class DetectionTransformer():
                             for param in model.parameters():
                                 zeros = torch.zeros(param.size()).to(device)
                                 l1_loss += self.l1(param, zeros)
-                            loss += l1_penalty*l1_loss
+                            loss += l1_penality*l1_loss
 
                             # Backward
                             loss.backward()
@@ -816,7 +816,7 @@ class DetectionTransformer():
                             for param in model.parameters():
                                 zeros = torch.zeros(param.size()).to(device)
                                 l1_loss += self.l1(param, zeros)
-                            loss += l1_penalty*l1_loss
+                            loss += l1_penality*l1_loss
 
                             # Backward
                             loss.backward()
@@ -856,7 +856,7 @@ class DetectionTransformer():
                             for param in model.parameters():
                                 zeros = torch.zeros(param.size()).to(device)
                                 l1_loss += self.l1(param, zeros)
-                            loss += l1_penalty*l1_loss
+                            loss += l1_penality*l1_loss
 
                             # Backward
                             loss.backward()
