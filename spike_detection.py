@@ -104,7 +104,7 @@ class DetectionTransformer():
         mix_up, BETA = training_config['use_mix_up'], training_config['BETA']
         cost_sensitive = training_config['use_cost_sensitive']
         lambd = training_config['lambda']
-        l1_penalty = training_config['l1_penalty']
+        l1_penality = training_config['l1_penality']
 
         # Recover optimizer parameters
         lr = optimizer_config['lr']
