@@ -134,25 +134,24 @@ class PatchEmbedding(nn.Module):
         super().__init__()
 
         # Padding values to preserve seq_len
-        position_padding = ((position_stride-1) * seq_len -
-                            (position_stride+1) + position_kernel)
-        position_padding = int(position_padding / 2)
-        new_seq_len = (((seq_len + 1 - position_stride)
-                        / position_stride) + 1)
-        new_seq_len = int(new_seq_len / 2)
-        time_padding = ((time_stride-1) * new_seq_len -
-                        (time_stride+1) + time_kernel)
-        time_padding = int(time_padding / 2) + 1
+        position_padding = ((position_stride-1) * seq_len
+                            + position_kernel - position_stride)
+        position_padding = int(position_padding / 2) + 1
+        new_seq_len = int((seq_len + 2*position_padding
+                           - position_kernel) / position_stride + 1)
+        time_padding = ((time_stride-1) * new_seq_len
+                        + time_kernel) - time_stride
+        time_padding = int(time_padding / 2) - 1
 
         # Embedding and positional encoding
         self.embedding = nn.Sequential(
-                            nn.AdaptiveAvgPool2d(((channels_kernel,
-                                                   seq_len))),
                             ConstrainedConv2d(1, n_maps,
                                               (1, position_kernel),
                                               stride=(1, position_stride),
                                               padding=(0, position_padding)),
                             nn.BatchNorm2d(n_maps),
+                            nn.AdaptiveAvgPool2d(((channels_kernel,
+                                                   new_seq_len))),
                             nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
                                       stride=(channels_stride, 1),
                                       groups=n_maps),
