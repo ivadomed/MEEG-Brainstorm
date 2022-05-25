@@ -524,7 +524,9 @@ class DetectionTransformer():
                         Sensitivity = 1
                         Precision = 0
                         F1_score = 0
-
+                    elif (Sensitivity == 0) & (Precision == 0):
+                        F1_score = 0
+                        
                     # Update best F1_score
                     if F1_score > best_F1:
                         best_fold = fold
@@ -1019,6 +1021,8 @@ class DetectionTransformer():
                     elif (TP == 0) & (FP != 0) & (FN == 0):
                         Sensitivity = 1
                         Precision = 0
+                        F1_score = 0
+                    elif (Sensitivity == 0) & (Precision == 0):
                         F1_score = 0
 
                     # Update best F1_score
