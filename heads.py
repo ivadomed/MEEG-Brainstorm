@@ -48,15 +48,14 @@ class RobertaClassifier(nn.Sequential):
 
         super().__init__()
 
-        self.classifier = nn.Sequential(
-                             nn.Dropout(dropout),
-                             Reduce('b v o -> b o',
-                                    reduction='mean'),
-                             nn.Linear(emb_size, emb_size),
-                             Mish(),
-                             nn.Dropout(dropout),
-                             nn.Linear(emb_size, n_classes)
-                             )
+        self.classifier = nn.Sequential(nn.Dropout(dropout),
+                                        Reduce('b v o -> b o',
+                                               reduction='mean'),
+                                        nn.Linear(emb_size, emb_size),
+                                        Mish(),
+                                        nn.Dropout(dropout),
+                                        nn.Linear(emb_size, n_classes)
+                                        )
 
         # Weight initialization
         for layer in self.classifier:
@@ -97,17 +96,16 @@ class SpikeDetector(nn.Sequential):
 
         super().__init__()
 
-        self.predictor = nn.Sequential(
-                            nn.Dropout(dropout),
-                            Rearrange('b v o -> b o v'),
-                            nn.Linear(seq_len, n_time_windows),
-                            Rearrange('b o v -> b v o'),
-                            Mish(),
-                            nn.Dropout(dropout),
-                            nn.LayerNorm(emb_size),
-                            Reduce('b v o -> b v', reduction='mean'),
-                            nn.Sigmoid()
-                            )
+        self.predictor = nn.Sequential(nn.Dropout(dropout),
+                                       Rearrange('b v o -> b o v'),
+                                       nn.Linear(seq_len, n_time_windows),
+                                       Rearrange('b o v -> b v o'),
+                                       Mish(),
+                                       nn.Dropout(dropout),
+                                       nn.LayerNorm(emb_size),
+                                       nn.Linear(emb_size, 1),
+                                       Rearrange('b v o -> b (v o)')
+                                       )
 
         # Weight initialization
         for layer in self.predictor:
