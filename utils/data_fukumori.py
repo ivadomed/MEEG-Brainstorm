@@ -16,8 +16,27 @@ from os.path import isfile, join
 
 from torch.utils.data import Dataset
 
-from utils import get_spike_events
 
+def get_spike_events(spike_time_points, n_time_points, freq):
+
+    """
+    Compute array of dimension [n_time_points] with 1 when a spike occurs and 0 otherwise.
+
+    Args:
+        spike_time_points (array): Contains time points when a spike occurs if any.
+        n_time_points (int): Number of time points.
+        freq (int): Sample frequence of the EEG/MEG signals.
+
+    Returns:
+        spike_events (array): Array of dimension [n_time_points] containing 1 when a spike occurs and 0 otherwise.
+    """
+
+    spike_events = np.zeros(n_time_points)
+    for time in spike_time_points:
+        index = int(freq*time)
+        spike_events[index] = 1
+
+    return spike_events.astype(int)
 
 class Data:
 
@@ -45,6 +64,7 @@ class Data:
         self.wanted_channel_type = wanted_channel_type
         self.sample_frequence = sample_frequence
         self.binary_classification = binary_classification
+        
 
     def get_trial(self, trial_fname, channel_fname,
                   wanted_event_label, wanted_channel_type):
@@ -70,36 +90,47 @@ class Data:
         # Load the trial and corresponding channels
         trial = scipy.io.loadmat(trial_fname)
         channel_mat = scipy.io.loadmat(channel_fname, chars_as_strings=1)
-
-        # Select the wanted type of channels
-        wanted_channels = trial['Events'][0]['channels'][0]
-        # for i in range(channel_mat['Channel'].shape[1]):
-        #     channel_type = channel_mat['Channel'][0, i]['Type'].tolist()[0]
-        #     if channel_type in wanted_channel_type:
-        #         wanted_channels.append(i)
-
-        # Recover data and time points
-        F = trial['F'][wanted_channels]
-        times = trial['Time'][0]
-
         # Count seizure events and recover spikes events times
         count_spikes = 0
         spike_time_points = []
         bad_trial = 0
-        for iEvent in range(len(trial['Events'])):
-            event = trial['Events'][iEvent]
-            if self.label_position:
+        wanted_channel = 0
+        if len(trial['Events']) != 0:
+            for iEvent in range(len(trial['Events'][0])):
+                event = trial['Events'][0][iEvent]
                 if event['label'][0] == wanted_event_label:
-                    count_spikes += event['times'][0].shape[1]
-                    spike_time_points = event['times'][0][0]
+                    wanted_channel = event['channels'][0][0][0][0][0]
+                    count_spikes += event['times'].shape[1]
+                    spike_time_points = event['times'][0]
                 elif event['label'][0] == 'BAD':
                     bad_trial += 1
-            else:
-                if event['label'][-1] == wanted_event_label:
-                    count_spikes += event['times'][-1].shape[1]
-                    spike_time_points = event['times'][-1][0]
-                elif event['label'][-1] == 'BAD':
-                    bad_trial += 1
+        
+        # Select the wanted type of channels
+        if wanted_channel != 0:
+            for i in range(channel_mat['Channel'].shape[1]):
+                channel_name = channel_mat['Channel'][0, i]['Name'].tolist()[0]
+                if wanted_channel == 'Pz':
+                    wanted_channel = 'PZ'
+                elif wanted_channel == 'Fp1':
+                    wanted_channel = 'FP1'
+                elif wanted_channel == 'Fz':
+                    wanted_channel = 'FZ'
+                elif wanted_channel == 'Cz':
+                    wanted_channel = 'CZ'
+                if channel_name == wanted_channel:
+                    wanted_channel = i 
+                
+        else:
+            wanted_channels = []
+            for i in range(channel_mat['Channel'].shape[1]):
+                channel_type = channel_mat['Channel'][0, i]['Type'].tolist()[0]
+                if channel_type in wanted_channel_type:
+                    wanted_channels.append(i) 
+            wanted_channel = np.random.choice(wanted_channels)
+        # Recover data and time points
+        F = trial['F'][wanted_channel]
+        times = trial['Time'][0]
+
         data, n_spike = np.asarray(F, dtype='float64'), count_spikes
 
         return data, n_spike, spike_time_points, times, bad_trial
@@ -210,6 +241,7 @@ class Data:
                             if f.is_dir()]
 
                 # Recover trials, labels and spike events
+
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
