@@ -20,15 +20,18 @@ from torch.utils.data import Dataset
 def get_spike_events(spike_time_points, n_time_points, freq):
 
     """
-    Compute array of dimension [n_time_points] with 1 when a spike occurs and 0 otherwise.
+    Compute array of dimension [n_time_points] with 1
+    when a spike occurs and 0 otherwise.
 
     Args:
-        spike_time_points (array): Contains time points when a spike occurs if any.
+        spike_time_points (array): Contains time points
+                                   when a spike occurs if any.
         n_time_points (int): Number of time points.
         freq (int): Sample frequence of the EEG/MEG signals.
 
     Returns:
-        spike_events (array): Array of dimension [n_time_points] containing 1 when a spike occurs and 0 otherwise.
+        spike_events (array): Array of dimension [n_time_points] containing 1
+                              when a spike occurs and 0 otherwise.
     """
 
     spike_events = np.zeros(n_time_points)
@@ -37,6 +40,7 @@ def get_spike_events(spike_time_points, n_time_points, freq):
         spike_events[index] = 1
 
     return spike_events.astype(int)
+
 
 class Data:
 
@@ -64,10 +68,9 @@ class Data:
         self.wanted_channel_type = wanted_channel_type
         self.sample_frequence = sample_frequence
         self.binary_classification = binary_classification
-        
 
     def get_trial(self, trial_fname, channel_fname,
-                  wanted_event_label, wanted_channel_type):
+                  wanted_event_label, wanted_channel_type, single_channel):
 
         """ Recover as numpy array a trial with corresponding number of spikes,
             spike events times and time points. Trials with bad channels
@@ -104,9 +107,9 @@ class Data:
                     spike_time_points = event['times'][0]
                 elif event['label'][0] == 'BAD':
                     bad_trial += 1
-        
+
         # Select the wanted type of channels
-        if wanted_channel != 0:
+        if wanted_channel != 0 and single_channel:
             for i in range(channel_mat['Channel'].shape[1]):
                 channel_name = channel_mat['Channel'][0, i]['Name'].tolist()[0]
                 if wanted_channel == 'Pz':
@@ -118,17 +121,20 @@ class Data:
                 elif wanted_channel == 'Cz':
                     wanted_channel = 'CZ'
                 if channel_name == wanted_channel:
-                    wanted_channel = i 
-                
+                    wanted_channel = i
         else:
             wanted_channels = []
             for i in range(channel_mat['Channel'].shape[1]):
                 channel_type = channel_mat['Channel'][0, i]['Type'].tolist()[0]
                 if channel_type in wanted_channel_type:
-                    wanted_channels.append(i) 
+                    wanted_channels.append(i)
             wanted_channel = np.random.choice(wanted_channels)
         # Recover data and time points
-        F = trial['F'][wanted_channel]
+        if single_channel:
+            F = trial['F'][wanted_channel]
+        else:
+            F = trial['F'][wanted_channels]
+
         times = trial['Time'][0]
 
         data, n_spike = np.asarray(F, dtype='float64'), count_spikes
