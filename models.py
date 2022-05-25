@@ -140,7 +140,12 @@ class PatchEmbedding(nn.Module):
                           - position_kernel + 1)
         time_padding = ((time_stride-1) * new_seq_len
                         + time_kernel) - time_stride
-        time_padding = int(time_padding / 2) - 1
+        if (time_kernel % 2 == 0) & (time_stride % 2 == 0):
+            time_padding = int(time_padding / 2) - 1
+        elif (time_kernel % 2 != 0) & (time_stride % 2 != 0):
+            time_padding = int(time_padding / 2) - 1
+        else:
+            time_padding = int(time_padding / 2)
 
         # Embedding and positional encoding
         self.embedding = nn.Sequential(
