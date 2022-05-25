@@ -13,8 +13,10 @@ Contributors: Ambroise Odonnat.
 
 import torch
 
+import torch.nn.functional as F
+
 from einops import rearrange
-from einops.layers.torch import Reduce, Rearrange
+from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
 from heads import Mish, RobertaClassifier, SpikeDetector
@@ -98,6 +100,13 @@ class ChannelAttention(nn.Module):
 """ ********** Embedding and positional encoding ********** """
 
 
+class ConstrainedConv2d(nn.Conv2d):
+    def forward(self, input):
+        return F.conv2d(input, self.weight.clamp(min=-1.0, max=1.0),
+                        self.bias, self.stride, self.padding,
+                        self.dilation, self.groups)
+
+
 class PatchEmbedding(nn.Module):
 
     def __init__(self, seq_len, emb_size, n_maps, position_kernel,
@@ -139,15 +148,17 @@ class PatchEmbedding(nn.Module):
         self.embedding = nn.Sequential(
                             nn.AdaptiveAvgPool2d(((channels_kernel,
                                                    seq_len))),
-                            nn.Conv2d(1, n_maps, (1, position_kernel),
-                                      stride=(1, position_stride),
-                                      padding=(0, position_padding)),
+                            ConstrainedConv2d(1, n_maps,
+                                              (1, position_kernel),
+                                              stride=(1, position_stride),
+                                              padding=(0, position_padding)),
                             nn.BatchNorm2d(n_maps),
-                            nn.LeakyReLU(),
-                            nn.Dropout(dropout),
                             nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
                                       stride=(channels_stride, 1),
                                       groups=n_maps),
+                            nn.BatchNorm2d(n_maps),
+                            nn.LeakyReLU(),
+                            nn.Dropout(dropout),
                             nn.Conv2d(n_maps, emb_size, (1, time_kernel),
                                       stride=(1, time_stride),
                                       padding=(0, time_padding)),
@@ -424,15 +435,16 @@ class DetectionBertMEEG(nn.Sequential):
             detector_dropout (float): Dropout value in spike detector block.
         """
 
-        super().__init__(ResidualAdd(
-                            nn.Sequential(
-                                nn.LayerNorm(n_time_points),
-                                ChannelAttention(n_time_points,
-                                                 attention_num_heads,
-                                                 attention_dropout),
-                                nn.Dropout(spatial_dropout)
-                                )
-                            ),
+        super().__init__(#ResidualAdd(
+                           #nn.Sequential(
+                                #nn.LayerNorm(n_time_points),
+                                #ChannelAttention(n_time_points,
+                                                 #attention_num_heads,
+                                                 #attention_dropout),
+                                #nn.Dropout(spatial_dropout)
+                                #)
+                            #),
+
                          # Spatial transforming,
 
                          PatchEmbedding(n_time_points, emb_size,
