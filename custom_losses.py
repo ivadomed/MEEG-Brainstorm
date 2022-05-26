@@ -113,9 +113,6 @@ class DetectionLoss(nn.Module):
         M = np.zeros((n_classes, n_classes))
         for i in range(n_classes):
             for j in range(i+1, n_classes):
-                M[i, j] = (j - i) ** 2
-
-            for j in range(i+1, n_classes):
                 M[i, j] = (j-i) ** 2
 
         self.M = torch.from_numpy(M)
@@ -125,27 +122,13 @@ class DetectionLoss(nn.Module):
         # Recover prediction
         prediction = (outputs > 0.5).int()
 
-        # Compute cost-sensitive regularization
-        coeff = self.lambd
-
-        # Modulate with the sensitivity and precision of the model
-        confusion_matrix = np.zeros((self.n_classes, self.n_classes))
-        for t, p in zip(labels.reshape(-1), prediction.reshape(-1)):
-            confusion_matrix[t.long(), p.long()] += 1
-        TP = confusion_matrix[1][1]
-        TN = confusion_matrix[0][0]
-        FP = confusion_matrix[0][1]
-        FN = confusion_matrix[1][0]
-        print('TP', TP, 'FP', FP, 'TN', TN, 'FN', FN)
-        if FN*TP*FP*TN:
-            coeff = - np.log(np.sqrt((TP/(TP+FN)) * (TP/(TP+FP))))
-            coeff *= self.lambd
-
         # Compute mean loss on the batch
-        CS = self.M[prediction.long(), labels.long()]
         loss = self.criterion(outputs, labels)
-        print('loss', loss, 'coeff', coeff)
-        loss += coeff * CS.mean()
+
+        # Compute cost-sensitive regularization
+        CS = self.M[prediction.long(), labels.long()]
+        balanced = CS.sum(axis=-1).mean()
+        loss += self.lambd * balanced
 
         return loss
 
@@ -172,7 +155,7 @@ def get_classification_loss(n_classes, cost_sensitive, lambd):
         return criterion
 
 
-def get_detection_loss(cost_sensitive, lambd):
+def get_detection_loss(criterion, cost_sensitive, lambd):
 
     """
     Build a custom cross-entropy loss with a cost-sensitive regularization.
@@ -185,8 +168,6 @@ def get_detection_loss(cost_sensitive, lambd):
     Return:
         criterion (Loss): Criterion.
     """
-
-    criterion = nn.BCEWithLogitsLoss()
 
     # Apply cost-sensitive method
     if cost_sensitive:
