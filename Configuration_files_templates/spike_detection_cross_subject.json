@@ -1,68 +1,67 @@
 {
+    "cross_validation": {
+        "n_repeats": 1,
+        "n_splits": 5,
+        "random_state": 42,
+        "val_size": 0.2
+    },
+    "intra_subject": false,
     "loader_parameters": {
+        "binary_classification": true,
         "path_root": "../../Neuropoly_Internship/MEEG_data/EEG_signals/",
-        "wanted_event_label": "saw_EST",
+        "sample_frequence": 100,
         "wanted_channel_type": [
             "EEG"
         ],
-        "sample_frequence": 100,
-        "binary_classification": true
-    },
-    "training_parameters": {
-        "batch_size": 8,
-        "num_workers": 0,
-        "epochs": 1,
-        "use_mix_up": true,
-        "BETA": 0.4,
-        "use_cost_sensitive": true,
-        "lambda": 0.5,
-        "l1_penalty": 0.5
+        "wanted_event_label": "saw_EST"
     },
     "model": {
-        "n_time_points": 201,
+        "attention_dropout": 0,
         "attention_num_heads": 3,
-        "attention_dropout": 0.8,
-        "spatial_dropout": 0.8,
-        "emb_size": 30,
-        "n_maps": 5,
-        "position_kernel": 20,
-        "position_stride": 1,
         "channels_kernel": 20,
         "channels_stride": 1,
+        "depth": 3,
+        "detector_dropout": 0,
+        "emb_size": 30,
+        "embedding_dropout": 0,
+        "expansion": 4,
+        "n_maps": 5,
+        "n_time_points": 201,
+        "n_time_windows": 10,
+        "num_heads": 10,
+        "position_kernel": 50,
+        "positional_dropout": 0.25,
+        "spatial_dropout": 0,
         "time_kernel": 20,
         "time_stride": 1,
-        "positional_dropout": 0,
-        "embedding_dropout": 0.1,
-        "depth": 3,
-        "num_heads": 10,
-        "expansion": 4,
-        "transformer_dropout": 0,
-        "n_time_windows": 10,
-        "detector_dropout": 0
+        "transformer_dropout": 0.25
     },
     "optimizer": {
-        "lr": 0.001,
         "b1": 0.9,
         "b2": 0.999,
-        "weight_decay": 0,
-        "use_amsgrad": false,
-        "learning_rate_warmup": 200,
-        "scheduler": {
-            "use_scheduler": true,
-            "patience": 20,
-            "factor": 0.5,
-            "min_lr": 1e-05
-        },
         "early_stopping": {
             "patience": 10
-        }
+        },
+        "learning_rate_warmup": 200,
+        "lr": 0.001,
+        "scheduler": {
+            "factor": 0.5,
+            "min_lr": 1e-05,
+            "patience": 20,
+            "use_scheduler": true
+        },
+        "use_amsgrad": false,
+        "weight_decay": 0
     },
-    "intra_subject": false,
-    "selected_rows": 10,
-    "cross_validation": {
-        "n_splits": 5,
-        "n_repeats": 1,
-        "random_state": 42,
-        "val_size": 0.2
+    "period": 1,
+    "training_parameters": {
+        "BETA": 0.4,
+        "batch_size": 8,
+        "epochs": 1,
+        "l1_penality": 0.01,
+        "lambda": 0.001,
+        "num_workers": 0,
+        "use_cost_sensitive": true,
+        "use_mix_up": false
     }
 }
