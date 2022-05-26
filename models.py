@@ -17,7 +17,6 @@ import torch.nn.functional as F
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
-from math import floor
 from torch import nn
 from torch import Tensor
 from heads import Mish, RobertaClassifier, SpikeDetector
@@ -437,16 +436,15 @@ class DetectionBertMEEG(nn.Sequential):
             detector_dropout (float): Dropout value in spike detector block.
         """
 
-        super().__init__(#ResidualAdd(
-                           #nn.Sequential(
-                                #nn.LayerNorm(n_time_points),
-                                #ChannelAttention(n_time_points,
-                                                 #attention_num_heads,
-                                                 #attention_dropout),
-                                #nn.Dropout(spatial_dropout)
-                                #)
-                            #),
-
+        super().__init__(ResidualAdd(
+                           nn.Sequential(
+                                nn.LayerNorm(n_time_points),
+                                ChannelAttention(n_time_points,
+                                                 attention_num_heads,
+                                                 attention_dropout),
+                                nn.Dropout(spatial_dropout)
+                                )
+                            ),
                          # Spatial transforming,
 
                          PatchEmbedding(n_time_points, emb_size,
