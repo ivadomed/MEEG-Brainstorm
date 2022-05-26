@@ -21,7 +21,6 @@ import warnings
 import numpy as np
 
 from datetime import datetime
-from einops import rearrange
 from loguru import logger
 from sklearn.model_selection import RepeatedKFold, train_test_split
 from torch.autograd import Variable
@@ -89,7 +88,7 @@ class DetectionTransformer():
         """
 
         intra_subject = config['intra_subject']
-        selected_rows = config['selected_rows']
+        period = config['period']
 
         # Recover configurations
         training_config = config['training_parameters']
@@ -121,7 +120,8 @@ class DetectionTransformer():
         el_stop_patience = el_stop_config['patience']
 
         # Define training, validation and regularization losses
-        self.train_criterion = get_detection_loss(cost_sensitive, lambd)
+        self.train_criterion = get_detection_loss(torch.nn.BCEWithLogitsLoss(),
+                                                  cost_sensitive, lambd)
         self.val_criterion = torch.nn.BCEWithLogitsLoss()
         self.l1 = torch.nn.L1Loss()
         available, device = define_device(gpu_id)
@@ -153,19 +153,27 @@ class DetectionTransformer():
 
         # Perform intra-subject learning
         if intra_subject:
-            spatial_filters = {}
             subject_id = self.subject_ids[0]
             logger.info('Spike detection for subject {}.'.format(subject_id))
             all_data = self.all_data[subject_id][0]
-            all_labels = self.all_labels[subject_id][0]
             spike_events = self.all_spike_events[subject_id][0]
             index = [i for i in range(all_data.shape[0])]
 
-            # Loop on the folds
-            for fold, (train_ids, test_ids) in enumerate(rkf.split(index)):
+        # Perform cross-subject learning
+        else:
+            index = range(self.subject_ids.shape[0])
+            np.random.seed(random_state)
+            train_index = {}
+            val_index = {}
+            test_index = {}
 
-                print('FOLD {}'.format(fold))
-                print('--------------------------------')
+        # Loop on the folds
+        for fold, (train_ids, test_ids) in enumerate(rkf.split(index)):
+
+            print('FOLD {}'.format(fold))
+            print('--------------------------------')
+            validation_possible = True
+            if intra_subject:
 
                 # Select a validation set to do early stopping
                 val_size = cross_validation_config['val_size']
@@ -174,7 +182,6 @@ class DetectionTransformer():
 
                 # Recover training dataset
                 train_data = all_data[train_ids]
-                train_labels = all_labels[train_ids]
                 train_spike_events = spike_events[train_ids]
 
                 # Z-score standardization
@@ -183,19 +190,6 @@ class DetectionTransformer():
                 z_scores[fold] = {'mean': target_mean,
                                   'std': target_std}
                 train_data = (train_data-target_mean) / target_std
-
-                # Apply spatial filter
-                n_rows = all_data.shape[1]
-                valid_selection = (n_rows > 2*selected_rows)
-                selected_rows = int(selected_rows*valid_selection
-                                    + (n_rows/2)*(1-valid_selection))
-                config['selected_rows'] = selected_rows
-                spatial_filter = common_spatial_pattern(train_data,
-                                                        train_labels,
-                                                        selected_rows)
-                spatial_filters[fold] = spatial_filter
-                #train_data = np.einsum('c d, n d t -> n c t',
-                                       #spatial_filter, train_data)
 
                 # Create training dataloader
                 train_data = np.expand_dims(train_data, axis=1)
@@ -211,10 +205,6 @@ class DetectionTransformer():
                 # Z-score standardization
                 val_data = (val_data-target_mean) / target_std
 
-                # Apply spatial filter
-                #val_data = np.einsum('c d, n d t -> n c t',
-                                     #spatial_filter, val_data)
-
                 # Create val dataloader
                 val_data = np.expand_dims(val_data, axis=1)
                 val_dataloader = get_dataloader(val_data,
@@ -228,415 +218,16 @@ class DetectionTransformer():
                 # Z-score standardization
                 test_data = (test_data-target_mean) / target_std
 
-                # Apply spatial filter
-                #test_data = np.einsum('c d, n d t -> n c t',
-                                      #spatial_filter, test_data)
-
                 # Create test dataloader
                 test_data = np.expand_dims(test_data, axis=1)
                 test_dataloader = get_dataloader(test_data,
                                                  test_spike_events,
                                                  batch_size, False,
                                                  num_workers)
+            else:
 
-                # Initialize detection neural network
-                model = DetectionBertMEEG(**model_config)
-                model.apply(reset_weights)
-
-                # Move to gpu if available
-                if available:
-                    if torch.cuda.device_count() > 1:
-                        model = torch.nn.DataParallel(model)
-                model.to(device)
-
-                # Define optimizer
-                optimizer = torch.optim.Adam(model.parameters(), lr=lr,
-                                             betas=(b1, b2),
-                                             weight_decay=weight_decay,
-                                             amsgrad=amsgrad)
-
-                # Define warmup method
-                if warmup:
-                    warmup_scheduler = NoamOpt(lr, warmup, optimizer)
-
-                # Define scheduler
-                lr_scheduler = ReduceLROnPlateau(optimizer, 'min',
-                                                 factor=factor,
-                                                 patience=scheduler_patience,
-                                                 min_lr=min_lr, verbose=False)
-
-                # Define early stopping
-                early_stopping = EarlyStopping(patience=el_stop_patience)
-
-                # Loop over the dataset n_epochs times
-                for e in range(n_epochs):
-
-                    # Train and validate the model
-                    train_loss = 0
-                    train_steps = 0
-                    val_loss = 0
-                    val_steps = 0
-
-                    # Set training mode
-                    model.train()
-                    for i, (data, labels) in enumerate(train_dataloader):
-
-                        # Apply time window reduction
-                        n_time_windows = model_config['n_time_windows']
-                        labels = get_spike_windows(labels, n_time_windows)
-                        if mix_up:
-
-                            """
-                            Apply a mix-up strategy for data augmentation.
-                            Inspired by:
-                            `"mixup: Beyond Empirical Risk Minimization"
-                            <https://arxiv.org/abs/1710.09412>`_.
-                            """
-
-                            # Roll a copy of the batch
-                            rl_factor = torch.randint(0, data.shape[0],
-                                                      (1,)).item()
-                            rl_data = torch.roll(data, rl_factor, dims=0)
-                            rl_labels = torch.roll(labels,
-                                                   rl_factor, dims=0)
-
-                            # Create a tensor of lambdas sampled
-                            # from the beta distribution
-                            lambdas = np.random.beta(BETA, BETA, data.shape[0])
-
-                            # Trick inspired by:
-                            # `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
-                            lambdas = torch.reshape(torch.tensor
-                                                    (np.maximum(lambdas,
-                                                                1-lambdas)),
-                                                    (-1, 1, 1, 1))
-
-                            # Mix samples
-                            mix_data = lambdas*data + (1-lambdas)*rl_data
-
-                            # Format conversion and move to device
-                            mix_data = Variable(mix_data.type(self.Float),
-                                                requires_grad=True)
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Float))
-                            rl_labels = Variable(rl_labels.type(self.Float))
-                            mix_data = mix_data.to(device)
-                            labels = labels.to(device)
-                            rl_labels = rl_labels.to(device)
-
-                            # Zero the parameter gradients
-                            optimizer.zero_grad()
-
-                            # Forward
-                            _, mix_outputs = model(mix_data)
-
-                            # Compute mix-up loss
-                            lambdas = lambdas.squeeze().to(device)
-                            loss1 = self.train_criterion(mix_outputs,
-                                                         labels)
-                            loss2 = self.train_criterion(mix_outputs,
-                                                         rl_labels)
-                            loss = lambdas*loss1 + (1-lambdas)*loss2
-                            loss = loss.sum()
-
-                            # Apply L1 regularization
-                            l1_loss = 0
-                            for param in model.parameters():
-                                zeros = torch.zeros(param.size()).to(device)
-                                l1_loss += self.l1(param, zeros)
-                            loss += l1_penality*l1_loss
-
-                            # Backward
-                            loss.backward()
-
-                            # Update learning rate
-                            if warmup:
-                                warmup_scheduler.step()
-                            else:
-                                optimizer.step()
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss and confusion matrix
-                            train_loss += loss
-                            train_steps += 1
-
-                        else:
-
-                            # Format conversion and move to device
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Float))
-                            data, labels = data.to(device), labels.to(device)
-
-                            # Zero the parameter gradients
-                            optimizer.zero_grad()
-
-                            # Forward
-                            _, outputs = model(data)
-
-                            # Compute training loss
-                            loss = self.train_criterion(outputs,
-                                                        labels)
-
-                            # Apply L1 regularization
-                            l1_loss = 0
-                            for param in model.parameters():
-                                zeros = torch.zeros(param.size()).to(device)
-                                l1_loss += self.l1(param, zeros)
-                            loss += l1_penality*l1_loss
-
-                            # Backward
-                            loss.backward()
-
-                            # Update learning rate
-                            if warmup:
-                                warmup_scheduler.step()
-                            else:
-                                optimizer.step()
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss and confusion matrix
-                            train_loss += loss
-                            train_steps += 1
-
-                    # Print loss
-                    train_loss /= train_steps
-                    if (e+1) % 1 == 0:
-                        logger.info('Training loss '
-                                    'at epoch {}: {}'.format(e+1, train_loss))
-
-                    # Set evaluation mode
-                    model.eval()
-                    for j, (data, labels) in enumerate(val_dataloader):
-
-                        # Apply time window reduction
-                        n_time_windows = model_config['n_time_windows']
-                        labels = get_spike_windows(labels, n_time_windows)
-
-                        # Format conversion and move to device
-                        data = Variable(data.type(self.Float),
-                                        requires_grad=True)
-                        labels = Variable(labels.type(self.Float))
-                        data, labels = data.to(device), labels.to(device)
-
-                        # Forward
-                        _, outputs = model(data)
-
-                        # Compute training loss
-                        loss = self.val_criterion(outputs, labels)
-
-                        # Detach from device
-                        loss = loss.cpu().detach().numpy()
-
-                        # Recover training loss and confusion matrix
-                        val_loss += loss
-                        val_steps += 1
-
-                    # Print loss
-                    val_loss /= val_steps
-                    if (e+1) % 1 == 0:
-                        logger.info('Validation loss '
-                                    'at epoch {}: {}'.format(e+1, val_loss))
-
-                    # Update learning rate if training loss does not improve
-                    if scheduler:
-                        lr_scheduler.step(val_loss)
-
-                    # Update early stopping
-                    early_stopping(val_loss)
-                    if early_stopping.early_stop:
-                        final_epoch = e+1
-                        print("Early stopping at epoch: ", final_epoch)
-                        break
-
-                # Training finished
-                logger.info('Training process finished.')
-
-                # Recover model parameters
-                models[fold] = model.state_dict()
-
-                # Print about testing
-                logger.info('Start evaluation.')
-
-                # Set evaluation mode
-                model.eval()
-
-                # Initialize confusion_matrix
-                # Here the positive class is the class 1
-                confusion_matrix = np.zeros((2, 2))
-
-                with torch.no_grad():
-                    for k, (data, labels) in enumerate(test_dataloader):
-
-                        # Apply time window reduction
-                        n_time_windows = model_config['n_time_windows']
-                        labels = get_spike_windows(labels, n_time_windows)
-
-                        # Format conversion and move to device
-                        data = Variable(data.type(self.Float),
-                                        requires_grad=True)
-                        labels = Variable(labels.type(self.Float))
-                        data, labels = data.to(device), labels.to(device)
-
-                        # Inference
-                        _, outputs = model(data)
-                        pred = (outputs > 0.5).int()
-
-                        # Detach from device
-                        labels = labels.cpu().detach()
-                        pred = pred.cpu().detach()
-
-                        # Recover confusion matrix
-                        for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
-                            confusion_matrix[t.long(), p.long()] += 1
-
-                    logger.info('Evaluation finished.\n')
-
-                    TP = confusion_matrix[1][1]
-                    TN = confusion_matrix[0][0]
-                    FP = confusion_matrix[0][1]
-                    FN = confusion_matrix[1][0]
-                    P = TP + FN
-                    N = TN + FP
-
-                    Accuracy = (TP+TN) / (P+N)
-                    Specificity = TN/N
-                    Sensitivity = TP/P
-                    Precision = TP / (TP+FP)
-                    F1_score = 2 * ((Sensitivity*Precision)
-                                    / (Sensitivity+Precision))
-
-                    # When no spike occurs
-                    if (TP == 0) & (FP == 0) & (FN == 0):
-                        Sensitivity = 1
-                        Precision = 1
-                        F1_score = 1
-                    elif (TP == 0) & (FP == 0) & (FN != 0):
-                        Sensitivity = 0
-                        Precision = 1
-                        F1_score = 0
-                    elif (TP == 0) & (FP != 0) & (FN == 0):
-                        Sensitivity = 1
-                        Precision = 0
-                        F1_score = 0
-                    elif (Sensitivity == 0) & (Precision == 0):
-                        F1_score = 0
-                        
-                    # Update best F1_score
-                    if F1_score > best_F1:
-                        best_fold = fold
-                        best_F1 = F1_score
-
-                    # Print accuracy
-                    print('Accuracy for fold {}: {}'.format(fold,
-                                                            Accuracy))
-                    print('Specificity for fold {}: {}'.format(fold,
-                                                               Specificity))
-                    print('Sensitivity for fold {}: {}'.format(fold,
-                                                               Sensitivity))
-                    print('Precision for fold {}: {}'.format(fold,
-                                                             Precision))
-                    print('F1_score for fold {}: {}'.format(fold,
-                                                            F1_score))
-                    print('--------------------------------')
-
-                    # Recover metrics for fold
-                    results[fold] = {'Accuracy': Accuracy,
-                                     'Specificity': Specificity,
-                                     'Sensitivity': Sensitivity,
-                                     'Precision': Precision,
-                                     'F1_score': F1_score}
-
-            # Print fold results
-            print('INTRA-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
-                  ' FOR {} FOLDS'.format(n_splits*n_repeats))
-            print('--------------------------------')
-            avg_acc = np.mean([results[fold]['Accuracy']
-                               for fold in range(n_splits*n_repeats)])
-            avg_spec = np.mean([results[fold]['Specificity']
-                                for fold in range(n_splits*n_repeats)])
-            avg_sens = np.mean([results[fold]['Sensitivity']
-                                for fold in range(n_splits*n_repeats)])
-            avg_prec = np.mean([results[fold]['Precision']
-                                for fold in range(n_splits*n_repeats)])
-            avg_F1 = np.mean([results[fold]['F1_score']
-                              for fold in range(n_splits*n_repeats)])
-            results['Mean'] = {'Accuracy': avg_acc,
-                               'Specificity': avg_spec,
-                               'Sensitivity': avg_sens,
-                               'Precision': avg_prec,
-                               'F1_score': avg_F1}
-            print('Average results: {}\n'.format(results['Mean']))
-
-            # Saving the best model
-            print('Best F1 score for fold {}.\n'.format(best_fold))
-            if save:
-
-                # Create unique folder ID based on time
-                eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                data_config = config['loader_parameters']
-                if data_config['wanted_channel_type'] == ['EEG']:
-                    path = path_output + 'EEG_spike_detection_attempt_'
-                    path += eventid + '/'
-                elif data_config['wanted_channel_type'] == ['MEG']:
-                    path = path_output + 'MEG_spike_detection_attempt_'
-                    path += eventid + '/'
-                else:
-                    path = path_output + 'MEEG_spike_detection_attempt_'
-                    path += eventid + '/'
-                try:
-                    os.mkdir(path)
-                except OSError:
-                    logger.info('Creation of the directory %s failed' % path)
-                else:
-                    logger.info('Successfully created folder %s \n' % path)
-
-                # Save information
-                model_path = path + 'model_' + subject_id + '.pth'
-                torch.save(models[best_fold], model_path)
-
-                logger.info('Saving spatial filter.\n')
-                filter_path = path + 'filter_' + subject_id + '.npy'
-                np.save(filter_path, spatial_filter[best_fold])
-
-                logger.info('Saving results.\n')
-                results_path = path + 'results_' + subject_id + '.json'
-                json.dump(results, open(results_path, 'w'), indent=4)
-
-                logger.info('Saving configuration file.')
-                config_path = path + 'config_' + subject_id + '.json'
-                config['save'] = {'output': path_output,
-                                  'model': model_path,
-                                  'spatial_filter': filter_path,
-                                  'results': results_path,
-                                  'config': config_path}
-                config['z_score'] = z_scores[best_fold]
-                json.dump(config, open(config_path, 'w'), indent=4)
-                logger.info('Information saved in {}'.format(path))
-
-            return results
-
-        # Perform cross-subject learning
-        else:
-            index = range(self.subject_ids.shape[0])
-            np.random.seed(random_state)
-            train_index = {}
-            val_index = {}
-            test_index = {}
-            for fold, (train_ids, test_ids) in enumerate(rkf.split(index)):
-
-                # Print
-                print('FOLD {}'.format(fold))
-                print('--------------------------------')
-
+                # If possible, select a validation subject to do early stopping
                 validation_possible = len(train_ids) > 1
-
-                # Select a validation set to do early stopping
                 if validation_possible:
                     index = np.random.randint(low=0, high=len(train_ids))
                     val_ids = np.array([train_ids[index]])
@@ -728,247 +319,178 @@ class DetectionTransformer():
                                                      batch_size, False,
                                                      num_workers)
 
-                # Initialize detection neural network
-                model = DetectionBertMEEG(**model_config)
-                model.apply(reset_weights)
+            # Initialize detection neural network
+            model = DetectionBertMEEG(**model_config)
+            model.apply(reset_weights)
 
-                # Move to gpu if available
-                if available:
-                    if torch.cuda.device_count() > 1:
-                        model = torch.nn.DataParallel(model)
-                model.to(device)
+            # Move to gpu if available
+            if available:
+                if torch.cuda.device_count() > 1:
+                    model = torch.nn.DataParallel(model)
+            model.to(device)
 
-                # Define optimizer
-                optimizer = torch.optim.Adam(model.parameters(), lr=lr,
-                                             betas=(b1, b2),
-                                             weight_decay=weight_decay,
-                                             amsgrad=amsgrad)
+            # Define optimizer
+            optimizer = torch.optim.Adam(model.parameters(), lr=lr,
+                                         betas=(b1, b2),
+                                         weight_decay=weight_decay,
+                                         amsgrad=amsgrad)
 
-                # Define warmup method
-                if warmup:
-                    warmup_scheduler = NoamOpt(lr, warmup, optimizer)
+            # Define warmup method
+            if warmup:
+                warmup_scheduler = NoamOpt(lr, warmup, optimizer)
 
-                # Define scheduler
-                lr_scheduler = ReduceLROnPlateau(optimizer, 'min',
-                                                 factor=factor,
-                                                 patience=scheduler_patience,
-                                                 min_lr=min_lr, verbose=False)
+            # Define scheduler
+            lr_scheduler = ReduceLROnPlateau(optimizer, 'min',
+                                             factor=factor,
+                                             patience=scheduler_patience,
+                                             min_lr=min_lr, verbose=False)
 
-                # Define early stopping
-                early_stopping = EarlyStopping(patience=el_stop_patience)
+            # Define early stopping
+            early_stopping = EarlyStopping(patience=el_stop_patience)
 
-                # Loop over the dataset n_epochs times
-                for e in range(n_epochs):
+            # Loop over the dataset n_epochs times
+            for e in range(n_epochs):
 
-                    # Train and validate the model
-                    train_loss = 0
-                    train_steps = 0
-                    val_loss = 0
-                    val_steps = 0
+                # Train and validate the model
+                train_loss, train_steps = 0, 0
+                val_loss, val_steps = 0, 0
 
-                    # Set training mode
-                    model.train()
-                    for i, (data, labels) in enumerate(train_dataloader):
+                # Set training mode
+                model.train()
+                for i, (data, labels) in enumerate(train_dataloader):
 
-                        # Apply time window reduction
-                        n_time_windows = model_config['n_time_windows']
-                        labels = get_spike_windows(labels, n_time_windows)
-                        if mix_up:
+                    # Apply time window reduction
+                    n_time_windows = model_config['n_time_windows']
+                    labels = get_spike_windows(labels, n_time_windows)
+                    if mix_up:
 
-                            """
-                            Apply a mix-up strategy for data augmentation.
-                            Inspired by:
-                            `"mixup: Beyond Empirical Risk Minimization"
-                            <https://arxiv.org/abs/1710.09412>`_.
-                            """
+                        """
+                        Apply a mix-up strategy for data augmentation.
+                        Inspired by:
+                        `"mixup: Beyond Empirical Risk Minimization"
+                        <https://arxiv.org/abs/1710.09412>`_.
+                        """
 
-                            # Roll a copy of the batch
-                            rl_factor = torch.randint(0, data.shape[0],
-                                                      (1,)).item()
-                            rl_data = torch.roll(data, rl_factor, dims=0)
-                            rl_labels = torch.roll(labels,
-                                                   rl_factor, dims=0)
+                        # Roll a copy of the batch
+                        rl_factor = torch.randint(0, data.shape[0],
+                                                  (1,)).item()
+                        rl_data = torch.roll(data, rl_factor, dims=0)
+                        rl_labels = torch.roll(labels,
+                                               rl_factor, dims=0)
 
-                            # Create a tensor of lambdas sampled
-                            # from the beta distribution
-                            lambdas = np.random.beta(BETA, BETA, data.shape[0])
+                        # Create a tensor of lambdas sampled
+                        # from the beta distribution
+                        lambdas = np.random.beta(BETA, BETA, data.shape[0])
 
-                            # Trick inspired by:
-                            # `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
-                            lambdas = torch.reshape(torch.tensor
-                                                    (np.maximum(lambdas,
-                                                                1-lambdas)),
-                                                    (-1, 1, 1, 1))
+                        # Trick inspired by:
+                        # `<https://forums.fast.ai/t/mixup-data-augmentation/22764>`
+                        lambdas = torch.reshape(torch.tensor
+                                                (np.maximum(lambdas,
+                                                            1-lambdas)),
+                                                (-1, 1, 1, 1))
 
-                            # Mix samples
-                            mix_data = lambdas*data + (1-lambdas)*rl_data
+                        # Mix samples
+                        mix_data = lambdas*data + (1-lambdas)*rl_data
 
-                            # Format conversion and move to device
-                            mix_data = Variable(mix_data.type(self.Float),
-                                                requires_grad=True)
-                            data = Variable(data.type(self.Float),
+                        # Format conversion and move to device
+                        mix_data = Variable(mix_data.type(self.Float),
                                             requires_grad=True)
-                            labels = Variable(labels.type(self.Float))
-                            rl_labels = Variable(rl_labels.type(self.Float))
-                            mix_data = mix_data.to(device)
-                            labels = labels.to(device)
-                            rl_labels = rl_labels.to(device)
+                        data = Variable(data.type(self.Float),
+                                        requires_grad=True)
+                        labels = Variable(labels.type(self.Float))
+                        rl_labels = Variable(rl_labels.type(self.Float))
+                        mix_data = mix_data.to(device)
+                        labels = labels.to(device)
+                        rl_labels = rl_labels.to(device)
 
-                            # Zero the parameter gradients
-                            optimizer.zero_grad()
+                        # Zero the parameter gradients
+                        optimizer.zero_grad()
 
-                            # Forward
-                            _, mix_outputs = model(mix_data)
+                        # Forward
+                        _, mix_outputs = model(mix_data)
 
-                            # Compute mix-up loss
-                            lambdas = lambdas.squeeze().to(device)
-                            loss1 = self.train_criterion(mix_outputs,
-                                                         labels)
-                            loss2 = self.train_criterion(mix_outputs,
-                                                         rl_labels)
-                            loss = lambdas*loss1 + (1-lambdas)*loss2
-                            loss = loss.sum()
+                        # Compute mix-up loss
+                        lambdas = lambdas.squeeze().to(device)
+                        loss1 = self.train_criterion(mix_outputs,
+                                                     labels)
+                        loss2 = self.train_criterion(mix_outputs,
+                                                     rl_labels)
+                        loss = lambdas*loss1 + (1-lambdas)*loss2
+                        loss = loss.sum()
 
-                            # Apply L1 regularization
-                            l1_loss = 0
-                            for param in model.parameters():
-                                zeros = torch.zeros(param.size()).to(device)
-                                l1_loss += self.l1(param, zeros)
-                            loss += l1_penality*l1_loss
+                        # Apply L1 regularization
+                        l1_loss = 0
+                        for param in model.parameters():
+                            zeros = torch.zeros(param.size()).to(device)
+                            l1_loss += self.l1(param, zeros)
+                        loss += l1_penality*l1_loss
 
-                            # Backward
-                            loss.backward()
+                        # Backward
+                        loss.backward()
 
-                            # Update learning rate
-                            if warmup:
-                                warmup_scheduler.step()
-                            else:
-                                optimizer.step()
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss
-                            train_loss += loss
-                            train_steps += 1
+                        # Update learning rate
+                        if warmup:
+                            warmup_scheduler.step()
                         else:
+                            optimizer.step()
 
-                            # Format conversion and move to device
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Float))
-                            data, labels = data.to(device), labels.to(device)
+                        # Detach from device
+                        loss = loss.cpu().detach().numpy()
 
-                            # Zero the parameter gradients
-                            optimizer.zero_grad()
-
-                            # Forward
-                            _, outputs = model(data)
-
-                            # Compute training loss
-                            loss = self.train_criterion(outputs,
-                                                        labels)
-
-                            # Apply L1 regularization
-                            l1_loss = 0
-                            for param in model.parameters():
-                                zeros = torch.zeros(param.size()).to(device)
-                                l1_loss += self.l1(param, zeros)
-                            loss += l1_penality*l1_loss
-
-                            # Backward
-                            loss.backward()
-
-                            # Update learning rate
-                            if warmup:
-                                warmup_scheduler.step()
-                            else:
-                                optimizer.step()
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss
-                            train_loss += loss
-                            train_steps += 1
-
-                    # Print loss
-                    train_loss /= train_steps
-                    if (e+1) % 1 == 0:
-                        logger.info('Training loss '
-                                    'at epoch {}: {}'.format(e+1, train_loss))
-                    if validation_possible:
-
-                        # Set evaluation mode
-                        model.eval()
-                        for j, (data, labels) in enumerate(val_dataloader):
-
-                            # Apply time window reduction
-                            n_time_windows = model_config['n_time_windows']
-                            labels = get_spike_windows(labels, n_time_windows)
-
-                            # Format conversion and move to device
-                            data = Variable(data.type(self.Float),
-                                            requires_grad=True)
-                            labels = Variable(labels.type(self.Float))
-                            data = data.to(device)
-                            labels = labels.to(device)
-
-                            # Forward
-                            _, outputs = model(data)
-
-                            # Compute training loss
-                            loss = self.val_criterion(outputs, labels)
-
-                            # Detach from device
-                            loss = loss.cpu().detach().numpy()
-
-                            # Recover training loss and confusion matrix
-                            val_loss += loss
-                            val_steps += 1
-
-                        # Print loss
-                        val_loss /= val_steps
-                        if (e+1) % 1 == 0:
-                            logger.info('Validation loss at epoch '
-                                        '{}: {}'.format(e+1, val_loss))
-
-                        # Update learning rate if training loss
-                        # does not improve
-                        if scheduler:
-                            lr_scheduler.step(val_loss)
-
-                        # Update early stopping
-                        early_stopping(val_loss)
-                        if early_stopping.early_stop:
-                            final_epoch = e+1
-                            print("Early stopping at epoch: ", final_epoch)
-                            break
+                        # Recover training loss
+                        train_loss += loss
+                        train_steps += 1
                     else:
-                        # Print loss
-                        train_loss /= train_steps
-                        if (e+1) % 5 == 0:
-                            logger.info('Training loss at epoch '
-                                        '{}: {}'.format(e+1, train_loss))
 
-                # Training finished
-                logger.info('Training process finished.')
+                        # Format conversion and move to device
+                        data = Variable(data.type(self.Float),
+                                        requires_grad=True)
+                        labels = Variable(labels.type(self.Float))
+                        data, labels = data.to(device), labels.to(device)
 
-                # Recover model parameters
-                models[fold] = model.state_dict()
+                        # Zero the parameter gradients
+                        optimizer.zero_grad()
 
-                # Print about testing
-                logger.info('Start evaluation.')
+                        # Forward
+                        _, outputs = model(data)
 
-                # Set evaluation mode
-                model.eval()
+                        # Compute training loss
+                        loss = self.train_criterion(outputs,
+                                                    labels)
 
-                # Initialize confusion_matrix
-                # Here the positive class is the class 1
-                confusion_matrix = np.zeros((2, 2))
+                        # Apply L1 regularization
+                        l1_loss = 0
+                        for param in model.parameters():
+                            zeros = torch.zeros(param.size()).to(device)
+                            l1_loss += self.l1(param, zeros)
+                        loss += l1_penality*l1_loss
 
-                with torch.no_grad():
-                    for k, (data, labels) in enumerate(test_dataloader):
+                        # Backward
+                        loss.backward()
+
+                        # Update learning rate
+                        if warmup:
+                            warmup_scheduler.step()
+                        else:
+                            optimizer.step()
+
+                        # Detach from device
+                        loss = loss.cpu().detach().numpy()
+
+                        # Recover training loss
+                        train_loss += loss
+                        train_steps += 1
+
+                # Print loss
+                train_loss /= train_steps
+                if (e+1) % period == 0:
+                    logger.info('Training loss '
+                                'at epoch {}: {}'.format(e+1, train_loss))
+                if validation_possible:
+
+                    # Set evaluation mode
+                    model.eval()
+                    for j, (data, labels) in enumerate(val_dataloader):
 
                         # Apply time window reduction
                         n_time_windows = model_config['n_time_windows']
@@ -977,72 +499,142 @@ class DetectionTransformer():
                         # Format conversion and move to device
                         data = Variable(data.type(self.Float),
                                         requires_grad=True)
-                        labels = Variable(labels.type(self.Long))
-                        data, labels = data.to(device), labels.to(device)
+                        labels = Variable(labels.type(self.Float))
+                        data = data.to(device)
+                        labels = labels.to(device)
 
-                        # Inference
+                        # Forward
                         _, outputs = model(data)
-                        pred = (outputs > 0.5).int()
+
+                        # Compute training loss
+                        loss = self.val_criterion(outputs, labels)
 
                         # Detach from device
-                        labels = labels.cpu().detach()
-                        pred = pred.cpu().detach()
+                        loss = loss.cpu().detach().numpy()
 
-                        # Recover confusion matrix
-                        for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
-                            confusion_matrix[t.long(), p.long()] += 1
+                        # Recover training loss and confusion matrix
+                        val_loss += loss
+                        val_steps += 1
 
-                    logger.info('Evaluation finished.\n')
+                    # Print loss
+                    val_loss /= val_steps
+                    if (e+1) % period == 0:
+                        logger.info('Validation loss at epoch '
+                                    '{}: {}'.format(e+1, val_loss))
 
-                    TP = confusion_matrix[1][1]
-                    TN = confusion_matrix[0][0]
-                    FP = confusion_matrix[0][1]
-                    FN = confusion_matrix[1][0]
+                    # Update learning rate if training loss
+                    # does not improve
+                    if scheduler:
+                        lr_scheduler.step(val_loss)
 
-                    P = TP + FN
-                    N = TN + FP
+                    # Update early stopping
+                    early_stopping(val_loss)
+                    if early_stopping.early_stop:
+                        final_epoch = e+1
+                        print("Early stopping at epoch: ", final_epoch)
+                        break
 
-                    Accuracy = (TP+TN) / (P+N)
-                    Specificity = TN/N
-                    Sensitivity = TP/P
-                    Precision = TP / (TP+FP)
-                    F1_score = 2 * ((Sensitivity*Precision)
-                                    / (Sensitivity+Precision))
+            # Training finished
+            logger.info('Training process finished.')
 
-                    # When no spike occurs
-                    if (TP == 0) & (FP == 0) & (FN == 0):
-                        Sensitivity = 1
-                        Precision = 1
-                        F1_score = 1
-                    elif (TP == 0) & (FP == 0) & (FN != 0):
-                        Sensitivity = 0
-                        Precision = 1
-                        F1_score = 0
-                    elif (TP == 0) & (FP != 0) & (FN == 0):
-                        Sensitivity = 1
-                        Precision = 0
-                        F1_score = 0
-                    elif (Sensitivity == 0) & (Precision == 0):
-                        F1_score = 0
+            # Recover model parameters
+            models[fold] = model.state_dict()
 
-                    # Update best F1_score
-                    if F1_score > best_F1:
-                        best_fold = fold
-                        best_F1 = F1_score
+            # Print about testing
+            logger.info('Start evaluation.')
 
-                    # Print accuracy
-                    print('Accuracy for fold {}: {}'.format(fold,
-                                                            Accuracy))
-                    print('Specificity for fold {}: {}'.format(fold,
-                                                               Specificity))
-                    print('Sensitivity for fold {}: {}'.format(fold,
-                                                               Sensitivity))
-                    print('Precision for fold {}: {}'.format(fold,
-                                                             Precision))
-                    print('F1_score for fold {}: {}'.format(fold,
-                                                            F1_score))
-                    print('--------------------------------')
+            # Set evaluation mode
+            model.eval()
 
+            # Initialize confusion_matrix
+            # Here the positive class is the class 1
+            confusion_matrix = np.zeros((2, 2))
+
+            with torch.no_grad():
+                for k, (data, labels) in enumerate(test_dataloader):
+
+                    # Apply time window reduction
+                    n_time_windows = model_config['n_time_windows']
+                    labels = get_spike_windows(labels, n_time_windows)
+
+                    # Format conversion and move to device
+                    data = Variable(data.type(self.Float),
+                                    requires_grad=True)
+                    labels = Variable(labels.type(self.Long))
+                    data, labels = data.to(device), labels.to(device)
+
+                    # Inference
+                    _, outputs = model(data)
+                    pred = (outputs > 0.5).int()
+
+                    # Detach from device
+                    labels = labels.cpu().detach()
+                    pred = pred.cpu().detach()
+
+                    # Recover confusion matrix
+                    for t, p in zip(labels.reshape(-1), pred.reshape(-1)):
+                        confusion_matrix[t.long(), p.long()] += 1
+
+                logger.info('Evaluation finished.\n')
+
+                TP = confusion_matrix[1][1]
+                TN = confusion_matrix[0][0]
+                FP = confusion_matrix[0][1]
+                FN = confusion_matrix[1][0]
+
+                P = TP + FN
+                N = TN + FP
+
+                Accuracy = (TP+TN) / (P+N)
+                Specificity = TN/N
+                Sensitivity = TP/P
+                Precision = TP / (TP+FP)
+                F1_score = 2 * ((Sensitivity*Precision)
+                                / (Sensitivity+Precision))
+
+                # When no spike occurs
+                if (TP == 0) & (FP == 0) & (FN == 0):
+                    Sensitivity = 1
+                    Precision = 1
+                    F1_score = 1
+                elif (TP == 0) & (FP == 0) & (FN != 0):
+                    Sensitivity = 0
+                    Precision = 1
+                    F1_score = 0
+                elif (TP == 0) & (FP != 0) & (FN == 0):
+                    Sensitivity = 1
+                    Precision = 0
+                    F1_score = 0
+                elif (Sensitivity == 0) & (Precision == 0):
+                    F1_score = 0
+
+                # Update best F1_score
+                if F1_score > best_F1:
+                    best_fold = fold
+                    best_F1 = F1_score
+
+                # Print accuracy
+                print('Accuracy for fold {}: {}'.format(fold,
+                                                        Accuracy))
+                print('Specificity for fold {}: {}'.format(fold,
+                                                           Specificity))
+                print('Sensitivity for fold {}: {}'.format(fold,
+                                                           Sensitivity))
+                print('Precision for fold {}: {}'.format(fold,
+                                                         Precision))
+                print('F1_score for fold {}: {}'.format(fold,
+                                                        F1_score))
+                print('--------------------------------')
+
+                if intra_subject:
+
+                    # Recover metrics for fold
+                    results[fold] = {'Accuracy': Accuracy,
+                                     'Specificity': Specificity,
+                                     'Sensitivity': Sensitivity,
+                                     'Precision': Precision,
+                                     'F1_score': F1_score}
+                else:
                     # Recover metrics for fold
                     subject = test_index[fold]
                     results[subject] = {'Accuracy': Accuracy,
@@ -1050,6 +642,72 @@ class DetectionTransformer():
                                         'Sensitivity': Sensitivity,
                                         'Precision': Precision,
                                         'F1_score': F1_score}
+        if intra_subject:
+
+            # Print fold results
+            print('INTRA-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
+                  ' FOR {} FOLDS'.format(n_splits*n_repeats))
+            print('--------------------------------')
+            avg_acc = np.mean([results[fold]['Accuracy']
+                               for fold in range(n_splits*n_repeats)])
+            avg_spec = np.mean([results[fold]['Specificity']
+                                for fold in range(n_splits*n_repeats)])
+            avg_sens = np.mean([results[fold]['Sensitivity']
+                                for fold in range(n_splits*n_repeats)])
+            avg_prec = np.mean([results[fold]['Precision']
+                                for fold in range(n_splits*n_repeats)])
+            avg_F1 = np.mean([results[fold]['F1_score']
+                              for fold in range(n_splits*n_repeats)])
+            results['Mean'] = {'Accuracy': avg_acc,
+                               'Specificity': avg_spec,
+                               'Sensitivity': avg_sens,
+                               'Precision': avg_prec,
+                               'F1_score': avg_F1}
+            print('Average results: {}\n'.format(results['Mean']))
+
+            # Saving the best model
+            print('Best F1 score for fold {}.\n'.format(best_fold))
+            if save:
+
+                # Create unique folder ID based on time
+                eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                data_config = config['loader_parameters']
+                if data_config['wanted_channel_type'] == ['EEG']:
+                    path = path_output + 'EEG_spike_detection_attempt_'
+                    path += eventid + '/'
+                elif data_config['wanted_channel_type'] == ['MEG']:
+                    path = path_output + 'MEG_spike_detection_attempt_'
+                    path += eventid + '/'
+                else:
+                    path = path_output + 'MEEG_spike_detection_attempt_'
+                    path += eventid + '/'
+                try:
+                    os.mkdir(path)
+                except OSError:
+                    logger.info('Creation of the directory %s failed' % path)
+                else:
+                    logger.info('Successfully created folder %s \n' % path)
+
+                # Save information
+                model_path = path + 'model_' + subject_id + '.pth'
+                torch.save(models[best_fold], model_path)
+
+                logger.info('Saving results.\n')
+                results_path = path + 'results_' + subject_id + '.json'
+                json.dump(results, open(results_path, 'w'), indent=4)
+
+                logger.info('Saving configuration file.')
+                config_path = path + 'config_' + subject_id + '.json'
+                config['save'] = {'output': path_output,
+                                  'model': model_path,
+                                  'results': results_path,
+                                  'config': config_path}
+                config['z_score'] = z_scores[best_fold]
+                json.dump(config, open(config_path, 'w'), indent=4)
+                logger.info('Information saved in {}'.format(path))
+
+            return results
+        else:
 
             # Print fold results
             print('CROSS-SUBJECT K-FOLD CROSS VALIDATION RESULTS'
