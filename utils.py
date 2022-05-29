@@ -146,7 +146,3 @@ def reset_weights(m):
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
-
-
-
-
