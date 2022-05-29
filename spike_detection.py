@@ -68,6 +68,52 @@ class DetectionTransformer():
         datasets = self.dataset.all_datasets()
         self.all_data, self.all_labels, self.all_spike_events = datasets
 
+        # Recover statistics on the dataset
+        labels = self.all_labels
+        spikes = self.all_spike_events
+        n_time_windows = 10
+        y = []
+        for key in labels.keys():
+            for label in labels[key]:
+                y.append(label)
+        y = np.concatenate(y)
+        n_spike_trials = y.sum()
+        n_trials = y.size
+        spike_events = []
+        for key in spikes.keys():
+            for event in spikes[key]:
+                spike_events.append(event)
+        spike_events = np.concatenate(spike_events)
+        n_spike_annotations = spike_events.sum()
+        n_annotations = spike_events.size
+        mean_n_spikes = np.mean(spike_events.sum(axis=-1))
+        std_n_spikes = np.std(spike_events.sum(axis=-1))
+        time_windows = []
+        for key in spikes.keys():
+            for event in spikes[key]:
+                spike_windows = np.zeros((n_time_windows, event.shape[0]))
+                w = np.array_split(event, n_time_windows, axis=-1)
+                # Put 1 when a spike occurs in the time window, 0 otherwise
+                for i, chunk in enumerate(w):
+                    is_spike = (chunk.sum(axis=-1) > 0).astype(int)
+                    spike_windows[i] = is_spike
+                spike_windows = np.transpose(spike_windows)
+                time_windows.append(spike_windows)
+        time_windows = np.concatenate(time_windows)
+        n_time_window = time_windows.size
+        n_spike_time_window = time_windows.sum()
+        mean_spike_time_window = np.mean(time_windows.sum(axis=-1))
+        std_spike_time_window = np.std(time_windows.sum(axis=-1))
+        print('n_trials: ', n_trials, '\n n_trials_containing_spikes: ',
+              n_spike_trials, '\n n_spike_annotations: ', n_spike_annotations,
+              '\n n_non_spike_annotations: ',
+              n_annotations-n_spike_annotations, '\n mean_spike_by_trial: ',
+              mean_n_spikes, '\n std_spike_by_trial: ', std_n_spikes,
+              '\n n_time_windows: ', n_time_window,
+              '\n n_time_window_containing_spikes: ', n_spike_time_window,
+              '\n mean_spike_time_window_by_trial: ', mean_spike_time_window,
+              '\n std_spike_time_window_by_trial: ', std_spike_time_window)
+
     def cross_validation(self, config, save, path_output, gpu_id):
 
         """ Train and evaluate a detection model using
