@@ -14,7 +14,7 @@ Contributors: Ambroise Odonnat.
 class NoamOpt():
 
     """
-    Warmup method inspired by:
+    Implementation inspired by:
     `<http://nlp.seas.harvard.edu/2018/04/03/attention.html>`_.
     """
 
