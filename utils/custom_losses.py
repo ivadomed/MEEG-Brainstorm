@@ -44,7 +44,7 @@ class CostSensitiveLoss(nn.Module):
         M = np.array([[0, 0], [1, 0]])
         self.M = torch.from_numpy(M)
 
-    def forward(self, pred, targets):
+    def forward(self, logits, targets):
 
         """
         Args:
@@ -55,11 +55,11 @@ class CostSensitiveLoss(nn.Module):
             loss (float): Mean loss value on the batch.
         """
 
-        # Recover prediction
-        pred = (pred > 0.5).int()
-
         # Compute mean loss on the batch
-        loss = self.criterion(pred, targets)
+        loss = self.criterion(logits, targets)
+
+        # Recover prediction
+        pred = (logits > 0.5).int()
 
         # Compute cost-sensitive regularization
         CS = self.M[pred.long(), targets.long()]
