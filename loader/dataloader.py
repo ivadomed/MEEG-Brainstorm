@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from utils.utils_ import pad_tensor
 
 
-class PadCollate:
+class PadCollate():
 
     """ Custom collate_fn that pads according to the longest sequence in
         a batch of sequences.
@@ -60,6 +60,26 @@ class PadCollate:
         return self.pad_collate(batch)
 
 
+class SingleChannelDataset(Dataset):
+
+    def __init__(self, data, labels):
+
+        """
+        Args:
+            data (array): Array of trials of dimension
+                          [n_trials x n_time_points x 1].
+            labels (array): Array of labels of dimension [n_trials].
+        """
+        self.data = data
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx], self.labels[idx]
+
+
 def multi_channel_loader(data, labels, batch_size, shuffle, num_workers):
 
     """ Create dataloader for multi-channel trials.
@@ -89,26 +109,6 @@ def multi_channel_loader(data, labels, batch_size, shuffle, num_workers):
                         collate_fn=PadCollate(dim=1))
 
     return loader
-
-
-class SingleChannelDataset(Dataset):
-
-    def __init__(self, data, labels):
-
-        """
-        Args:
-            data (array): Array of trials of dimension
-                          [n_trials x n_time_points x 1].
-            labels (array): Array of labels of dimension [n_trials].
-        """
-        self.data = data
-        self.labels = labels
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
 
 
 def single_channel_loader(data, labels, batch_size, shuffle, num_workers):
