@@ -10,7 +10,6 @@ Contributors: Ambroise Odonnat.
 
 import glob
 import os
-from anyio import BrokenWorkerProcess
 import scipy.io
 
 import numpy as np
@@ -18,8 +17,7 @@ import numpy as np
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
-
-from utils import get_spike_events
+from utils.utils_ import get_spike_events
 
 
 class Data:
