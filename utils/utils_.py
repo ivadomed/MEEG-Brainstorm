@@ -8,6 +8,7 @@ Usage: type "from utils import <function>" to use one of its functions.
 Contributors: Ambroise Odonnat.
 """
 
+from time import pthread_getcpuclockid
 import torch
 
 import matplotlib.pyplot as plt
@@ -135,6 +136,15 @@ def get_spike_windows(spike_events, n_time_windows):
     return spike_windows
 
 
+def normal_initialization(m):
+
+    """ Initialize model weight with normal. """
+    if isinstance(m, torch.nn.Linear):
+        m.weight.data.normal_(mean=0.0, std=0.02)
+        if m.bias is not None:
+            m.bias.data.zero_()
+
+
 def pad_tensor(x, n_pads, dim):
 
     """
@@ -165,3 +175,11 @@ def reset_weights(m):
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+
+def xavier_initialization(m):
+
+    """ Initialize model weight with xavier uniform. """
+    if isinstance(m, torch.nn.Linear):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
