@@ -254,7 +254,7 @@ class STT(nn.Module):
     Output (tensor): If task == 'detection' --> Logits of dimension
                                                 [batch_size x n_time_windows].
                      If task == 'classification' --> Logits of dimension
-                                                     [batch_size].
+                                                     [batch_size x 1].
     """
 
     def __init__(self, n_time_points, channel_num_heads, channel_dropout,
@@ -300,30 +300,21 @@ class STT(nn.Module):
                                           num_heads,
                                           expansion,
                                           transformer_dropout)
-        self.detection_head = nn.Sequential(
-                                    Rearrange('b v o -> b o v'),
-                                    nn.Linear(n_time_points,
-                                              n_windows),
-                                    Rearrange('b o v -> b v o'),
-                                    Mish(),
-                                    nn.LayerNorm(emb_size),
-                                    nn.Linear(emb_size, 1),
-                                    Rearrange('b v o -> b (v o)'))
-        self.classification_head = nn.Sequential(
-                                        nn.Flatten(),
-                                        nn.Linear(emb_size, emb_size),
-                                        Mish(),
-                                        nn.Linear(emb_size, 1)
-                                        )
-
-        # Weight initialization
-        self.detection_head.apply(normal_initialization)
-        self.classification_head.apply(normal_initialization)
 
         # Define task
         error = "Incorrect task assigned."
         assert (task == 'detection') or (task == 'classification'), error
-        self.task = task
+        out_size = 1
+        if task == 'detection':
+            out_size = n_windows
+        flatten_size = emb_size * n_time_points
+        self.head = nn.Sequential(
+                        nn.Linear(flatten_size, out_size),
+                        nn.Sigmoid())
+
+        # Weight initialization
+        self.detection_head.apply(normal_initialization)
+        self.classification_head.apply(normal_initialization)
 
     def forward(self, x: Tensor):
 
@@ -351,19 +342,31 @@ class STT(nn.Module):
         # Temporal Transforming
         code = self.encoder(embedding)
 
-        # Detection
-        if self.task == 'detection':
-            out = self.detection_head(code)
-
-        # Classification
-        elif self.task == 'classification':
-            out = self.classification_head(code)
+        # Output
+        out = self.head(code.flatten(1))
 
         return x, attention_weights, out
 
 
 class RNN_self_attention(nn.Module):
+
+    """ Spatial Temporal Transformer inspired by:
+        `"Epileptic spike detection by recurrent neural
+        networks with self-attention mechanism"
+        <https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9747560>`_.
+
+    Input (tensor): Batch of trials of dimension
+                    [batch_size x n_time_points x 1].
+    Output (tensor): Logits of dimension [batch_size x 1].
+    """
+
     def __init__(self, input_size):
+
+        """
+        Args:
+            input_size (int): Input size (here: n_time_points).
+        """
+
         super().__init__()
         self.input_size = input_size
         self.LSTM_1 = nn.LSTM(input_size=input_size,
@@ -379,6 +382,16 @@ class RNN_self_attention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+
+        """ Apply 1D-RNN with self-attention model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x n_time_points x 1].
+
+        Returns:
+            out (tensor): Logits of dimension [batch_size x 1].
+            attention_weights (tensor): Attention weights of channel attention.
+        """
 
         # First LSTM
         x, (_, _) = self.LSTM_1(x)
@@ -399,7 +412,7 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(1, 2)
 
         # Classifier
-        x = self.classifier(x.flatten(1))
-        x = self.sigmoid(x)
+        out = self.classifier(x.flatten(1))
+        out = self.sigmoid(x)
 
-        return x, attention_weights
+        return out, attention_weights
