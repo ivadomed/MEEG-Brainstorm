@@ -11,14 +11,33 @@ Usage: type "from models import <class>" to use one class.
 Contributors: Ambroise Odonnat.
 """
 
-from re import X
 import torch
+
+import torch.nn.functional as F
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
-from heads import Mish, RobertaClassifier, SpikeDetector
+from utils.utils_ import normal_initialization, xavier_initialization
+
+
+""" ********** Mish activation ********** """
+
+
+class Mish(nn.Module):
+
+    """ Activation function inspired by:
+        `<https://www.bmvc2020-conference.com/assets/papers/0928.pdf>`.
+    """
+
+    def __init__(self):
+
+        super().__init__()
+
+    def forward(self, x):
+
+        return x*torch.tanh(F.softplus(x))
 
 
 """ ********** Spatial transforming ********** """
@@ -47,6 +66,9 @@ class ChannelAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.norm = nn.LayerNorm(emb_size)
 
+        # Weight initialization
+        self.attention.apply(xavier_initialization)
+
     def forward(self, x: Tensor):
 
         """ Apply spatial transforming.
@@ -64,15 +86,15 @@ class ChannelAttention(nn.Module):
         temp = torch.squeeze(x, dim=1)
 
         # padded channels are ignored in self-attention
-        key_padding_mask = (temp.mean(dim=-1) == 0) & (temp.std(dim=-1) == 0)
+        mask = (temp.mean(dim=-1) == 0) & (temp.std(dim=-1) == 0)
         temp = rearrange(temp, 'b s e -> s b e')
-        temp, _ = self.spatial_transforming(temp, temp, temp,
-                                            key_padding_mask=key_padding_mask)
+        temp, attention_weights = self.attention(temp, temp, temp,
+                                                 key_padding_mask=mask)
         temp = rearrange(temp, 's b e -> b s e')
         x_attention = self.dropout(temp).unsqueeze(1)
         out = self.norm(x + x_attention)
 
-        return out
+        return out, attention_weights
 
 
 """ ********** Embedding and positional encoding ********** """
@@ -130,13 +152,13 @@ class PatchEmbedding(nn.Module):
                                       stride=(channels_stride, 1),
                                       groups=n_maps),
                             nn.BatchNorm2d(n_maps),
-                            nn.LeakyReLU(),
+                            Mish(),
                             nn.Dropout(dropout),
                             nn.Conv2d(n_maps, emb_size, (1, time_kernel),
                                       stride=(1, time_stride),
                                       padding=(0, time_padding)),
                             nn.BatchNorm2d(emb_size),
-                            nn.LeakyReLU(),
+                            Mish(),
                             nn.Dropout(dropout),
                             Rearrange('b o c t -> b (c t) o')
                             )
@@ -193,6 +215,9 @@ class TransformerEncoder(nn.Sequential):
                                              num_layers=depth,
                                              norm=norm)
 
+        # Weight initialization
+        self.encoder.apply(xavier_initialization)
+
     def forward(self, x: Tensor):
 
         """ Apply Transformer Encoder.
@@ -212,129 +237,10 @@ class TransformerEncoder(nn.Sequential):
         return out
 
 
-""" ********** Classification and Detection heads ********** """
-
-
-class Mish(nn.Module):
-
-    """ Activation function inspired by:
-        `<https://www.bmvc2020-conference.com/assets/papers/0928.pdf>`.
-    """
-
-    def __init__(self):
-
-        super().__init__()
-
-    def forward(self, x):
-
-        return x*torch.tanh(F.softplus(x))
-
-
-class RobertaClassifier(nn.Sequential):
-
-    def __init__(self, emb_size, n_classes, dropout):
-
-        """ Model inspired by
-            `<https://zablo.net/blog/post/custom-classifier-on-bert-model-guide-polemo2-sentiment-analysis/>`_
-
-        Args:
-            emb_size (int): Size of embedding vector.
-            n_classes (int): Number of classes.
-            dropout (float): Dropout value.
-        """
-
-        super().__init__()
-
-        self.classifier = nn.Sequential(nn.Dropout(dropout),
-                                        Reduce('b v o -> b o',
-                                               reduction='mean'),
-                                        nn.Linear(emb_size, emb_size),
-                                        Mish(),
-                                        nn.Dropout(dropout),
-                                        nn.Linear(emb_size, n_classes)
-                                        )
-
-        # Weight initialization
-        for layer in self.classifier:
-            if isinstance(layer, nn.Linear):
-                layer.weight.data.normal_(mean=0.0, std=0.02)
-                if layer.bias is not None:
-                    layer.bias.data.zero_()
-
-    def forward(self, x):
-
-        """ Compute logits used to obtain probability vector on classes.
-
-        Args:
-            x (tensor): Batch of dimension
-                        [batch_size x seq_len x emb_size].
-
-        Returns:
-            x : Batch of dimension
-                [batch_size x seq_len x emb_size].
-            out: Tensor of logits of dimension [batch_size x n_classes].
-        """
-
-        out = self.classifier(x)
-        return x, out
-
-
-class SpikeDetector(nn.Sequential):
-
-    def __init__(self, seq_len, n_time_windows, emb_size, dropout):
-
-        """
-        Args:
-            seq_len (int): Sequence length (here: n_time_points).
-            n_time_windows (int): Number of time windows.
-            emb_size (int): Size of embedding vector.
-            dropout (float): Dropout value.
-        """
-
-        super().__init__()
-
-        self.predictor = nn.Sequential(nn.Dropout(dropout),
-                                       Rearrange('b v o -> b o v'),
-                                       nn.Linear(seq_len, n_time_windows),
-                                       Rearrange('b o v -> b v o'),
-                                       Mish(),
-                                       nn.Dropout(dropout),
-                                       nn.LayerNorm(emb_size),
-                                       nn.Linear(emb_size, 1),
-                                       Rearrange('b v o -> b (v o)')
-                                       )
-
-        # Weight initialization
-        for layer in self.predictor:
-            if isinstance(layer, nn.Linear):
-                layer.weight.data.normal_(mean=0.0, std=0.02)
-                if layer.bias is not None:
-                    layer.bias.data.zero_()
-
-    def forward(self, x):
-
-        """
-        Predicts probability of spike in each time window w.
-
-        Args:
-            x (tensor): Batch of dimension
-                        [batch_size x seq_len x emb_size].
-
-        Returns:
-            x : Batch of dimension
-                [batch_size x seq_len x emb_size].
-            out: Array of logits of dimension
-                 [batch_size x n_time_windows].
-        """
-
-        out = self.predictor(x)
-        return x, out
-
-
 """ ********** Spatial Temporal Transformers ********** """
 
 
-class STT(nn.Sequential):
+class STT(nn.Module):
 
     """ Spatial Temporal Transformer inspired by:
         `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
@@ -390,14 +296,29 @@ class STT(nn.Sequential):
                                         channels_kernel,
                                         channels_stride, time_kernel,
                                         time_stride, positional_dropout)
-        self.temporal_transforming = TransformerEncoder(depth, emb_size,
-                                                        num_heads,
-                                                        expansion,
-                                                        transformer_dropout)
-        self.detection_head = SpikeDetector(n_time_points,
-                                            n_windows,
-                                            emb_size)
-        self.classification_head = RobertaClassifier(emb_size)
+        self.encoder = TransformerEncoder(depth, emb_size,
+                                          num_heads,
+                                          expansion,
+                                          transformer_dropout)
+        self.detection_head = nn.Sequential(
+                                    Rearrange('b v o -> b o v'),
+                                    nn.Linear(n_time_points,
+                                              n_windows),
+                                    Rearrange('b o v -> b v o'),
+                                    Mish(),
+                                    nn.LayerNorm(emb_size),
+                                    nn.Linear(emb_size, 1),
+                                    Rearrange('b v o -> b (v o)'))
+        self.classification_head = nn.Sequential(
+                                        nn.Flatten(),
+                                        nn.Linear(emb_size, emb_size),
+                                        Mish(),
+                                        nn.Linear(emb_size, 1)
+                                        )
+
+        # Weight initialization
+        self.detection_head.apply(normal_initialization)
+        self.classification_head.apply(normal_initialization)
 
         # Define task
         error = "Incorrect task assigned."
@@ -409,183 +330,76 @@ class STT(nn.Sequential):
         """ Apply STT model.
         Args:
             x (tensor): Batch of trials with dimension
-                        [batch_size x 1 x seq_len x emb_size].
+                        [batch_size x 1 x n_channels x n_time_points].
 
         Returns:
-             out (tensor): If task == 'detection' --> Logits of dimension
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_channels x n_time_points].
+            attention_weights (tensor): Attention weights of channel attention.
+            out (tensor): If task == 'detection' --> Logits of dimension
                                                       [batch_size x n_windows].
-                           If task == 'classification' --> Logits of dimension
+                          If task == 'classification' --> Logits of dimension
                                                            [batch_size].
         """
 
-        # Spatial transforming
-        # padded channels should be ignored in self-attention
-
+        # Spatial Transforming
+        attention, attention_weights = self.spatial_transforming(x)
 
         # Embedding
-        x = self.embedding(x)
+        embedding = self.embedding(attention)
 
-        # Temporal transforming
-        x = self.temporal_transforming(x)
+        # Temporal Transforming
+        code = self.encoder(embedding)
 
         # Detection
         if self.task == 'detection':
-            x = self.detection_head(x)
+            out = self.detection_head(code)
 
         # Classification
         elif self.task == 'classification':
-            x = self.classification_head(x)
+            out = self.classification_head(code)
 
-        return x
-
-
-class ClassificationBertMEEG(nn.Sequential):
-
-    """ Determine the number of spikes in an EEG/MEG trial. Inspired by:
-        `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
-        <https://arxiv.org/pdf/2106.11170.pdf>`_.
-
-    Input (tensor): Batch of trials of dimension
-                    [batch_size x 1 x n_channels x n_time_points].
-    Output (tensor): Tensor of logits of dimension
-                     [batch_size x n_classes].
-    """
-
-    def __init__(self, n_classes, n_time_points, attention_num_heads,
-                 attention_dropout, spatial_dropout, emb_size, n_maps,
-                 position_kernel, position_stride, channels_kernel,
-                 channels_stride, time_kernel, time_stride, positional_dropout,
-                 embedding_dropout, depth, num_heads, expansion,
-                 transformer_dropout, classifier_dropout):
-
-        """
-        Args:
-            n_classes (int): Number of classes in the dataset.
-            n_channels (int): Number of channels in input trials.
-            n_time_points (int): Number of time points in EEF/MEG trials.
-            attention_num_heads (int): Number of heads in ChannelAttention.
-            attention_dropout (float): Dropout value in ChannelAttention.
-            spatial_dropout (float): Dropout value after Spatial transforming.
-            emb_size (int): Size of embedding vectors in Temporal transforming.
-            n_maps (int): Number of feature maps for positional encoding.
-            position_kernel (int): Kernel size for positional encoding.
-            position_stride (float): Stride for positional encoding.
-            channels_kernel (int): Kernel size for convolution on channels.
-            channels_stride (int): Stride for convolution on channels.
-            time_kernel (int): Kernel size for convolution on time axis.
-            time_stride (int): Stride for convolution on channel axis.
-            positional_dropout (float): Dropout value for positional encoding.
-            embedding_dropout (float): Dropout value after embedding block.
-            depth (int): Depth of the Transformer encoder.
-            num_heads (int): Number of heads in multi-attention layer.
-                             ! Warning: num_heads must be a
-                                        dividor of emb_size !
-            expansion (int): Expansion coefficient in Feed Forward layer.
-            transformer_dropout (float): Dropout value in Transformer.
-            classifier_dropout (float): Dropout value in Classifier.
-        """
-
-        super().__init__(ResidualAdd(
-                            nn.Sequential(
-                                nn.LayerNorm(n_time_points),
-                                ChannelAttention(n_time_points,
-                                                 attention_num_heads,
-                                                 attention_dropout),
-                                nn.Dropout(spatial_dropout)
-                                )
-                            ),
-                         # Spatial transforming
-
-                         PatchEmbedding(n_time_points, emb_size,
-                                        n_maps, position_kernel,
-                                        position_stride, channels_kernel,
-                                        channels_stride, time_kernel,
-                                        time_stride, positional_dropout),
-                         # Embedding and positional encoding
-
-                         nn.Dropout(embedding_dropout),
-
-                         TransformerEncoder(depth, emb_size, num_heads,
-                                            expansion, transformer_dropout),
-                         # Temporal transforming
-
-                         RobertaClassifier(emb_size, n_classes,
-                                           classifier_dropout)
-                         # Classifier
-                         )
+        return x, attention_weights, out
 
 
-""" ********** Classification Model ********** """
+class RNN_self_attention(nn.Module):
+    def __init__(self, input_size):
+        super().__init__()
+        self.input_size = input_size
+        self.LSTM_1 = nn.LSTM(input_size=input_size,
+                              hidden_size=8,
+                              num_layers=1,
+                              batch_first=True)
+        self.tanh = nn.Tanh()
+        self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
+        self.selfattention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
+        self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1,
+                              batch_first=True)
+        self.classifier = nn.Linear(256, 1)
+        self.sigmoid = nn.Sigmoid()
 
+    def forward(self, x):
 
-class DetectionBertMEEG(nn.Sequential):
+        # First LSTM
+        x, (_, _) = self.LSTM_1(x)
+        x = self.avgPool(x.transpose(1, 2))
+        x = x.transpose(1, 2)
+        x = x.transpose(0, 1)
 
-    """ Detect spikes events times in an EEG/MEG trial. Inspired by:
-        `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
-        <https://arxiv.org/pdf/2106.11170.pdf>`_.
+        # Self-attention Layer
+        x_attention, attention_weights = self.selfattention(x, x, x)
 
-    Input (tensor): Batch of trials of dimension
-                    [batch_size x 1 x n_channels x n_time_points].
-    Output (tensor): Tensor of logits of dimension
-                     [batch_size x n_classes].
-    """
+        x = x + x_attention
+        x = x.transpose(0, 1)
 
-    def __init__(self, n_time_points, attention_num_heads, attention_dropout,
-                 spatial_dropout,  emb_size, n_maps, position_kernel,
-                 channels_kernel, channels_stride,
-                 time_kernel, time_stride, positional_dropout,
-                 embedding_dropout, depth, num_heads, expansion,
-                 transformer_dropout, n_time_windows,
-                 detector_dropout):
+        # Second LSTM
+        x, (_, _) = self.LSTM_2(x)
+        x = self.tanh(x)
+        x = self.avgPool(x.transpose(1, 2))
+        x = x.transpose(1, 2)
 
-        """
-        Args:
-            n_time_points (int): Number of time points in EEF/MEG trials.
-            attention_num_heads (int): Number of heads in ChannelAttention.
-            attention_dropout (float): Dropout value in ChannelAttention.
-            spatial_dropout (float): Dropout value after Spatial transforming.
-            emb_size (int): Size of embedding vectors in Temporal transforming.
-            n_maps (int): Number of feature maps for positional encoding.
-            position_kernel (int): Kernel size for positional encoding.
-            channels_kernel (int): Kernel size for convolution on channels.
-            channels_stride (int): Stride for convolution on channels.
-            time_kernel (int): Kernel size for convolution on time axis.
-            time_stride (int): Stride for convolution on channel axis.
-            positional_dropout (float): Dropout value for positional encoding.
-            embedding_dropout (float): Dropout value after embedding block.
-            depth (int): Depth of the Transformer encoder.
-            num_heads (int): Number of heads in multi-attention layer.
-            expansion (int): Expansion coefficient in Feed Forward layer.
-            transformer_dropout (float): Dropout value after Transformer.
-            n_time_windows (int): Number of time windows.
-            detector_dropout (float): Dropout value in spike detector block.
-        """
+        # Classifier
+        x = self.classifier(x.flatten(1))
+        x = self.sigmoid(x)
 
-        super().__init__(ResidualAdd(
-                           nn.Sequential(
-                                nn.LayerNorm(n_time_points),
-                                ChannelAttention(n_time_points,
-                                                 attention_num_heads,
-                                                 attention_dropout),
-                                nn.Dropout(spatial_dropout)
-                                )
-                            ),
-                         # Spatial transforming,
-
-                         PatchEmbedding(n_time_points, emb_size,
-                                        n_maps, position_kernel,
-                                        channels_kernel,
-                                        channels_stride, time_kernel,
-                                        time_stride, positional_dropout),
-                         # Embedding and positional encoding
-
-                         nn.Dropout(embedding_dropout),
-
-                         TransformerEncoder(depth, emb_size, num_heads,
-                                            expansion, transformer_dropout),
-                         # Temporal transforming
-
-                         SpikeDetector(n_time_points, n_time_windows,
-                                       emb_size, detector_dropout)
-                         # Spike detector
-                         )
+        return x, attention_weights
