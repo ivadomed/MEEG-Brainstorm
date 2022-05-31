@@ -375,7 +375,7 @@ class RNN_self_attention(nn.Module):
                               batch_first=True)
         self.tanh = nn.Tanh()
         self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
-        self.selfattention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
+        self.attention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
         self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1,
                               batch_first=True)
         self.classifier = nn.Linear(256, 1)
@@ -400,7 +400,7 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(0, 1)
 
         # Self-attention Layer
-        x_attention, attention_weights = self.selfattention(x, x, x)
+        x_attention, attention_weights = self.attention(x, x, x)
 
         x = x + x_attention
         x = x.transpose(0, 1)
@@ -416,3 +416,27 @@ class RNN_self_attention(nn.Module):
         out = self.sigmoid(x)
 
         return out, attention_weights
+
+
+def make_model(config, method):
+
+    """ Create model.
+
+    Args:
+        config (dict): Contains models hyperparameters.
+        method (str): Precise which model to use.
+    Returns:
+        model (nn.Module): Model.
+    """
+
+    params = config[method]
+    if method == "RNN_self_attention":
+        model = RNN_self_attention(*params)
+    elif method == "Transformers_detection":
+        params['task'] = 'detection'
+        model = STT(*params)
+    elif method == "Transformers_classification":
+        params['task'] = 'classification'
+        model = STT(*params)
+
+    return model
