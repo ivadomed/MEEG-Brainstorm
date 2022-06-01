@@ -8,7 +8,8 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 
 This script is used to recover data and create ground truth.
 Usage: type "from data import <class>" to use one of its classes.
-Contributors: Ambroise Odonnat.
+
+Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import os
