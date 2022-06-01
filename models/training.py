@@ -9,6 +9,7 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import copy
+from tkinter import N
 import torch
 
 import numpy as np
@@ -53,9 +54,10 @@ class make_model():
 
     def _do_train(self,
                   model,
-                  loader,
+                  loaders,
                   optimizer,
-                  criterion):
+                  criterion,
+                  weighted):
 
         """
         Args:
@@ -63,6 +65,7 @@ class make_model():
             loader (Sampler): Generator of n_train EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
+            weigthed (Bool): True if the loader if weighted, False otherwise.
         """
 
         # Training loop
@@ -71,8 +74,21 @@ class make_model():
         train_loss = list()
         y_pred_all, y_true_all = list(), list()
 
+        iter_loader = [iter(loader) for loader in loaders]
+
         # Loop on training samples
-        for batch_x, batch_y in loader:
+        for batch_x, batch_y in iter_loader[0]:
+            if len(loaders) > 1:
+                batch_x_list = [batch_x]
+                batch_y_list = [batch_y]
+
+                for id in len(loaders[1:]):
+                    batch_x, batch_y = next(iter_loader[id])
+                    batch_x_list.append(batch_x)
+                    batch_y_list.append(batch_y)
+
+                batch_x = np.concatenate(batch_x_list, axis=0)
+                batch_y = np.concatenate(batch_y_list, axis=0)
 
             optimizer.zero_grad()
 

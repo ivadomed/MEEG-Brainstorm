@@ -129,14 +129,14 @@ def multi_channel_loader(data,
                         shuffle=shuffle, num_workers=num_workers,
                         collate_fn=PadCollate(dim=1))
 
-    return loader
+    return [loader]
 
 
-def weighted_loader(data,
-                    labels,
-                    batch_size,
-                    shuffle,
-                    num_workers):
+def balance_loader(data,
+                   labels,
+                   batch_size,
+                   shuffle,
+                   num_workers):
 
     """ Create dataloader for multi-channel trials.
         Input can be padded on the channel dimension
