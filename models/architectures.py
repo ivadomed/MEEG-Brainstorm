@@ -257,12 +257,22 @@ class STT(nn.Module):
                                                      [batch_size x 1].
     """
 
-    def __init__(self, n_time_points, channel_num_heads, channel_dropout,
-                 emb_size, n_maps, position_kernel,
-                 channels_kernel, channels_stride,
-                 time_kernel, time_stride, positional_dropout,
-                 depth, num_heads, expansion,
-                 transformer_dropout, n_windows):
+    def __init__(self, n_time_points=201,
+                 channel_num_heads=1,
+                 channel_dropout=0.1,
+                 emb_size=30,
+                 n_maps=5,
+                 position_kernel=50,
+                 channels_kernel=20,
+                 channels_stride=1,
+                 time_kernel=20,
+                 time_stride=1,
+                 positional_dropout=0.25,
+                 depth=3,
+                 num_heads=10,
+                 expansion=4,
+                 transformer_dropout=0.25,
+                 n_windows=10):
 
         """
         Args:
@@ -350,7 +360,7 @@ class RNN_self_attention(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, input_size):
+    def __init__(self, input_size=1):
 
         """
         Args:
@@ -406,27 +416,3 @@ class RNN_self_attention(nn.Module):
         out = self.sigmoid(x)
 
         return out, attention_weights
-
-
-def make_model(config, method):
-
-    """ Create model.
-
-    Args:
-        config (dict): Contains models hyperparameters.
-        method (str): Precise which model to use.
-    Returns:
-        model (nn.Module): Model.
-    """
-
-    params = config[method]
-    if method == "RNN_self_attention":
-        model = RNN_self_attention(*params)
-    elif method == "Transformers_detection":
-        params['task'] = 'detection'
-        model = STT(*params)
-    elif method == "Transformers_classification":
-        params['task'] = 'classification'
-        model = STT(*params)
-
-    return model
