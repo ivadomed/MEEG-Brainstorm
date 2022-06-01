@@ -18,7 +18,11 @@ class NoamOpt():
     `<http://nlp.seas.harvard.edu/2018/04/03/attention.html>`_.
     """
 
-    def __init__(self, model_size, factor, warmup, optimizer):
+    def __init__(self,
+                 model_size,
+                 factor,
+                 warmup,
+                 optimizer):
 
         """
         Args:

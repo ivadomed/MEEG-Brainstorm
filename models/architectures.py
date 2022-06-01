@@ -35,7 +35,8 @@ class Mish(nn.Module):
 
         super().__init__()
 
-    def forward(self, x):
+    def forward(self,
+                x: Tensor):
 
         return x*torch.tanh(F.softplus(x))
 
@@ -45,7 +46,10 @@ class Mish(nn.Module):
 
 class ChannelAttention(nn.Module):
 
-    def __init__(self, emb_size, num_heads, dropout):
+    def __init__(self,
+                 emb_size,
+                 num_heads,
+                 dropout):
 
         """ Multi-head attention inspired by:
             `"Attention Is All You Need"
@@ -69,7 +73,8 @@ class ChannelAttention(nn.Module):
         # Weight initialization
         self.attention.apply(xavier_initialization)
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
 
         """ Apply spatial transforming.
             Trials can be padded with zeros channels for same sequence length.
@@ -102,9 +107,16 @@ class ChannelAttention(nn.Module):
 
 class PatchEmbedding(nn.Module):
 
-    def __init__(self, seq_len, emb_size, n_maps, position_kernel,
-                 channels_kernel, channels_stride,
-                 time_kernel, time_stride, dropout):
+    def __init__(self,
+                 seq_len,
+                 emb_size,
+                 n_maps,
+                 position_kernel,
+                 channels_kernel,
+                 channels_stride,
+                 time_kernel,
+                 time_stride,
+                 dropout):
 
         """Positional encoding and embedding. Inspired by:
             `"EEGNet: a compact convolutional neural network for EEG-based
@@ -163,7 +175,8 @@ class PatchEmbedding(nn.Module):
                             Rearrange('b o c t -> b (c t) o')
                             )
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
 
         """ Create embeddings with positional encoding.
 
@@ -192,7 +205,12 @@ class TransformerEncoder(nn.Sequential):
         <https://arxiv.org/pdf/1606.08415v3.pdf>`_.
     """
 
-    def __init__(self, depth, emb_size, num_heads, expansion, dropout):
+    def __init__(self,
+                 depth,
+                 emb_size,
+                 num_heads,
+                 expansion,
+                 dropout):
 
         """
         Args:
@@ -218,7 +236,8 @@ class TransformerEncoder(nn.Sequential):
         # Weight initialization
         self.encoder.apply(xavier_initialization)
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
 
         """ Apply Transformer Encoder.
 
@@ -311,12 +330,14 @@ class STT(nn.Module):
         self.head = nn.Sequential(
                         nn.Linear(flatten_size, n_windows),
                         nn.Sigmoid())
+        self.single_channel = int(n_windows == 1)
 
         # Weight initialization
         self.detection_head.apply(normal_initialization)
         self.classification_head.apply(normal_initialization)
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
 
         """ Apply STT model.
         Args:
@@ -327,10 +348,10 @@ class STT(nn.Module):
             x (tensor): Batch of trials with dimension
                         [batch_size x 1 x n_channels x n_time_points].
             attention_weights (tensor): Attention weights of channel attention.
-            out (tensor): If task == 'detection' --> Logits of dimension
-                                                      [batch_size x n_windows].
-                          If task == 'classification' --> Logits of dimension
-                                                           [batch_size].
+            out (tensor): If n_windows > 1 --> Logits of dimension
+                                              [batch_size x n_windows].
+                          If n_windows == 1 --> Logits of dimension
+                                               [batch_size].
         """
 
         # Spatial Transforming
@@ -343,7 +364,10 @@ class STT(nn.Module):
         code = self.encoder(embedding)
 
         # Output
-        out = self.head(code.flatten(1))
+        if self.single_channel:
+            out = self.head(code.flatten(1)).squeeze(1)
+        else:
+            out = self.head(code.flatten(1))
 
         return x, attention_weights, out
 
@@ -360,7 +384,8 @@ class RNN_self_attention(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, input_size=1):
+    def __init__(self,
+                 input_size=1):
 
         """
         Args:
@@ -381,7 +406,8 @@ class RNN_self_attention(nn.Module):
         self.classifier = nn.Linear(256, 1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
+    def forward(self,
+                x: Tensor):
 
         """ Apply 1D-RNN with self-attention model.
         Args:
@@ -389,7 +415,7 @@ class RNN_self_attention(nn.Module):
                         [batch_size x n_time_points x 1].
 
         Returns:
-            out (tensor): Logits of dimension [batch_size x 1].
+            out (tensor): Logits of dimension [batch_size].
             attention_weights (tensor): Attention weights of channel attention.
         """
 
@@ -413,6 +439,6 @@ class RNN_self_attention(nn.Module):
 
         # Classifier
         out = self.classifier(x.flatten(1))
-        out = self.sigmoid(x)
+        out = self.sigmoid(x).squeeze(1)
 
         return out, attention_weights

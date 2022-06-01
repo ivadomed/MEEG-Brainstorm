@@ -8,7 +8,6 @@ Usage: type "from utils import <function>" to use one of its functions.
 Contributors: Ambroise Odonnat.
 """
 
-from time import pthread_getcpuclockid
 import torch
 
 import matplotlib.pyplot as plt
@@ -49,7 +48,10 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
-def get_class_distribution(labels, display=False, save=False, title=None):
+def get_class_distribution(labels,
+                           display=False,
+                           save=False,
+                           title=None):
 
     """ Plot the distribution of labels.
 
@@ -81,7 +83,9 @@ def get_class_distribution(labels, display=False, save=False, title=None):
     return count_labels
 
 
-def get_spike_events(spike_time_points, n_time_points, freq):
+def get_spike_events(spike_time_points,
+                     n_time_points,
+                     freq):
 
     """ Compute array of dimension [n_time_points]
         with 1 when a spike occurs and 0 otherwise.
@@ -104,7 +108,8 @@ def get_spike_events(spike_time_points, n_time_points, freq):
     return spike_events.astype(int)
 
 
-def get_spike_windows(spike_events, n_time_windows):
+def get_spike_windows(spike_events,
+                      n_time_windows):
 
     """
     Compute tensor of dimension [batch_size x n_time_windows]
@@ -145,7 +150,9 @@ def normal_initialization(m):
             m.bias.data.zero_()
 
 
-def pad_tensor(x, n_pads, dim):
+def pad_tensor(x,
+               n_pads,
+               dim):
 
     """
     Pad up to n_pads with lowest int value a given tensor on dimension dim .
@@ -179,7 +186,11 @@ def reset_weights(m):
 
 def xavier_initialization(m):
 
-    """ Initialize model weight with xavier uniform. """
+    """ Initialize model weight with xavier uniform.
+    Args:
+        m (nn.Module): Model.
+    """
+
     if isinstance(m, torch.nn.Linear):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)

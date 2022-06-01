@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 """
 This script is used to recover data and create ground truth.
 
@@ -26,7 +27,8 @@ from os.path import isfile, join
 from utils.utils_ import get_spike_events
 
 
-def get_spike_events(spike_time_points, n_time_points):
+def get_spike_events(spike_time_points,
+                     n_time_points):
 
     """
     Compute array of dimension [n_time_points] with 1
@@ -52,7 +54,10 @@ def get_spike_events(spike_time_points, n_time_points):
 
 class Data:
 
-    def __init__(self, path_root, wanted_event_label, single_channel):
+    def __init__(self,
+                 path_root,
+                 wanted_event_label,
+                 single_channel):
 
         """
         Args:
@@ -231,7 +236,10 @@ class Data:
 
         return all_data, all_labels, all_spike_events
 
-    def get_all_datasets(self, path_root, wanted_event_label, single_channel):
+    def get_all_datasets(self,
+                         path_root,
+                         wanted_event_label,
+                         single_channel):
 
         """ Recover data and create labels.
         Args:

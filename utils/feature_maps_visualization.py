@@ -21,7 +21,9 @@ class FeatureMaps():
 
     """ Visualize convolutional feature maps. """
 
-    def __init__(self, model, gpu_id):
+    def __init__(self,
+                 model,
+                 gpu_id):
 
         """
         Args:
@@ -56,7 +58,8 @@ class FeatureMaps():
 
         self.conv_layers = conv_layers
 
-    def get_feature_maps(self, data):
+    def get_feature_maps(self,
+                         data):
 
         """
         Args:

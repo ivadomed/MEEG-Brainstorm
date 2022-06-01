@@ -31,7 +31,8 @@ class PadCollate():
 
         self.dim = dim
 
-    def pad_collate(self, batch):
+    def pad_collate(self,
+                    batch):
 
         """
         Args:
@@ -56,13 +57,17 @@ class PadCollate():
 
         return xs, ys
 
-    def __call__(self, batch):
+    def __call__(self,
+                 batch):
+
         return self.pad_collate(batch)
 
 
 class SingleChannelDataset(Dataset):
 
-    def __init__(self, data, labels):
+    def __init__(self,
+                 data,
+                 labels):
 
         """
         Args:
@@ -80,7 +85,11 @@ class SingleChannelDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def multi_channel_loader(data, labels, batch_size, shuffle, num_workers):
+def multi_channel_loader(data,
+                         labels,
+                         batch_size,
+                         shuffle,
+                         num_workers):
 
     """ Create dataloader for multi-channel trials.
         Input can be padded on the channel dimension
@@ -111,7 +120,11 @@ def multi_channel_loader(data, labels, batch_size, shuffle, num_workers):
     return loader
 
 
-def single_channel_loader(data, labels, batch_size, shuffle, num_workers):
+def single_channel_loader(data,
+                          labels,
+                          batch_size,
+                          shuffle,
+                          num_workers):
 
     """ Create dataloader for single-channel trials.
     Args:

@@ -1,5 +1,9 @@
+#!/usr/bin/env python
+
 """
-This script is used to create a method with train function:
+This script is used to train and evaluate models.
+
+Usage: type "from training import <class>" to use one of its classes.
 
 Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
@@ -9,7 +13,7 @@ import torch
 
 import numpy as np
 
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import f1_score
 
 
 class make_model():
@@ -23,28 +27,19 @@ class make_model():
                  parameters,
                  n_epochs,
                  patience=None):
-        """Args
-        ----------
-        model : instance of nn.Module
-            The model.
-        loader : instance of Sampler
-            The generator of EEG samples the model has to train on.
-            It contains n_train samples
-        loader_valid : instance of Sampler
-            The generator of EEG samples the model has to validate on.
-            It contains n_val samples. The validation samples are used to
-            monitor the training process and to perform early stopping
-        optimizer : instance of optimizer
-            The optimizer to use for training.
-        parameters : Parameters of the model.
-        n_epochs : int
-            The maximum of epochs to run.
-        patience : int
-            The patience parameter, i.e. how long to wait for the
-            validation error to go down.
-        metric : None | callable
-            Metric to use to evaluate performance on the training and
-            validation sets. Defaults to balanced accuracy.
+
+        """
+        Args:
+            model (nn.Module): Model.
+            loader (Sampler): Generator of n_train EEG samples for training.
+            loader_valid (Sampler): Generator of n_val samples for validation.
+            optimizer (optimizer): Optimizer.
+            criterion (Loss): Loss function.
+            parameters : Parameters of the model.
+            n_epochs (int): Maximum number of epochs to run.
+            patience (int): Indicates how many epochs without improvement
+                            on validation loss to wait for
+                            before stopping training.
         """
 
         self.model = model
@@ -56,23 +51,27 @@ class make_model():
         self.n_epochs = n_epochs
         self.patience = patience
 
-    def _do_train(
-        self,
-        model,
-        loader,
-        optimizer,
-        criterion,
-    ):
-        # training loop
+    def _do_train(self,
+                  model,
+                  loader,
+                  optimizer,
+                  criterion):
+
+        """
+        Args:
+            model (nn.Module): Model.
+            loader (Sampler): Generator of n_train EEG samples for training.
+            optimizer (optimizer): Optimizer.
+            criterion (Loss): Loss function.
+        """
+
+        # Training loop
         model.train()
-
         device = next(model.parameters()).device
-
         train_loss = list()
-
-        len_dataloader = len(loader)
         y_pred_all, y_true_all = list(), list()
 
+        # Loop on training samples
         for batch_x, batch_y in loader:
 
             optimizer.zero_grad()
@@ -80,7 +79,7 @@ class make_model():
             batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(torch.float).to(device=device)
             output, _ = model(batch_x)
-            loss = criterion(output[:, 0], batch_y)
+            loss = criterion(output, batch_y)
             loss.backward()
             optimizer.step()
             train_loss.append(loss.item())
@@ -96,20 +95,26 @@ class make_model():
         perf = f1_score(y_true, y_pred_binary)
         return np.mean(train_loss), perf
 
-    def _validate(self, model, loader, criterion):
-        # validation loop
+    def _validate(self,
+                  model,
+                  loader,
+                  criterion):
+
+        # Validation loop
         model.eval()
         device = next(model.parameters()).device
 
         val_loss = np.zeros(len(loader))
         y_pred_all, y_true_all = list(), list()
+
+        # Loop in validation samples
         with torch.no_grad():
             for idx_batch, (batch_x, batch_y) in enumerate(loader):
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
                 output, _ = model.forward(batch_x)
 
-                loss = criterion(output[:, 0], batch_y)
+                loss = criterion(output, batch_y)
                 val_loss[idx_batch] = loss.item()
 
                 y_pred_all.append(output.cpu().numpy())
@@ -123,17 +128,18 @@ class make_model():
         perf = f1_score(y_true, y_pred_binary)
         return np.mean(val_loss), perf
 
-    def train(self,):
-        """Training function.
+    def train(self):
 
-        Returns
-        -------
-        best_model : instance of nn.Module
-            The model that led to the best prediction on the validation
-            dataset.
-        history : list of dicts
-            Training history (loss, accuracy, etc.)
+        """ Training function.
+
+        Returns:
+            best_model (nn.Module): The model that led to the best prediction
+                                    on the validation
+                                    dataset.
+        history (list): List of dictionnaries containing training history
+                        (loss, accuracy, etc.).
         """
+
         history = list()
         best_valid_loss = np.inf
         best_model = copy.deepcopy(self.model)
@@ -171,14 +177,15 @@ class make_model():
             )
 
             if valid_loss < best_valid_loss:
-                print(f"best val loss {best_valid_loss:.4f} -> {valid_loss:.4f}")
+                print(f"best val loss {best_valid_loss:.4f} "
+                      "-> {valid_loss:.4f}")
                 best_valid_loss = valid_loss
                 best_model = copy.deepcopy(self.model)
                 waiting = 0
             else:
                 waiting += 1
 
-            # model early stopping
+            # Early stopping
             if self.patience is None:
                 best_model = copy.deepcopy(self.model)
             else:

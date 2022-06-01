@@ -26,7 +26,9 @@ class CostSensitiveLoss(nn.Module):
         <https://arxiv.org/pdf/2010.00291.pdf>`_.
     """
 
-    def __init__(self, criterion, lambd):
+    def __init__(self,
+                 criterion,
+                 lambd):
 
         """
         Args:
@@ -44,7 +46,9 @@ class CostSensitiveLoss(nn.Module):
         M = np.array([[0, 0], [1, 0]])
         self.M = torch.from_numpy(M)
 
-    def forward(self, logits, targets):
+    def forward(self,
+                logits,
+                targets):
 
         """
         Args:
@@ -69,7 +73,9 @@ class CostSensitiveLoss(nn.Module):
         return loss
 
 
-def get_criterion(criterion, cost_sensitive, lambd):
+def get_criterion(criterion,
+                  cost_sensitive,
+                  lambd):
 
     """ Add cost-sensitive regularizer to the loss function.
 
