@@ -8,7 +8,7 @@ to count the number of spikes inspired by:
 
 Usage: type "from models import <class>" to use one class.
 
-Contributors: Ambroise Odonnat.
+Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import torch

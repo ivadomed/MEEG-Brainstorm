@@ -6,7 +6,7 @@ This script is used to create dataloaders.
 Usage: type "from model import <class>" to use class.
        type "from model import <function>" to use function.
 
-Contributors: Ambroise Odonnat.
+Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import torch
