@@ -18,12 +18,11 @@ import scipy
 
 import numpy as np
 
-from scipy import signal
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
 
-from torch.utils.data import Dataset
+from utils.utils_ import get_spike_events
 
 
 def get_spike_events(spike_time_points, n_time_points):
@@ -106,7 +105,8 @@ class Data:
         bad_trial = 0
 
         if wanted_event_label in events_name:
-            events_points = np.where(events[0][:, 2] == events[1][wanted_event_label])
+            events_points = np.where(events[0][:, 2]
+                                     == events[1][wanted_event_label])
             count_spikes += len(events_points)
             spike_time_points = events[0][events_points, 0][0]
 
@@ -164,12 +164,15 @@ class Data:
                 ch_names = raw.info.ch_names
                 for event in events[1].keys():
                     len_string_event = len(wanted_event_label)
-                    if event[-len_string_event:] == wanted_event_label and len(event) > len_string_event:
-                        wanted_channels.append(np.where(
-                                               np.array(ch_names) == 'EEG ' + event[:2].upper())[0][0])
+                    match = (event[-len_string_event:] == wanted_event_label)
+                    possible = (len(event) > len_string_event)
+                    if match & possible:
+                        ID = 'EEG ' + event[:2].upper()
+                        wanted_channels.append(np.where(np.array(ch_names)
+                                                        == ID)[0][0])
 
             wanted_channels = np.unique(wanted_channels)
-            if len(wanted_channels) == 0 :
+            if len(wanted_channels) == 0:
                 wanted_channels = [np.random.randint(0, len(ch_names))]
 
         for trial_fname in folder:
