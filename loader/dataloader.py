@@ -25,7 +25,7 @@ def class_imbalance_sampler(labels, n_sample):
     class_weighting = 1. / class_count
     sample_weights = class_weighting[labels]
     sampler = WeightedRandomSampler(sample_weights,
-                                    n_sample,
+                                    int(n_sample),
                                     replacement=False)
     return sampler
 
@@ -122,9 +122,14 @@ def pad_loader(data,
 
     # Get dataloader
     dataset = []
+    # for id in range(len(data)):
+    #     for n_trial in range(data[id].shape[0]):
+    #         dataset.append((data[id][n_trial], labels[id][n_trial]))
     for id in range(len(data)):
-        for n_trial in range(data[id].shape[0]):
-            dataset.append((data[id][n_trial], labels[id][n_trial]))
+        for n_sess in range(len(data[id])):
+            for n_trial in range(len(data[id][n_sess])):
+                dataset.append((data[id][n_sess][n_trial], labels[id][n_sess][n_trial]))
+    print(len(dataset), len(dataset[0]), len(dataset[0][0]))
     loader = DataLoader(dataset=dataset, batch_size=batch_size,
                         shuffle=shuffle, num_workers=num_workers,
                         collate_fn=PadCollate(dim=1))
@@ -132,7 +137,7 @@ def pad_loader(data,
     return [loader]
 
 
-def balance_loader(data,
+def balance_pad_loader(data,
                    labels,
                    batch_size,
                    shuffle,
@@ -167,17 +172,19 @@ def balance_loader(data,
         n_ied_segments.append(n_ied_segment)
 
         dataset = []
-        for n_trial in range(data[id].shape[0]):
-            dataset.append((data[id][n_trial], labels[id][n_trial]))
+        for n_sess in range(len(data[id])):
+            for n_trial in range(len(data[id][n_sess])):
+                dataset.append((data[id][n_sess][n_trial], labels[id][n_sess][n_trial]))
         datasets.append(dataset)
 
     # TODO mean or median or quartile ?
-    n_ied_segments_mean = n_ied_segments.mean()
+    n_ied_segments = np.array(n_ied_segments)
+    n_ied_segments_mean = np.mean(n_ied_segments)
     n_ied_segments[n_ied_segments >= n_ied_segments_mean] = n_ied_segments_mean
     loaders = []
     for id in range(len(data)):
 
-        sampler = class_imbalance_sampler(label_distributions[id],
+        sampler = class_imbalance_sampler(torch.tensor(label_distributions[id]),
                                           2*n_ied_segments[id])
 
         loaders.append(DataLoader(dataset=datasets[id],
@@ -193,3 +200,23 @@ def balance_loader(data,
     loaders = loaders[np.flipud(argsort)]
 
     return loaders
+
+def load_loaders(data,
+                 labels,
+                 batch_size,
+                 shuffle,
+                 num_workers,
+                 balance):
+
+    if balance:
+        return balance_pad_loader(data,
+                              labels,
+                              batch_size,
+                              shuffle,
+                              num_workers)
+    else:
+        return pad_loader(data,
+                              labels,
+                              batch_size,
+                              shuffle,
+                              num_workers)

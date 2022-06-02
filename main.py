@@ -19,9 +19,8 @@ from torch.optim import Adam
 
 from models.architectures import RNN_self_attention, STT
 from models.training import make_model
-from loader.dataloader import pad_loader
+from loader.dataloader import load_loaders
 from loader.data import Data
-from utils.evaluation import score
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -36,6 +35,7 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--path_data", type=str, default="../IvadomedNifti/")
+    parser.add_argument("--balance", action="store_true")
 
     return parser
 
@@ -46,6 +46,7 @@ args = parser.parse_args()
 path_root = args.path_data
 method = args.method
 batch_size = args.batch_size
+balance = args.balance
 # path_root = args.path_root
 # single_channel = args.single_channel
 # path_config = args.path_config
@@ -86,88 +87,104 @@ for test_subject_id in subject_ids:
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
     val_subject_id = np.random.choice(train_subject_ids)
-    train_subject_ids = np.delete(subject_ids,
-                                  np.where(subject_ids == val_subject_id))
+    train_subject_ids = np.delete(train_subject_ids,
+                                  np.where(train_subject_ids == val_subject_id))
 
-    print('Validation on: {}, '
-          'test on: {}'.format(test_subject_id,
+    print('Test on: {}, '
+          'Validation on: {}'.format(test_subject_id,
                                val_subject_id))
 
     # Training dataloader
     train_data = []
     for id in train_subject_ids:
         sessions_trials = data[id]
-        for trials in sessions_trials:
-            train_data.append(trials)
+        train_data.append(data[id])
+
+        # for trials in sessions_trials:
+        #     train_data.append(trials)
     train_labels = []
     for id in train_subject_ids:
         sessions_events = labels[id]
-        for events in sessions_events:
-            train_labels.append(events)
+        train_labels.append(sessions_events)
+
+        # print(len(sessions_events))
+        # for events in sessions_events:
+        #     train_labels.append(events)
 
     # Z-score normalization
-    target_mean = np.mean([np.mean(data) for data in train_data])
-    target_std = np.mean([np.std(data) for data in train_data])
-    train_data = [np.expand_dims((data-target_mean) / target_std,
-                                 axis=1)
-                  for data in train_data]
-    loaders_train = pad_loader(train_data,
-                               train_labels,
-                               batch_size,
-                               True,
-                               0)
+    # target_mean = np.mean([np.mean(data) for data in train_data])
+    # target_std = np.mean([np.std(data) for data in train_data])
+
+    target_mean = np.mean([np.mean([np.mean(data) for data in data_id]) for data_id in train_data])
+    target_std = np.mean([np.mean([np.std(data) for data in data_id]) for data_id in train_data])
+    train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1) for data in data_id] for data_id in train_data]
+    
+    loaders_train = load_loaders(train_data,
+                                 train_labels,
+                                 batch_size,
+                                 shuffle=True,
+                                 num_workers=0,
+                                 balance=balance)
 
     # Validation dataloader
-    val_data = []
-    sessions_trials = data[val_subject_id]
-    for trials in sessions_trials:
-        val_data.append(trials)
-    val_labels = []
-    sessions_events = labels[val_subject_id]
-    for events in sessions_events:
-        val_labels.append(events)
+    val_data = data[val_subject_id]
+
+    # val_data = []
+    # sessions_trials = data[val_subject_id]
+    # for trials in sessions_trials:
+    #     val_data.append(trials)
+    
+    val_labels = labels[val_subject_id]
+
+    # sessions_events = labels[val_subject_id]
+    # for events in sessions_events:
+    #     val_labels.append(events)
 
     # Z-score normalization
     val_data = [np.expand_dims((data-target_mean) / target_std,
                 axis=1)
                 for data in val_data]
-    loader_val = pad_loader(val_data,
-                            val_labels,
-                            batch_size,
-                            False,
-                            0)
+    
+    loader_val = load_loaders([val_data],
+                              [val_labels],
+                              batch_size,
+                              shuffle=False,
+                              num_workers=0,
+                              balance=False)
 
     # Test dataloader
-    test_data = []
-    sessions_trials = data[test_subject_id]
-    for trials in sessions_trials:
-        test_data.append(trials)
-    test_labels = []
-    sessions_events = labels[test_subject_id]
-    for events in sessions_events:
-        test_labels.append(events)
+    test_data = data[test_subject_id]
+
+    # sessions_trials = data[test_subject_id]
+    # for trials in sessions_trials:
+    #     test_data.append(trials)
+
+    test_labels = labels[test_subject_id]
+
+    # sessions_events = labels[test_subject_id]
+    # for events in sessions_events:
+    #     test_labels.append(events)
 
     # Z-score normalization
     test_data = [np.expand_dims((data-target_mean) / target_std,
                                 axis=1)
                  for data in test_data]
-    loader_test = pad_loader(test_data,
-                             test_labels,
-                             batch_size,
-                             False,
-                             0)
-
-    input_size = loaders_train.dataset[0][0].shape[1]
+    loader_test = load_loaders([test_data],
+                               [test_labels],
+                               batch_size,
+                               shuffle=False,
+                               num_workers=0,
+                               balance=False)
 
     if method == "RNN_self_attention":
         archi = RNN_self_attention(input_size=1)
     else:
         archi = STT()
 
-    model = model.to(device)
+    archi = archi.to(device)
 
     lr = 1e-3  # Learning rate
-    optimizer = Adam(model.parameters(), lr=lr, weight_decay=0)
+    optimizer = Adam(archi.parameters(), lr=lr, weight_decay=0)
 
     criterion = BCELoss()
 
@@ -180,22 +197,22 @@ for test_subject_id in subject_ids:
                        patience=10)
 
     # Train Model
-    best_model, history = model.train()
+    history = model.train()
 
     if not os.path.exists("../results"):
         os.mkdir("../results")
 
-    if args.save_model:
-        model_dir = "../results/{}".format(model)
-        if not os.path.exists(model_dir):
-            os.mkdir(model_dir)
-        torch.save(
-            best_model.state_dict(),
-            model_dir / "model_{}_{}".format(method, test_subject_id),
-        )
+    # if args.save_model:
+    #     model_dir = "../results/{}".format(archi)
+    #     if not os.path.exists(model_dir):
+    #         os.mkdir(model_dir)
+    #     torch.save(
+    #         model.best_model.state_dict(),
+    #         model_dir / "model_{}_{}".format(method, test_subject_id),
+    #     )
 
     # Compute test performance and save it
-    acc, f1, precision, recall = score(best_model, loader_test)
+    acc, f1, precision, recall = model.score(loader_test)
 
     results.append(
         {
