@@ -17,6 +17,7 @@ import numpy as np
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
+from utils.utils_ import get_next
 
 class make_model():
 
@@ -81,13 +82,13 @@ class make_model():
                 batch_x_list = [batch_x]
                 batch_y_list = [batch_y]
 
-                for id in len(loaders[1:]):
-                    batch_x, batch_y = next(iter_loader[id])
+                for id in range(len(loaders[1:])):
+                    batch_x, batch_y = get_next(id, iter_loader, loaders)
                     batch_x_list.append(batch_x)
                     batch_y_list.append(batch_y)
 
-                batch_x = np.concatenate(batch_x_list, axis=0)
-                batch_y = np.concatenate(batch_y_list, axis=0)
+                batch_x = torch.cat(batch_x_list, dim=0)
+                batch_y = torch.cat(batch_y_list, dim=0)
 
             optimizer.zero_grad()
 

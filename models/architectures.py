@@ -224,7 +224,7 @@ class TransformerEncoder(nn.Sequential):
         super().__init__()
         dim = expansion * emb_size
         encoder_layer = nn.TransformerEncoderLayer(d_model=emb_size,
-                                                   n_heads=num_heads,
+                                                   nhead=num_heads,
                                                    dim_feedforward=dim,
                                                    dropout=dropout,
                                                    activation='gelu')

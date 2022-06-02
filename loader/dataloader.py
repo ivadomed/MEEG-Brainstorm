@@ -24,6 +24,8 @@ def class_imbalance_sampler(labels, n_sample):
     class_count = torch.bincount(labels.squeeze())
     class_weighting = 1. / class_count
     sample_weights = class_weighting[labels]
+    if n_sample==0:
+        n_sample=1
     sampler = WeightedRandomSampler(sample_weights,
                                     int(n_sample),
                                     replacement=False)
@@ -129,7 +131,6 @@ def pad_loader(data,
         for n_sess in range(len(data[id])):
             for n_trial in range(len(data[id][n_sess])):
                 dataset.append((data[id][n_sess][n_trial], labels[id][n_sess][n_trial]))
-    print(len(dataset), len(dataset[0]), len(dataset[0][0]))
     loader = DataLoader(dataset=dataset, batch_size=batch_size,
                         shuffle=shuffle, num_workers=num_workers,
                         collate_fn=PadCollate(dim=1))
@@ -189,7 +190,6 @@ def balance_pad_loader(data,
 
         loaders.append(DataLoader(dataset=datasets[id],
                                   batch_size=batch_size,
-                                  shuffle=shuffle,
                                   sampler=sampler,
                                   num_workers=num_workers,
                                   collate_fn=PadCollate(dim=1)))
@@ -197,7 +197,7 @@ def balance_pad_loader(data,
     # Sort the loaders in the desending order
 
     argsort = np.argsort(n_ied_segments)
-    loaders = loaders[np.flipud(argsort)]
+    loaders = np.array(loaders)[np.flipud(argsort)]
 
     return loaders
 
