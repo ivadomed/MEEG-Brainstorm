@@ -15,6 +15,7 @@ import torch
 import numpy as np
 
 from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 
 class make_model():
@@ -118,12 +119,12 @@ class make_model():
         model.eval()
         device = next(model.parameters()).device
 
-        val_loss = np.zeros(len(loader))
+        val_loss = np.zeros(len(loader[0]))
         y_pred_all, y_true_all = list(), list()
 
         # Loop in validation samples
         with torch.no_grad():
-            for idx_batch, (batch_x, batch_y) in enumerate(loader):
+            for idx_batch, (batch_x, batch_y) in enumerate(loader[0]):
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
                 output, _ = model.forward(batch_x)
@@ -156,7 +157,7 @@ class make_model():
 
         history = list()
         best_valid_loss = np.inf
-        best_model = copy.deepcopy(self.model)
+        self.best_model = copy.deepcopy(self.model)
         print(
             "epoch \t train_loss \t valid_loss \t train_perf \t valid_perf"
         )
@@ -201,11 +202,39 @@ class make_model():
 
             # Early stopping
             if self.patience is None:
-                best_model = copy.deepcopy(self.model)
+                self.best_model = copy.deepcopy(self.model)
             else:
                 if waiting >= self.patience:
                     print(f"Stop training at epoch {epoch}")
                     print(f"Best val loss : {best_valid_loss:.4f}")
                     break
 
-        return best_model, history
+        return history
+
+    def score(self, loader):
+        # Compute    performance
+
+        self.best_model.eval()
+        device = next(self.best_model.parameters()).device
+
+        y_pred_all, y_true_all = list(), list()
+        with torch.no_grad():
+            for batch_x, batch_y in loader[0]:
+                batch_x = batch_x.to(torch.float).to(device=device)
+                batch_y = batch_y.to(torch.float).to(device=device)
+                output, _ = self.best_model.forward(batch_x)
+                y_pred_all.append(output.cpu().numpy())
+                y_true_all.append(batch_y.cpu().numpy())
+
+        y_pred = np.concatenate(y_pred_all)
+        y_true = np.concatenate(y_true_all)
+
+        y_pred_binary = np.zeros(len(y_pred))
+        y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
+
+        acc = accuracy_score(y_true, y_pred_binary)
+        f1 = f1_score(y_true, y_pred_binary, average='weighted')
+        precision = precision_score(y_true, y_pred_binary, average='weighted')
+        recall = recall_score(y_true, y_pred_binary, average='weighted')
+
+        return acc, f1, precision, recall
