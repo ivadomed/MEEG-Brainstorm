@@ -99,11 +99,11 @@ class SingleChannelDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def multi_channel_loader(data,
-                         labels,
-                         batch_size,
-                         shuffle,
-                         num_workers):
+def pad_loader(data,
+               labels,
+               batch_size,
+               shuffle,
+               num_workers):
 
     """ Create dataloader for multi-channel trials.
         Input can be padded on the channel dimension

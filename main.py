@@ -9,23 +9,19 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 import argparse
 import json
 import os
+from platform import architecture
 import numpy as np
 import pandas as pd
 import torch
 
-from torch.utils.data import ConcatDataset
-from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss, BCELoss
+from torch.nn import BCELoss
 from torch.optim import Adam
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import balanced_accuracy_score
 
 from models.architectures import RNN_self_attention, STT
 from models.training import make_model
 from loader.dataloader import pad_loader
+from loader.data import Data
 from utils.evaluation import score
-from utils.data_edf import Data, SpikeDetectionDataset
-from utils.loader import get_pad_dataloader
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -37,15 +33,9 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection using attention layer"
     )
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--method", type=str, default="Fukumori")
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--save-model", action="store_true")
+    parser.add_argument("--method", type=str, default="RNN_self_attention")
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--path_data", type=str, default="../IvadomedNifti/")
-
-    parser.add_argument(
-        "--parameters", type=float, nargs="+", default=[1e-2, 1e-1, 1e-3, 1]
-    )
 
     return parser
 
@@ -53,22 +43,25 @@ def get_parser():
 # Experiment name
 parser = get_parser()
 args = parser.parse_args()
-path_root = args.path_root
-single_channel = args.single_channel
-path_config = args.path_config
+path_root = args.path_data
+method = args.method
+batch_size = args.batch_size
+# path_root = args.path_root
+# single_channel = args.single_channel
+# path_config = args.path_config
 
-# Recover config dictionnary
-with open(path_config) as f:
-    config = json.loads(f.read())
+# # Recover config dictionnary
+# with open(path_config) as f:
+#     config = json.loads(f.read())
 
-# Recover params
-seed = config['seed']
-method = config['method']
-model = method['params']
-batch_size = config['batch_size']
-n_epochs = config['n_epochs']
-patience = config['patience']
-sample_frequence = config['sample_frequence']
+# # Recover params
+# seed = config['seed']
+# method = config['method']
+# model = method['params']
+# batch_size = config['batch_size']
+# n_epochs = config['n_epochs']
+# patience = config['patience']
+# sample_frequence = config['sample_frequence']
 
 if method == 'RNN_self_attention':
     single_channel = True
@@ -84,7 +77,6 @@ assert method in ("RNN_self_attention", "transformers_classification",
 results = []
 data = all_dataset[0]
 labels = all_dataset[1]
-print(labels)
 subject_ids = np.asarray(list(data.keys()))
 for test_subject_id in subject_ids:
 
@@ -119,11 +111,11 @@ for test_subject_id in subject_ids:
     train_data = [np.expand_dims((data-target_mean) / target_std,
                                  axis=1)
                   for data in train_data]
-    loader_train = pad_loader(train_data,
-                              train_labels,
-                              batch_size,
-                              True,
-                              0)
+    loaders_train = pad_loader(train_data,
+                               train_labels,
+                               batch_size,
+                               True,
+                               0)
 
     # Validation dataloader
     val_data = []
@@ -159,18 +151,18 @@ for test_subject_id in subject_ids:
     test_data = [np.expand_dims((data-target_mean) / target_std,
                                 axis=1)
                  for data in test_data]
-    loader_test = get_pad_dataloader(test_data,
-                                     test_labels,
-                                     batch_size,
-                                     False,
-                                     0)
+    loader_test = pad_loader(test_data,
+                             test_labels,
+                             batch_size,
+                             False,
+                             0)
 
-    input_size = loader_train.dataset[0][0].shape[1]
+    input_size = loaders_train.dataset[0][0].shape[1]
 
-    if method == "Fukumori":
-        model = fukumori2021RNN(input_size=1)
+    if method == "RNN_self_attention":
+        archi = RNN_self_attention(input_size=1)
     else:
-        model = ClassificationBertMEEG()
+        archi = STT()
 
     model = model.to(device)
 
@@ -179,18 +171,16 @@ for test_subject_id in subject_ids:
 
     criterion = BCELoss()
 
+    model = make_model(archi,
+                       loaders_train,
+                       loader_val,
+                       optimizer,
+                       criterion,
+                       n_epochs=10,
+                       patience=10)
+
     # Train Model
-    best_model, history = train(
-        model,
-        method,
-        loader_train,
-        loader_val,
-        optimizer,
-        criterion,
-        parameters,
-        n_epochs,
-        patience,
-    )
+    best_model, history = model.train()
 
     if not os.path.exists("../results"):
         os.mkdir("../results")

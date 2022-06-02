@@ -25,7 +25,6 @@ class make_model():
                  loader_val,
                  optimizer,
                  criterion,
-                 parameters,
                  n_epochs,
                  patience=None):
 
@@ -48,7 +47,7 @@ class make_model():
         self.loader_val = loader_val
         self.optimizer = optimizer
         self.criterion = criterion
-        self.parameters = parameters
+        # self.parameters = parameters
         self.n_epochs = n_epochs
         self.patience = patience
 
@@ -56,8 +55,7 @@ class make_model():
                   model,
                   loaders,
                   optimizer,
-                  criterion,
-                  weighted):
+                  criterion):
 
         """
         Args:
