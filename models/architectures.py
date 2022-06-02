@@ -420,7 +420,7 @@ class RNN_self_attention(nn.Module):
         """
 
         # First LSTM
-        x, (_, _) = self.LSTM_1(x)
+        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
         x = x.transpose(0, 1)
@@ -439,6 +439,6 @@ class RNN_self_attention(nn.Module):
 
         # Classifier
         out = self.classifier(x.flatten(1))
-        out = self.sigmoid(x).squeeze(1)
+        out = self.sigmoid(out).squeeze(1)
 
         return out, attention_weights
