@@ -194,3 +194,12 @@ def xavier_initialization(m):
     if isinstance(m, torch.nn.Linear):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
+
+def get_next(id, iter_loader, loaders):
+    try:
+        x, y = next(iter_loader[id])
+    except StopIteration:
+        iter_loader[id] = iter(loaders[id])
+        x, y = next(iter_loader[id])
+
+    return x, y
