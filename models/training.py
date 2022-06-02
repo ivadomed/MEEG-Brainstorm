@@ -193,7 +193,7 @@ class make_model():
 
             if valid_loss < best_valid_loss:
                 print(f"best val loss {best_valid_loss:.4f} "
-                      "-> {valid_loss:.4f}")
+                      f"-> {valid_loss:.4f}")
                 best_valid_loss = valid_loss
                 best_model = copy.deepcopy(self.model)
                 waiting = 0
