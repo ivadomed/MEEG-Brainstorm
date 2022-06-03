@@ -189,12 +189,17 @@ for test_subject_id in subject_ids:
                                     num_workers=0,
                                     balance=False)
 
-    # Define model
+    # Define architecture
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
     else:
         architecture = STT()
 
+    # Define optimizer
+    optimizer = Adam(architecture.parameters(), lr=lr,
+                     weight_decay=weight_decay)
+
+    # Define training pipeline
     architecture = architecture.to(device)
     model = make_model(architecture,
                        loaders_train,
@@ -203,10 +208,6 @@ for test_subject_id in subject_ids:
                        criterion,
                        n_epochs=n_epochs,
                        patience=patience)
-
-    # Define optimizer
-    optimizer = Adam(model.model.parameters(), lr=lr,
-                     weight_decay=weight_decay)
 
     # Train Model
     history = model.train()
