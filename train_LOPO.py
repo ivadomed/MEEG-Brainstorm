@@ -32,6 +32,7 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--n_windows", type=int, default=10)
     parser.add_argument("--path_data", type=str, default="../BIDSdataset/")
     parser.add_argument("--balance", action="store_true")
 
@@ -45,6 +46,7 @@ path_root = args.path_data
 method = args.method
 batch_size = args.batch_size
 n_epochs = args.n_epochs
+n_windows = args.n_windows
 balance = args.balance
 
 # Recover params
@@ -81,7 +83,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel)
+dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
 all_dataset = dataset.all_datasets()
 
 assert method in ("RNN_self_attention", "transformer_classification",
@@ -193,7 +195,7 @@ for test_subject_id in subject_ids:
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
     else:
-        architecture = STT()
+        architecture = STT(n_windows=n_windows)
 
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,

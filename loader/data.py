@@ -25,7 +25,7 @@ from os import listdir
 from os.path import isfile, join
 from scipy import signal
 
-from utils.utils_ import get_spike_events
+from utils.utils_ import get_spike_events, get_spike_windows
 
 
 def get_spike_events(spike_time_points,
@@ -58,6 +58,7 @@ class Data:
     def __init__(self,
                  path_root,
                  wanted_event_label,
+                 n_windows,
                  single_channel):
 
         """
@@ -76,6 +77,7 @@ class Data:
 
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
+        self.n_windows = n_windows
         self.single_channel = single_channel
 
     def get_trial(self,
@@ -134,13 +136,13 @@ class Data:
     def get_dataset(self,
                     folder,
                     wanted_event_label,
+                    n_windows,
                     single_channel):
 
         """ Get trials with corresponding labels and spike events array
             (1 when a spike occurs and 0 elsewhere).
         Args:
             folder (list): List of paths to trial files (matlab dictionnaries).
-            channel_fname (str): Path to channel file (matlab dictionnary).
             wanted_event_label (str): Annotation of wanted event.
                                       Example: 'saw_EST' -> peaks of spikes.
             wanted_channel_type (list): List of the types of channels we want.
@@ -232,7 +234,7 @@ class Data:
             all_n_spikes = all_n_spikes*nchan
 
         all_n_spikes = np.asarray(all_n_spikes)
-        all_spike_events = np.asarray(all_spike_events, dtype='int64')
+        all_spike_events = get_spike_windows(all_spike_events, n_windows)
 
         """ Label creation: n_classes different number of spikes.
             Order them by increasing order in an array of dimension
@@ -255,6 +257,7 @@ class Data:
     def get_all_datasets(self,
                          path_root,
                          wanted_event_label,
+                         n_windows,
                          single_channel):
 
         """ Recover data and create labels.
@@ -316,4 +319,5 @@ class Data:
 
         return self.get_all_datasets(self.path_root,
                                      self.wanted_event_label,
+                                     self.n_windows,
                                      self.single_channel)

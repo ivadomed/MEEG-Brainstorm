@@ -252,7 +252,7 @@ class TransformerEncoder(nn.Sequential):
         x = rearrange(x, 'b s e -> s b e')
         out = self.encoder(x)
         out = rearrange(out, 's b e -> b s e')
-
+        print('trans', out.size())
         return out
 
 
@@ -358,10 +358,10 @@ class STT(nn.Module):
 
         # Embedding
         embedding = self.embedding(attention)
-
+        print('emb ', embedding.size())
         # Temporal Transforming
         code = self.encoder(embedding)
-
+        print('code: ', code.size())
         # Output
         if self.single_channel:
             out = self.head(code.flatten(1)).squeeze(1)

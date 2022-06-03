@@ -122,7 +122,7 @@ def get_spike_events(spike_time_points,
 
 
 def get_spike_windows(spike_events,
-                      n_time_windows):
+                      n_windows):
 
     """
     Compute tensor of dimension [batch_size x n_time_windows]
@@ -131,7 +131,7 @@ def get_spike_windows(spike_events,
     Args:
         spike_events (tensor): Tensor of dimension [batch_size x n_time_points]
                                whith 1 when a spike occurs and 0 otherwise.
-        n_time_windows (int): Number of time windows.
+        n_windows (int): Number of time windows.
 
     Return:
         spike_windows (tensor): Tensor of dimension
@@ -142,14 +142,14 @@ def get_spike_windows(spike_events,
 
     # Split spike_events in n_time_windows time windows
     batch_size = spike_events.shape[0]
-    spike_windows = np.zeros((n_time_windows, batch_size))
-    chunks = torch.chunk(spike_events, n_time_windows, dim=-1)
+    spike_windows = np.zeros((n_windows, batch_size))
+    chunks = np.array_split(spike_events, n_windows, axis=-1)
 
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
-        is_spike = (chunk.sum(dim=-1) > 0).int()
+        is_spike = int((chunk.sum(dim=-1) > 0))
         spike_windows[i] = is_spike
-    spike_windows = torch.Tensor(spike_windows).t()
+    spike_windows = np.array(spike_windows, dtype='int64').transpose()
 
     return spike_windows
 
