@@ -144,7 +144,7 @@ def get_spike_windows(spike_events,
     n_trials = np.array(spike_events).shape[0]
     spike_windows = np.zeros((n_windows, n_trials))
     chunks = np.array_split(spike_events, n_windows, axis=-1)
-    print(chunks.shape)
+    print(chunks)
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
         print(chunk.shape)
