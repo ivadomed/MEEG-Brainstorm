@@ -224,7 +224,7 @@ class TransformerEncoder(nn.Sequential):
         super().__init__()
         dim = expansion * emb_size
         encoder_layer = nn.TransformerEncoderLayer(d_model=emb_size,
-                                                   n_heads=num_heads,
+                                                   nhead=num_heads,
                                                    dim_feedforward=dim,
                                                    dropout=dropout,
                                                    activation='gelu')
@@ -420,7 +420,7 @@ class RNN_self_attention(nn.Module):
         """
 
         # First LSTM
-        x, (_, _) = self.LSTM_1(x)
+        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
         x = x.transpose(0, 1)
@@ -439,6 +439,6 @@ class RNN_self_attention(nn.Module):
 
         # Classifier
         out = self.classifier(x.flatten(1))
-        out = self.sigmoid(x).squeeze(1)
+        out = self.sigmoid(out).squeeze(1)
 
         return out, attention_weights

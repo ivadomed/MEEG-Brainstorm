@@ -23,6 +23,7 @@ import numpy as np
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
+from scipy import signal
 
 from utils.utils_ import get_spike_events
 
@@ -164,49 +165,61 @@ class Data:
         if single_channel:
 
             for trial_fname in folder:
-                raw = mne.io.read_raw_edf(trial_fname, preload=False,
-                                          stim_channel=None, verbose=False)
-                events = mne.events_from_annotations(raw, verbose=False)
-                ch_names = raw.info.ch_names
-                for event in events[1].keys():
-                    len_string_event = len(wanted_event_label)
-                    match = (event[-len_string_event:] == wanted_event_label)
-                    possible = (len(event) > len_string_event)
-                    if match & possible:
-                        ID = 'EEG ' + event[:2].upper()
-                        wanted_channels.append(np.where(np.array(ch_names)
-                                                        == ID)[0][0])
+                try:
+                    raw = mne.io.read_raw_edf(trial_fname, preload=False,
+                                              stim_channel=None, verbose=False)
+                    events = mne.events_from_annotations(raw, verbose=False)
+                    ch_names = raw.info.ch_names
+                    for event in events[1].keys():
+                        len_string_event = len(wanted_event_label)
+                        match = (event[-len_string_event:]
+                                 == wanted_event_label)
+                        possible = (len(event) > len_string_event)
+                        if match & possible:
+                            ID = 'EEG ' + event[:2].upper()
+                            position_channels = np.where(
+                                                np.array(ch_names) == ID)[0]
+                            if len(position_channels) != 0:
+                                wanted_channels.append(position_channels[0])
+
+                except ValueError:
+                    continue
 
             wanted_channels = np.unique(wanted_channels)
             if len(wanted_channels) == 0:
                 wanted_channels = [np.random.randint(0, len(ch_names))]
 
         for trial_fname in folder:
-            raw = mne.io.read_raw_edf(trial_fname, preload=False,
-                                      stim_channel=None, verbose=False)
-            events = mne.events_from_annotations(raw, verbose=False)
-            dataset = self.get_trial(raw,
-                                     events,
-                                     wanted_event_label,
-                                     wanted_channels,
-                                     single_channel)
+            try:
 
-            data, n_spike, spike_time_points, times, bad_trial, sfreq = dataset
+                raw = mne.io.read_raw_edf(trial_fname, preload=False,
+                                          stim_channel=None, verbose=False)
+                events = mne.events_from_annotations(raw, verbose=False)
+                dataset = self.get_trial(raw,
+                                         events,
+                                         wanted_event_label,
+                                         wanted_channels,
+                                         single_channel)
 
-            # Apply binary classification
-            # label = 1 if at least one spike occurs, label = 0 otherwise
+                data, n_spike, spike_time_points, times, bad_trial, sfreq = dataset
 
-            n_spike = int((n_spike > 0))
+                # Apply binary classification
+                # label = 1 if at least one spike occurs, label = 0 otherwise
 
-            # Append data and labels from each good trial
-            if bad_trial == 0:
-                all_data.append(data)
-                all_n_spikes.append(n_spike)
+                n_spike = int((n_spike > 0))
 
-                # Get vector with 1 when a spike occurs and 0 elsewhere
-                N = len(times)
-                spike_events = get_spike_events(spike_time_points, N)
-                all_spike_events.append(spike_events)
+                # Append data and labels from each good trial
+                if bad_trial == 0:
+                    all_data.append(data)
+                    all_n_spikes.append(n_spike)
+
+                    # Get vector with 1 when a spike occurs and 0 elsewhere
+                    N = len(times)
+                    spike_events = get_spike_events(spike_time_points, N)
+                    all_spike_events.append(spike_events)
+
+            except ValueError:
+                continue
 
         # Stack Dataset along axis 0
         all_data = np.stack(all_data, axis=0)
@@ -216,6 +229,7 @@ class Data:
             # Each channels become a trials
             all_data = all_data.reshape(ntrials*nchan, ntime)
             all_data = scipy.signal.resample(all_data, 512, axis=1)
+            all_n_spikes = all_n_spikes*nchan
 
         all_n_spikes = np.asarray(all_n_spikes)
         all_spike_events = np.asarray(all_spike_events, dtype='int64')
@@ -227,14 +241,16 @@ class Data:
                      labels will be 0 and 1 respectively.
         """
 
-        unique_n_spike = np.unique(all_n_spikes)
-        all_labels = np.asarray([np.where(unique_n_spike == s)[0][0]
-                                 for s in all_n_spikes])
+        # unique_n_spike = np.unique(all_n_spikes)
+        # all_labels = np.asarray([np.where(unique_n_spike == s)[0][0]
+        #                          for s in all_n_spikes])
+
+        # TODO change the logger for something which makes sense
         logger.info("Label creation: number of spikes {} mapped on "
                     "labels {}".format(np.unique(all_n_spikes),
-                                       np.unique(all_labels)))
+                                       np.unique(all_n_spikes)))
 
-        return all_data, all_labels, all_spike_events
+        return all_data, all_n_spikes, all_spike_events
 
     def get_all_datasets(self,
                          path_root,
