@@ -247,5 +247,6 @@ for test_subject_id in subject_ids:
     df_results = pd.DataFrame(results)
     df_results.to_csv(
         os.path.join(results_path,
-                     f"accuracy_results_spike_detection_method-{method}_"
-                     "balance-{balance}_{len(subject_ids)}-subjects.csv"))
+                     "accuracy_results_spike_detection_method-{}_balance-{}_{}"
+                     "-subjects.csv".format(method, balance,
+                                            len(subject_ids))))
