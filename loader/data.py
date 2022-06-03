@@ -229,6 +229,7 @@ class Data:
 
         if single_channel:
             ntrials, nchan, ntime = all_data.shape
+
             # Each channels become a trials
             all_data = all_data.reshape(ntrials*nchan, ntime)
             all_data = scipy.signal.resample(all_data, 512, axis=1)

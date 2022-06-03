@@ -252,7 +252,7 @@ class TransformerEncoder(nn.Sequential):
         x = rearrange(x, 'b s e -> s b e')
         out = self.encoder(x)
         out = rearrange(out, 's b e -> b s e')
-        print('trans', out.size())
+
         return out
 
 
@@ -367,7 +367,7 @@ class STT(nn.Module):
             out = self.head(code.flatten(1)).squeeze(1)
         else:
             out = self.head(code.flatten(1))
-
+        print('out: ', out.size())
         return attention_weights, out
 
 
