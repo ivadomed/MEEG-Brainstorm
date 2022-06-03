@@ -31,6 +31,7 @@ def get_parser():
     )
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--n_epochs", type=int, default=100)
     parser.add_argument("--path_data", type=str, default="../BIDSdataset/")
     parser.add_argument("--balance", action="store_true")
 
@@ -43,10 +44,10 @@ args = parser.parse_args()
 path_root = args.path_data
 method = args.method
 batch_size = args.batch_size
+n_epochs = args.n_epochs
 balance = args.balance
 
 # Recover params
-n_epochs = 100
 lr = 1e-3  # Learning rate
 patience = 10
 weight_decay = 0
