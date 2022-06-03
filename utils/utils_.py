@@ -205,5 +205,5 @@ def xavier_initialization(m):
     """
 
     if isinstance(m, torch.nn.Linear):
-        torch.nn.init.xavier_uniform(m.weight)
+        torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)
