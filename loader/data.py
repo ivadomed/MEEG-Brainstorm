@@ -101,11 +101,12 @@ class Data:
             spikeTimePoints (array): Spike events times.
             times (array): Time points.
             bad_trial (int): If nonzero, trial is further discarded.
+            sfreq (int): Sample frequence of the trial.
         """
 
         # Load the trial and corresponding channels
-
         events_name = events[1].keys()
+
         # Count seizure events and recover spikes events times
         count_spikes = 0
         spike_time_points = []
@@ -153,6 +154,7 @@ class Data:
             all_labels (array): Labels of dimension [n_trials].
             all_spike_events (array): Spike events of dimension
                                       [n_trials x n_time_points].
+            sfreq (int): Sample frequence of the trial.
         """
 
         all_data = []
@@ -163,7 +165,6 @@ class Data:
         wanted_channels = []
 
         if single_channel:
-
             for trial_fname in folder:
                 try:
                     raw = mne.io.read_raw_edf(trial_fname, preload=False,
@@ -201,15 +202,14 @@ class Data:
                                          wanted_channels,
                                          single_channel)
 
-                data, n_spike, spike_time_points, times, bad_trial, sfreq = dataset
+                data, n_spike, spike_time_points, times, bad, sfreq = dataset
 
                 # Apply binary classification
                 # label = 1 if at least one spike occurs, label = 0 otherwise
-
                 n_spike = int((n_spike > 0))
 
                 # Append data and labels from each good trial
-                if bad_trial == 0:
+                if bad == 0:
                     all_data.append(data)
                     all_n_spikes.append(n_spike)
 
@@ -250,7 +250,7 @@ class Data:
                     "labels {}".format(np.unique(all_n_spikes),
                                        np.unique(all_n_spikes)))
 
-        return all_data, all_n_spikes, all_spike_events
+        return all_data, all_n_spikes, all_spike_events, sfreq
 
     def get_all_datasets(self,
                          path_root,
@@ -274,6 +274,7 @@ class Data:
                                 of dimension [n_trials].
             all_spike_events (dict):  Keys -> subjects; values -> spike events
                                       of dimension [n_trials x n_time_points].
+            sfreq (int): Sample frequence of the trial.
         """
 
         all_data = {}
@@ -297,7 +298,7 @@ class Data:
                     dataset = self.get_dataset(folder,
                                                wanted_event_label,
                                                single_channel)
-                    data, labels, spike_events = dataset
+                    data, labels, spike_events, sfreq = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)
                     subject_spike_events.append(spike_events)
@@ -307,7 +308,7 @@ class Data:
                 all_labels[item] = subject_labels
                 all_spike_events[item] = subject_spike_events
 
-        return all_data, all_labels, all_spike_events
+        return all_data, all_labels, all_spike_events, sfreq
 
     def all_datasets(self):
 

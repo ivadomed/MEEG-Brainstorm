@@ -14,10 +14,11 @@ import torch
 
 import numpy as np
 
-from sklearn.metrics import f1_score
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import f1_score, accuracy_score
 
-from utils.utils_ import get_next
+from utils.utils_ import get_next_batch
+
 
 class make_model():
 
@@ -37,7 +38,6 @@ class make_model():
             loader_valid (Sampler): Generator of n_val samples for validation.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
-            parameters : Parameters of the model.
             n_epochs (int): Maximum number of epochs to run.
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
@@ -49,7 +49,6 @@ class make_model():
         self.loader_val = loader_val
         self.optimizer = optimizer
         self.criterion = criterion
-        # self.parameters = parameters
         self.n_epochs = n_epochs
         self.patience = patience
 
@@ -83,7 +82,7 @@ class make_model():
                 batch_y_list = [batch_y]
 
                 for id in range(len(loaders[1:])):
-                    batch_x, batch_y = get_next(id, iter_loader, loaders)
+                    batch_x, batch_y = get_next_batch(id, iter_loader, loaders)
                     batch_x_list.append(batch_x)
                     batch_y_list.append(batch_y)
 
@@ -196,7 +195,7 @@ class make_model():
                 print(f"best val loss {best_valid_loss:.4f} "
                       f"-> {valid_loss:.4f}")
                 best_valid_loss = valid_loss
-                best_model = copy.deepcopy(self.model)
+                self.best_model = copy.deepcopy(self.model)
                 waiting = 0
             else:
                 waiting += 1
@@ -235,7 +234,8 @@ class make_model():
 
         acc = accuracy_score(y_true, y_pred_binary)
         f1 = f1_score(y_true, y_pred_binary, average='weighted')
-        precision = precision_score(y_true, y_pred_binary, average='weighted')
+        precision, recall = precision_score(y_true, y_pred_binary,
+                                            average='weighted')
         recall = recall_score(y_true, y_pred_binary, average='weighted')
 
         return acc, f1, precision, recall

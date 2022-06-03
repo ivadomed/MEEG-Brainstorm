@@ -333,8 +333,7 @@ class STT(nn.Module):
         self.single_channel = int(n_windows == 1)
 
         # Weight initialization
-        self.detection_head.apply(normal_initialization)
-        self.classification_head.apply(normal_initialization)
+        self.head.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):

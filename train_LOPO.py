@@ -7,9 +7,7 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import argparse
-import json
 import os
-from platform import architecture
 import numpy as np
 import pandas as pd
 import torch
@@ -21,8 +19,7 @@ from models.architectures import RNN_self_attention, STT
 from models.training import make_model
 from loader.dataloader import load_loaders
 from loader.data import Data
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
+from utils.utils_ import define_device
 
 
 def get_parser():
@@ -40,13 +37,26 @@ def get_parser():
     return parser
 
 
-# Experiment name
+# Recover paths and method
 parser = get_parser()
 args = parser.parse_args()
 path_root = args.path_data
 method = args.method
 batch_size = args.batch_size
 balance = args.balance
+
+# Recover params
+n_epochs = 100
+lr = 1e-3  # Learning rate
+patience = 10
+weight_decay = 0
+gpu_id = 0
+
+# Define device
+available, device = define_device(gpu_id)
+
+# Define loss
+criterion = BCELoss().to(device)
 
 # path_root = args.path_root
 # single_channel = args.single_channel
@@ -73,12 +83,11 @@ else:
 dataset = Data(path_root, 'spikeandwave', single_channel)
 all_dataset = dataset.all_datasets()
 
-assert method in ("RNN_self_attention", "transformers_classification",
-                  "transformers_detection")
+assert method in ("RNN_self_attention", "transformer_classification",
+                  "transformer_detection")
 
 results = []
-data = all_dataset[0]
-labels = all_dataset[1]
+data, labels, spikes, sfreq = all_dataset
 subject_ids = np.asarray(list(data.keys()))
 for test_subject_id in subject_ids:
 
@@ -89,82 +98,114 @@ for test_subject_id in subject_ids:
                                   np.where(subject_ids == test_subject_id))
     val_subject_id = np.random.choice(train_subject_ids)
     train_subject_ids = np.delete(train_subject_ids,
-                                  np.where(train_subject_ids == val_subject_id))
+                                  np.where(train_subject_ids
+                                           == val_subject_id))
 
     print('Test on: {}, '
           'Validation on: {}'.format(test_subject_id,
-                               val_subject_id))
+                                     val_subject_id))
 
     # Training dataloader
     train_labels = []
     train_data = []
+    train_spikes = []
     for id in train_subject_ids:
         train_data.append(data[id])
         train_labels.append(labels[id])
+        train_spikes.append(spikes[id])
 
     # Z-score normalization
 
-    target_mean = np.mean([np.mean([np.mean(data) for data in data_id]) for data_id in train_data])
-    target_std = np.mean([np.mean([np.std(data) for data in data_id]) for data_id in train_data])
-    train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1) for data in data_id] for data_id in train_data]
-    
-    loaders_train = load_loaders(train_data,
-                                 train_labels,
-                                 batch_size,
-                                 shuffle=True,
-                                 num_workers=0,
-                                 balance=balance)
+    target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
+                           for data_id in train_data])
+    target_std = np.mean([np.mean([np.std(data) for data in data_id])
+                          for data_id in train_data])
+    train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
+                   for data in data_id] for data_id in train_data]
+
+    if method == "transformer_detection":
+        loaders_train = load_loaders(train_data,
+                                     train_spikes,
+                                     batch_size,
+                                     shuffle=True,
+                                     num_workers=0,
+                                     balance=balance)
+    else:
+        loaders_train = load_loaders(train_data,
+                                     train_labels,
+                                     batch_size,
+                                     shuffle=True,
+                                     num_workers=0,
+                                     balance=balance)
 
     # Validation dataloader
     val_data = data[val_subject_id]
     val_labels = labels[val_subject_id]
+    val_spikes = spikes[val_subject_id]
 
     # Z-score normalization
     val_data = [np.expand_dims((data-target_mean) / target_std,
                 axis=1)
                 for data in val_data]
-    
-    loader_val = load_loaders([val_data],
-                              [val_labels],
-                              batch_size,
-                              shuffle=False,
-                              num_workers=0,
-                              balance=False)
+
+    if method == "transformer_detection":
+        loaders_val = load_loaders(val_data,
+                                   val_spikes,
+                                   batch_size,
+                                   shuffle=False,
+                                   num_workers=0,
+                                   balance=False)
+    else:
+        loaders_val = load_loaders(val_data,
+                                   val_labels,
+                                   batch_size,
+                                   shuffle=False,
+                                   num_workers=0,
+                                   balance=False)
 
     # Test dataloader
     test_data = data[test_subject_id]
     test_labels = labels[test_subject_id]
+    test_spikes = spikes[test_subject_id]
 
     # Z-score normalization
     test_data = [np.expand_dims((data-target_mean) / target_std,
                                 axis=1)
                  for data in test_data]
-    loader_test = load_loaders([test_data],
-                               [test_labels],
-                               batch_size,
-                               shuffle=False,
-                               num_workers=0,
-                               balance=False)
 
+    if method == "transformer_detection":
+        loaders_test = load_loaders(test_data,
+                                    test_spikes,
+                                    batch_size,
+                                    shuffle=False,
+                                    num_workers=0,
+                                    balance=False)
+    else:
+        loaders_test = load_loaders(test_data,
+                                    test_labels,
+                                    batch_size,
+                                    shuffle=False,
+                                    num_workers=0,
+                                    balance=False)
+
+    # Define model
     if method == "RNN_self_attention":
-        archi = RNN_self_attention(input_size=1)
-    elif method == "transformers_classification":
-        archi = STT()
+        architecture = RNN_self_attention()
+    else:
+        architecture = STT()
 
-    archi = archi.to(device)
-
-    lr = 1e-3  # Learning rate
-    optimizer = Adam(archi.parameters(), lr=lr, weight_decay=0)
-
-    criterion = BCELoss()
-
-    model = make_model(archi,
+    architecture = architecture.to(device)
+    model = make_model(architecture,
                        loaders_train,
-                       loader_val,
+                       loaders_val,
                        optimizer,
                        criterion,
-                       n_epochs=100,
-                       patience=10)
+                       n_epochs=n_epochs,
+                       patience=patience)
+
+    # Define optimizer
+    optimizer = Adam(model.model.parameters(), lr=lr,
+                     weight_decay=weight_decay)
 
     # Train Model
     history = model.train()
@@ -182,7 +223,7 @@ for test_subject_id in subject_ids:
     #     )
 
     # Compute test performance and save it
-    acc, f1, precision, recall = model.score(loader_test)
+    acc, f1, precision, recall = model.score(loaders_test)
 
     results.append(
         {
@@ -205,4 +246,5 @@ for test_subject_id in subject_ids:
     df_results = pd.DataFrame(results)
     df_results.to_csv(
         os.path.join(results_path,
-                     "accuracy_results_spike_detection_method-{}_balance-{}_{}-subjects.csv".format(method, balance, len(subject_ids))))
+                     f"accuracy_results_spike_detection_method-{method}_"
+                     "balance-{balance}_{len(subject_ids)}-subjects.csv"))
