@@ -184,10 +184,13 @@ class Data:
 
                 except ValueError:
                     continue
-
-            wanted_channels = np.unique(wanted_channels)
-            if len(wanted_channels) == 0:
-                wanted_channels = [np.random.randint(0, len(ch_names))]
+            
+            try:
+                wanted_channels = np.unique(wanted_channels)
+                if len(wanted_channels) == 0:
+                    wanted_channels = [np.random.randint(0, len(ch_names))]
+            except UnboundLocalError:
+                print('no wanted channel')
 
         for trial_fname in folder:
             try:
