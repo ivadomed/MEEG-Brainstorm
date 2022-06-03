@@ -147,6 +147,7 @@ def get_spike_windows(spike_events,
 
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
+        print(chunk.shape)
         is_spike = int((chunk.sum(axis=-1) > 0))
         spike_windows[i] = is_spike
     spike_windows = np.array(spike_windows, dtype='int64').transpose()
