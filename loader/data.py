@@ -218,7 +218,8 @@ class Data:
                     # Get vector with 1 when a spike occurs and 0 elsewhere
                     N = len(times)
                     spike_events = get_spike_events(spike_time_points, N)
-                    all_spike_events.append(spike_events)
+                    spike_windows = get_spike_windows(spike_events, n_windows)
+                    all_spike_events.append(spike_windows)
 
             except ValueError:
                 continue
@@ -234,7 +235,7 @@ class Data:
             all_n_spikes = all_n_spikes*nchan
 
         all_n_spikes = np.asarray(all_n_spikes)
-        all_spike_events = get_spike_windows(all_spike_events, n_windows)
+        all_spike_events = np.array(all_spike_events, dtype='int64')
 
         """ Label creation: n_classes different number of spikes.
             Order them by increasing order in an array of dimension
