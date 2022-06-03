@@ -23,6 +23,7 @@ import numpy as np
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
+from scipy import signal
 
 from utils.utils_ import get_spike_events
 
@@ -176,8 +177,11 @@ class Data:
                         possible = (len(event) > len_string_event)
                         if match & possible:
                             ID = 'EEG ' + event[:2].upper()
-                            wanted_channels.append(np.where(np.array(ch_names)
-                                                            == ID)[0][0])
+                            position_channels = np.where(
+                                                np.array(ch_names) == ID)[0]
+                            if len(position_channels) != 0:
+                                wanted_channels.append(position_channels[0])
+
                 except ValueError:
                     continue
 
@@ -225,6 +229,7 @@ class Data:
             # Each channels become a trials
             all_data = all_data.reshape(ntrials*nchan, ntime)
             all_data = scipy.signal.resample(all_data, 512, axis=1)
+            all_n_spikes = all_n_spikes*nchan
 
         all_n_spikes = np.asarray(all_n_spikes)
         all_spike_events = np.asarray(all_spike_events, dtype='int64')
@@ -236,14 +241,16 @@ class Data:
                      labels will be 0 and 1 respectively.
         """
 
-        unique_n_spike = np.unique(all_n_spikes)
-        all_labels = np.asarray([np.where(unique_n_spike == s)[0][0]
-                                 for s in all_n_spikes])
+        # unique_n_spike = np.unique(all_n_spikes)
+        # all_labels = np.asarray([np.where(unique_n_spike == s)[0][0]
+        #                          for s in all_n_spikes])
+
+        # TODO change the logger for something which makes sense
         logger.info("Label creation: number of spikes {} mapped on "
                     "labels {}".format(np.unique(all_n_spikes),
-                                       np.unique(all_labels)))
+                                       np.unique(all_n_spikes)))
 
-        return all_data, all_labels, all_spike_events
+        return all_data, all_n_spikes, all_spike_events
 
     def get_all_datasets(self,
                          path_root,
