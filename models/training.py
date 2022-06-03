@@ -19,6 +19,7 @@ from sklearn.metrics import f1_score, accuracy_score
 
 from utils.utils_ import get_next_batch
 
+# TODO: ISSUE WITH BINARY CROSS ENTROPY
 
 class make_model():
 
@@ -94,7 +95,7 @@ class make_model():
             batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(torch.float).to(device=device)
             output, _ = model(batch_x)
-            loss = criterion(output, batch_y)
+            loss = criterion(output, batch_y) # TODO: ISSUE WITH BINARY CROSS ENTROPY
             loss.backward()
             optimizer.step()
             train_loss.append(loss.item())
