@@ -65,8 +65,7 @@ def get_next_batch(id,
 
 
 def get_spike_events(spike_time_points,
-                     n_time_points,
-                     freq):
+                     n_time_points):
 
     """ Compute array of dimension [n_time_points]
         with 1 when a spike occurs and 0 otherwise.
@@ -74,7 +73,6 @@ def get_spike_events(spike_time_points,
     Args:
         spike_time_points (array): Contains time points of spike events.
         n_time_points (int): Number of time points.
-        freq (int): Sample frequence of the EEG/MEG signals.
 
     Returns:
         spike_events (array): Binary array of dimension [n_time_points]
@@ -83,8 +81,7 @@ def get_spike_events(spike_time_points,
 
     spike_events = np.zeros(n_time_points)
     for time in spike_time_points:
-        index = int(freq*time)
-        spike_events[index] = 1
+        spike_events[time] = 1
 
     return spike_events.astype(int)
 

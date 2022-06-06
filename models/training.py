@@ -113,7 +113,7 @@ class make_model():
 
         # Recover binary prediction
         y_pred = np.concatenate(all_preds)
-        y_pred_binary = (y_pred > 0.5).int()
+        y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
 
         # Recover mean loss and F1-score
@@ -163,7 +163,7 @@ class make_model():
 
         # Recover binary prediction
         y_pred = np.concatenate(all_preds)
-        y_pred_binary = (y_pred > 0.5).int()
+        y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
 
         # Recover mean loss and F1-score
@@ -261,7 +261,7 @@ class make_model():
 
         # Recover binary prediction
         y_pred = np.concatenate(all_preds)
-        y_pred_binary = (y_pred > 0.5).int()
+        y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
 
         # Recover performances
