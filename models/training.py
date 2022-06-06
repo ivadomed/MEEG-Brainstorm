@@ -27,7 +27,8 @@ class make_model():
                  val_loader,
                  test_loader,
                  optimizer,
-                 criterion,
+                 train_criterion,
+                 val_criterion,
                  n_epochs,
                  patience=None):
 
@@ -38,7 +39,8 @@ class make_model():
             val_loader (Dataloader): Loader of EEG samples for validation.
             test_loader (Dataloader): Loader of EEG samples for test.
             optimizer (optimizer): Optimizer.
-            criterion (Loss): Loss function.
+            train_criterion (Loss): Loss function for training.
+            val_criterion (Loss): Loss function for validation and test.
             n_epochs (int): Maximum number of epochs to run.
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
@@ -50,7 +52,8 @@ class make_model():
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.optimizer = optimizer
-        self.criterion = criterion
+        self.train_criterion = train_criterion
+        self.val_criterion = val_criterion
         self.n_epochs = n_epochs
         self.patience = patience
 
@@ -200,12 +203,12 @@ class make_model():
                 self.model,
                 self.train_loader,
                 self.optimizer,
-                self.criterion,
+                self.train_criterion,
             )
 
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.criterion)
+                                                self.val_criterion)
 
             history.append(
                 {
