@@ -82,6 +82,7 @@ def get_spike_events(spike_time_points,
     """
 
     spike_events = np.zeros(n_time_points)
+    print(freq, spike_time_points)
     for time in spike_time_points:
         index = int(freq*time)
         spike_events[index] = 1
