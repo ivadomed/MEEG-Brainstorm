@@ -100,6 +100,7 @@ class make_model():
 
             # Forward
             output, _ = model(batch_x)
+            print('after', batch_y.size())
             loss = criterion(output, batch_y)
 
             # Backward

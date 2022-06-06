@@ -29,23 +29,23 @@ class Data:
     def __init__(self,
                  path_root,
                  wanted_event_label,
-                 n_windows,
-                 single_channel):
+                 single_channel,
+                 n_windows=1):
 
         """
         Args:
             path_root (str): Path to data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            n_windows (int): Number of time windows.
             single_channel (bool): If True, only select the channels with
                                    the event annotation one.
+            n_windows (int): Number of time windows.
         """
 
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
-        self.n_windows = n_windows
         self.single_channel = single_channel
+        self.n_windows = n_windows
 
     def get_trial(self,
                   raw_trial,
@@ -65,6 +65,7 @@ class Data:
                                        to select if single_channel is True.
             single_channel (bool): If True, only select the channels with
                                    the event annotation one.
+
         Returns:
             data (array): Trial of dimension [n_channels x n_time_points].
             cout_spikes (int): Number of seizures in the trial.
@@ -105,8 +106,8 @@ class Data:
     def get_dataset(self,
                     folder,
                     wanted_event_label,
-                    n_windows,
-                    single_channel):
+                    single_channel,
+                    n_windows=1):
 
         """ Recover trials in .edf format as BIDS dataset.
             Binary labels: 0 if no spike in the trial, 1 otherwise.
@@ -116,9 +117,10 @@ class Data:
             folder (list): Folder with a subject data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            n_windows (int): Number of time windows.
             single_channel (bool): If True, only select the channels with
                                    the event annotation one.
+            n_windows (int): Number of time windows.
+
         Returns:
             all_data (array): Trials of dimension
                               [n_trials x n_channels x n_time_points].
@@ -228,17 +230,18 @@ class Data:
     def get_all_datasets(self,
                          path_root,
                          wanted_event_label,
-                         n_windows,
-                         single_channel):
+                         single_channel,
+                         n_windows=1):
 
         """ Recover data and create labels for all subjects.
         Args:
             path_root (str): Path to data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            n_windows (int): Number of time windows.
             single_channel (bool): If True, only select the channels with
                                    the event annotation one.
+            n_windows (int): Number of time windows.
+
         Returns:
             all_data (dict): Keys -> subjects; values -> list of trials of
                              dimension [n_trials x n_channels x n_time_points].
@@ -290,5 +293,5 @@ class Data:
 
         return self.get_all_datasets(self.path_root,
                                      self.wanted_event_label,
-                                     self.n_windows,
-                                     self.single_channel)
+                                     self.single_channel,
+                                     self.n_windows)

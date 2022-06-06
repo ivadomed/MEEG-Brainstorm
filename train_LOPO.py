@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from loguru import logger
 from torch.nn import BCELoss
 from torch.optim import Adam
 
@@ -79,6 +80,12 @@ dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
+# Apply transformer_detection only if n_windows > 1;
+# otherwise transformer_classification is applied
+if (method == "tranformer_detection") & n_windows < 2:
+    logger.info(" Detection modified in classification. ")
+    method = "transformer_classification"
+
 # Apply Leave-One-Patient-Out strategy
 
 """ Each subject is chosen once as test set while the model is trained
@@ -115,7 +122,7 @@ for test_subject_id in subject_ids:
                           for data_id in train_data])
     train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
                    for data in data_id] for data_id in train_data]
-
+    print(train_spikes)
     # Dataloader
     if method == "transformer_detection":
 
