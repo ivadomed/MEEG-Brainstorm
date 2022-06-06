@@ -71,7 +71,7 @@ class make_model():
         Train model.
         Args:
             model (nn.Module): Model.
-            loaders (Sampler): Generator of n_train EEG samples for training.
+            loaders (Sampler): Loaders of EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
             average (str): Type of averaging on the data.
@@ -141,7 +141,7 @@ class make_model():
         Evaluate model on validation set.
         Args:
             model (nn.Module): Model.
-            loader (Sampler): Generator of n_val EEG samples for validation.
+            loader (Sampler): Loader EEG samples for validation.
             criterion (Loss): Loss function.
             average (str): Type of averaging on the data.
 
