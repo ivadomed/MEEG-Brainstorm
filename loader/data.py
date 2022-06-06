@@ -19,6 +19,7 @@ import numpy as np
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
+from scipy import signal
 
 from utils.utils_ import get_spike_events, get_spike_windows
 
