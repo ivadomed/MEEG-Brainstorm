@@ -422,6 +422,7 @@ class RNN_self_attention(nn.Module):
         """
 
         # First LSTM
+        self.LSTM_1.flatten_parameters()
         x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
@@ -434,6 +435,7 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(0, 1)
 
         # Second LSTM
+        self.LSTM_2.flatten_parameters()
         x, (_, _) = self.LSTM_2(x)
         x = self.tanh(x)
         x = self.avgPool(x.transpose(1, 2))
