@@ -71,6 +71,7 @@ results = []
 # Recover dataset
 assert method in ("RNN_self_attention", "transformer_classification",
                   "transformer_detection")
+logger.info(f"Method used: {method}")
 if method == 'RNN_self_attention':
     single_channel = True
 else:
