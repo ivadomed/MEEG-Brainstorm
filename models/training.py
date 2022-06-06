@@ -30,7 +30,8 @@ class make_model():
                  train_criterion,
                  val_criterion,
                  n_epochs,
-                 patience=None):
+                 patience=None,
+                 average='weighted'):
 
         """
         Args:
@@ -45,6 +46,7 @@ class make_model():
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
                             before stopping training.
+            average (str): Type of averaging on the data.
         """
 
         self.model = model
@@ -56,12 +58,14 @@ class make_model():
         self.val_criterion = val_criterion
         self.n_epochs = n_epochs
         self.patience = patience
+        self.average = average
 
     def _do_train(self,
                   model,
                   loaders,
                   optimizer,
-                  criterion):
+                  criterion,
+                  average):
 
         """
         Train model.
@@ -70,6 +74,7 @@ class make_model():
             loaders (Sampler): Generator of n_train EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
+            average (str): Type of averaging on the data.
 
         Returns:
             train_loss (float): Mean loss on the loaders.
@@ -121,7 +126,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
-        perf = f1_score(y_true, y_pred_binary, average='weighted',
+        perf = f1_score(y_true, y_pred_binary, average=average,
                         zero_division=0)
 
         return train_loss, perf
@@ -129,7 +134,8 @@ class make_model():
     def _validate(self,
                   model,
                   loader,
-                  criterion):
+                  criterion,
+                  average):
 
         """
         Evaluate model on validation set.
@@ -137,6 +143,7 @@ class make_model():
             model (nn.Module): Model.
             loader (Sampler): Generator of n_val EEG samples for validation.
             criterion (Loss): Loss function.
+            average (str): Type of averaging on the data.
 
         Returns:
             val_loss (float): Mean loss on the loader.
@@ -172,7 +179,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
-        perf = f1_score(y_true, y_pred_binary, average='weighted',
+        perf = f1_score(y_true, y_pred_binary, average=average,
                         zero_division=0)
 
         return val_loss, perf
@@ -197,16 +204,15 @@ class make_model():
 
         for epoch in range(1, self.n_epochs + 1):
 
-            train_loss, train_perf = self._do_train(
-                self.model,
-                self.train_loader,
-                self.optimizer,
-                self.train_criterion,
-            )
-
+            train_loss, train_perf = self._do_train(self.model,
+                                                    self.train_loader,
+                                                    self.optimizer,
+                                                    self.train_criterion,
+                                                    self.average)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.val_criterion)
+                                                self.val_criterion,
+                                                self.average)
 
             history.append(
                 {"epoch": epoch,
@@ -268,11 +274,11 @@ class make_model():
 
         # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
-        f1 = f1_score(y_true, y_pred_binary, average='weighted',
+        f1 = f1_score(y_true, y_pred_binary, average=self.average,
                       zero_division=0)
         precision = precision_score(y_true, y_pred_binary,
-                                    average='weighted', zero_division=0)
-        recall = recall_score(y_true, y_pred_binary, average='weighted',
+                                    average=self.average, zero_division=0)
+        recall = recall_score(y_true, y_pred_binary, average=self.average,
                               zero_division=0)
         print("Performances on test")
         print("Acc \t F1 \t Precision \t Recall")
