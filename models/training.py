@@ -118,7 +118,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
-        perf = f1_score(y_true, y_pred_binary)
+        perf = f1_score(y_true, y_pred_binary, average='weighted')
 
         return train_loss, perf
 
@@ -168,7 +168,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
-        perf = f1_score(y_true, y_pred_binary)
+        perf = f1_score(y_true, y_pred_binary, average='weighted')
 
         return val_loss, perf
 
