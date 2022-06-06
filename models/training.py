@@ -199,7 +199,7 @@ class make_model():
         history = list()
         best_val_loss = np.inf
         self.best_model = copy.deepcopy(self.model)
-        print("epoch \t train_loss \t val_loss \t train_perf \t val_perf")
+        print("epoch \t train_loss \t val_loss \t train_f1 \t val_f1")
         print("-" * 80)
 
         for epoch in range(1, self.n_epochs + 1):
