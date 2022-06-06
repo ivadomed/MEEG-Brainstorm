@@ -17,9 +17,9 @@ from torch.optim import Adam
 
 from models.architectures import RNN_self_attention, STT
 from models.training import make_model
-from loader.dataloader import load_loaders
+from loader.dataloader import Loader
 from loader.data import Data
-from utils.utils_ import define_device
+from utils.utils_ import define_device, reset_weights
 
 
 def get_parser():
@@ -29,12 +29,13 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection using attention layer"
     )
+    parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
+    parser.add_argument("--balanced", action="store_true")
+    parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
-    parser.add_argument("--n_windows", type=int, default=10)
-    parser.add_argument("--path_data", type=str, default="../BIDSdataset/")
-    parser.add_argument("--balance", action="store_true")
 
     return parser
 
@@ -42,12 +43,13 @@ def get_parser():
 # Recover paths and method
 parser = get_parser()
 args = parser.parse_args()
-path_root = args.path_data
+path_root = args.path_root
 method = args.method
-batch_size = args.batch_size
-n_epochs = args.n_epochs
+balanced = args.balanced
 n_windows = args.n_windows
-balance = args.balance
+batch_size = args.batch_size
+num_workers = args.num_workers
+n_epochs = args.n_epochs
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -61,39 +63,29 @@ available, device = define_device(gpu_id)
 # Define loss
 criterion = BCELoss().to(device)
 
-# path_root = args.path_root
-# single_channel = args.single_channel
-# path_config = args.path_config
+# Recover results
+results = []
 
-# # Recover config dictionnary
-# with open(path_config) as f:
-#     config = json.loads(f.read())
-
-# # Recover params
-# seed = config['seed']
-# method = config['method']
-# model = method['params']
-# batch_size = config['batch_size']
-# n_epochs = config['n_epochs']
-# patience = config['patience']
-# sample_frequence = config['sample_frequence']
-
+# Recover dataset
+assert method in ("RNN_self_attention", "transformer_classification",
+                  "transformer_detection")
 if method == 'RNN_self_attention':
     single_channel = True
 else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
-all_dataset = dataset.all_datasets()
-
-assert method in ("RNN_self_attention", "transformer_classification",
-                  "transformer_detection")
-
-results = []
-data, labels, spikes, sfreq = all_dataset
+data, labels, spikes, sfreq = dataset.all_datasets()
+print(data.shape, labels.shape, spikes.shape)
 subject_ids = np.asarray(list(data.keys()))
-for test_subject_id in subject_ids:
 
+# Apply Leave-One-Patient-Out strategy
+
+""" Each subject is chosen once as test set while the model is trained
+    and validate on the remaining ones.
+"""
+
+for test_subject_id in subject_ids:
     data_train = []
     labels_train = []
     data_train = []
@@ -103,7 +95,6 @@ for test_subject_id in subject_ids:
     train_subject_ids = np.delete(train_subject_ids,
                                   np.where(train_subject_ids
                                            == val_subject_id))
-
     print('Test on: {}, '
           'Validation on: {}'.format(test_subject_id,
                                      val_subject_id))
@@ -118,7 +109,6 @@ for test_subject_id in subject_ids:
         train_spikes.append(spikes[id])
 
     # Z-score normalization
-
     target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
                            for data_id in train_data])
     target_std = np.mean([np.mean([np.std(data) for data in data_id])
@@ -126,20 +116,26 @@ for test_subject_id in subject_ids:
     train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
                    for data in data_id] for data_id in train_data]
 
+    # Dataloader
     if method == "transformer_detection":
-        loaders_train = load_loaders(train_data,
-                                     train_spikes,
-                                     batch_size,
-                                     shuffle=True,
-                                     num_workers=0,
-                                     balance=balance)
+
+        # Labels are the spike events times
+        train_loader = Loader(train_data,
+                              train_spikes,
+                              balanced=balanced,
+                              shuffle=True,
+                              batch_size=batch_size,
+                              num_workers=num_workers)
     else:
-        loaders_train = load_loaders(train_data,
-                                     train_labels,
-                                     batch_size,
-                                     shuffle=True,
-                                     num_workers=0,
-                                     balance=balance)
+
+        # Label is 1 with a spike occurs in the trial, 0 otherwise
+        train_loader = Loader(train_data,
+                              train_labels,
+                              balanced=balanced,
+                              shuffle=True,
+                              batch_size=batch_size,
+                              num_workers=num_workers)
+    train_loader.load()
 
     # Validation dataloader
     val_data = data[val_subject_id]
@@ -151,20 +147,26 @@ for test_subject_id in subject_ids:
                 axis=1)
                 for data in val_data]
 
+    # Dataloader
     if method == "transformer_detection":
-        loaders_val = load_loaders(val_data,
-                                   val_spikes,
-                                   batch_size,
-                                   shuffle=False,
-                                   num_workers=0,
-                                   balance=False)
+
+        # Labels are the spike events times
+        val_loader = Loader(val_data,
+                            val_spikes,
+                            balanced=balanced,
+                            shuffle=False,
+                            batch_size=batch_size,
+                            num_workers=num_workers)
     else:
-        loaders_val = load_loaders(val_data,
-                                   val_labels,
-                                   batch_size,
-                                   shuffle=False,
-                                   num_workers=0,
-                                   balance=False)
+
+        # Label is 1 with a spike occurs in the trial, 0 otherwise
+        val_loader = Loader(val_data,
+                            val_labels,
+                            balanced=balanced,
+                            shuffle=False,
+                            batch_size=batch_size,
+                            num_workers=num_workers)
+    val_loader.load()
 
     # Test dataloader
     test_data = data[test_subject_id]
@@ -176,26 +178,33 @@ for test_subject_id in subject_ids:
                                 axis=1)
                  for data in test_data]
 
+    # Dataloader
     if method == "transformer_detection":
-        loaders_test = load_loaders(test_data,
-                                    test_spikes,
-                                    batch_size,
-                                    shuffle=False,
-                                    num_workers=0,
-                                    balance=False)
+
+        # Labels are the spike events times
+        test_loader = Loader(test_data,
+                             test_spikes,
+                             balanced=balanced,
+                             shuffle=False,
+                             batch_size=batch_size,
+                             num_workers=num_workers)
     else:
-        loaders_test = load_loaders(test_data,
-                                    test_labels,
-                                    batch_size,
-                                    shuffle=False,
-                                    num_workers=0,
-                                    balance=False)
+
+        # Label is 1 with a spike occurs in the trial, 0 otherwise
+        test_loader = Loader(test_data,
+                             test_labels,
+                             balanced=balanced,
+                             shuffle=False,
+                             batch_size=batch_size,
+                             num_workers=num_workers)
+    test_loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
     else:
         architecture = STT(n_windows=n_windows)
+    architecture.apply(reset_weights)
 
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,
@@ -204,8 +213,9 @@ for test_subject_id in subject_ids:
     # Define training pipeline
     architecture = architecture.to(device)
     model = make_model(architecture,
-                       loaders_train,
-                       loaders_val,
+                       train_loader,
+                       val_loader,
+                       test_loader,
                        optimizer,
                        criterion,
                        n_epochs=n_epochs,
@@ -217,22 +227,13 @@ for test_subject_id in subject_ids:
     if not os.path.exists("../results"):
         os.mkdir("../results")
 
-    # if args.save_model:
-    #     model_dir = "../results/{}".format(archi)
-    #     if not os.path.exists(model_dir):
-    #         os.mkdir(model_dir)
-    #     torch.save(
-    #         model.best_model.state_dict(),
-    #         model_dir / "model_{}_{}".format(method, test_subject_id),
-    #     )
-
     # Compute test performance and save it
-    acc, f1, precision, recall = model.score(loaders_test)
+    acc, f1, precision, recall = model.score()
 
     results.append(
         {
             "method": method,
-            "balance": balance,
+            "balance": balanced,
             "test_subj_id": test_subject_id,
             "acc": acc,
             "f1": f1,
@@ -251,5 +252,5 @@ for test_subject_id in subject_ids:
     df_results.to_csv(
         os.path.join(results_path,
                      "accuracy_results_spike_detection_method-{}_balance-{}_{}"
-                     "-subjects.csv".format(method, balance,
+                     "-subjects.csv".format(method, balanced,
                                             len(subject_ids))))
