@@ -291,7 +291,8 @@ class STT(nn.Module):
                  num_heads=10,
                  expansion=4,
                  transformer_dropout=0.25,
-                 n_windows=10):
+                 n_windows=10,
+                 detection=False):
 
         """
         Args:
@@ -311,6 +312,8 @@ class STT(nn.Module):
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
             n_windows (int): Number of time windows.
+            detection (bool): If True, detect spikes in each
+                              n_windows portions of input.
         """
 
         super().__init__()
@@ -330,7 +333,7 @@ class STT(nn.Module):
         self.head = nn.Sequential(
                         nn.Linear(flatten_size, n_windows),
                         nn.Sigmoid())
-        self.single_channel = int(n_windows == 1)
+        self.detection = detection
 
         # Weight initialization
         self.head.apply(normal_initialization)
@@ -358,16 +361,16 @@ class STT(nn.Module):
 
         # Embedding
         embedding = self.embedding(attention)
-        print('emb ', embedding.size())
+
         # Temporal Transforming
         code = self.encoder(embedding)
-        print('code: ', code.size())
+
         # Output
-        if self.single_channel:
-            out = self.head(code.flatten(1)).squeeze(1)
-        else:
+        if self.detection:
             out = self.head(code.flatten(1))
-        print('out: ', out.size())
+        else:
+            out = self.head(code.flatten(1)).squeeze(1)
+
         return out, attention_weights
 
 
@@ -419,6 +422,7 @@ class RNN_self_attention(nn.Module):
         """
 
         # First LSTM
+        self.LSTM_1.flatten_parameters()
         x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
@@ -431,6 +435,7 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(0, 1)
 
         # Second LSTM
+        self.LSTM_2.flatten_parameters()
         x, (_, _) = self.LSTM_2(x)
         x = self.tanh(x)
         x = self.avgPool(x.transpose(1, 2))
