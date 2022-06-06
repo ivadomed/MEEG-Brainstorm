@@ -10,7 +10,6 @@ import argparse
 import os
 import numpy as np
 import pandas as pd
-import torch
 
 from torch.nn import BCELoss
 from torch.optim import Adam
@@ -31,6 +30,7 @@ def get_parser():
     )
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
+    parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -45,6 +45,7 @@ parser = get_parser()
 args = parser.parse_args()
 path_root = args.path_root
 method = args.method
+save = args.save
 balanced = args.balanced
 n_windows = args.n_windows
 batch_size = args.batch_size
@@ -224,9 +225,6 @@ for test_subject_id in subject_ids:
     # Train Model
     history = model.train()
 
-    if not os.path.exists("../results"):
-        os.mkdir("../results")
-
     # Compute test performance and save it
     acc, f1, precision, recall = model.score()
 
@@ -242,15 +240,22 @@ for test_subject_id in subject_ids:
         }
     )
 
-    results_path = (
-        "../results/csv"
-    )
-    if not os.path.exists(results_path):
-        os.mkdir(results_path)
+    if save:
 
-    df_results = pd.DataFrame(results)
-    df_results.to_csv(
-        os.path.join(results_path,
-                     "accuracy_results_spike_detection_method-{}_balance-{}_{}"
-                     "-subjects.csv".format(method, balanced,
-                                            len(subject_ids))))
+        # Save results file as csv
+        if not os.path.exists("../results"):
+            os.mkdir("../results")
+
+        results_path = (
+            "../results/csv"
+        )
+        if not os.path.exists(results_path):
+            os.mkdir(results_path)
+
+        df_results = pd.DataFrame(results)
+        df_results.to_csv(
+            os.path.join(results_path,
+                         "accuracy_results_spike_detection_method-{}"
+                         "_balance-{}_{}"
+                         "-subjects.csv".format(method, balanced,
+                                                len(subject_ids))))
