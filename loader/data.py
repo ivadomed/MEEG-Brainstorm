@@ -192,6 +192,7 @@ class Data:
                     N = len(times)
                     spike_events = get_spike_events(spike_time_points, N)
                     spike_windows = get_spike_windows(spike_events, n_windows)
+                    print('data', spike_events.shape, spike_windows.shape)
                     all_spike_events.append(spike_windows)
 
             except ValueError:
