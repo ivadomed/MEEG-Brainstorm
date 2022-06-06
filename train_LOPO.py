@@ -109,7 +109,7 @@ for test_subject_id in subject_ids:
     print('Test on: {}, '
           'Validation on: {}'.format(test_subject_id,
                                      val_subject_id))
-
+    print(train_subject_ids)
     # Training dataloader
     train_data = []
     train_labels = []
