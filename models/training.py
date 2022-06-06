@@ -130,7 +130,7 @@ class make_model():
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
         perf = f1_score(y_true, y_pred_binary, average=average,
-                        zero_division=0)
+                        zero_division=1)
 
         return train_loss, perf
 
@@ -186,7 +186,7 @@ class make_model():
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
         perf = f1_score(y_true, y_pred_binary, average=average,
-                        zero_division=0)
+                        zero_division=1)
 
         return val_loss, perf
 
@@ -284,11 +284,11 @@ class make_model():
         # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
         f1 = f1_score(y_true, y_pred_binary, average=self.average,
-                      zero_division=0)
+                      zero_division=1)
         precision = precision_score(y_true, y_pred_binary,
-                                    average=self.average, zero_division=0)
+                                    average=self.average, zero_division=1)
         recall = recall_score(y_true, y_pred_binary, average=self.average,
-                              zero_division=0)
+                              zero_division=1)
         print("Performances on test")
         print("Acc \t F1 \t Precision \t Recall")
         print("-" * 80)
