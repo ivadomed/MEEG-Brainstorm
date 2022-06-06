@@ -13,23 +13,9 @@ import torch
 
 import numpy as np
 
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.sampler import WeightedRandomSampler
+from torch.utils.data import DataLoader, random_split
 
-from utils.utils_ import pad_tensor
-
-
-# TODO a mettre dans utils ?
-def class_imbalance_sampler(labels, n_sample):
-    class_count = torch.bincount(labels.squeeze())
-    class_weighting = 1. / class_count
-    sample_weights = class_weighting[labels]
-    if n_sample==0:
-        n_sample=1
-    sampler = WeightedRandomSampler(sample_weights,
-                                    int(n_sample),
-                                    replacement=False)
-    return sampler
+from utils.utils_ import pad_tensor, weighted_sampler
 
 
 class PadCollate():
@@ -79,144 +65,172 @@ class PadCollate():
         return self.pad_collate(batch)
 
 
-class SingleChannelDataset(Dataset):
+class Loader():
+
+    """ Create dataloader of data. """
 
     def __init__(self,
                  data,
-                 labels):
+                 labels,
+                 balanced,
+                 shuffle,
+                 batch_size,
+                 num_workers,
+                 split_dataset):
 
         """
         Args:
-            data (array): Array of trials of dimension
-                          [n_trials x n_time_points x 1].
-            labels (array): Array of labels of dimension [n_trials].
+            data (list): List of EEG trials in .edf format.
+            labels (list): Corresponding labels.
+            balanced (bool): If True, number of trials with
+                             spike events is limited.
+            shuffle (bool): If True, shuffle batches in dataloader.
+            batch_size (int): Batch size.
+            num_workers (int): Number of loader worker processes.
         """
+
         self.data = data
         self.labels = labels
+        self.balanced = balanced
+        self.shuffle = shuffle
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.split_dataset = split_dataset
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
-
-
-def pad_loader(data,
-               labels,
-               batch_size,
-               shuffle,
-               num_workers):
-
-    """ Create dataloader for multi-channel trials.
-        Input can be padded on the channel dimension
-        with artifical zero channels to match highest
-        number of channels in the batch.
-    Args:
-        data (list): List of array of trials of dimension
-                     [n_trials x 1 x n_channels x n_time_points].
-        labels (list): List of corresponding array of labels.
-        batch_size (float): Batch size.
-        shuffle (bool): If True, shuffle batches in dataloader.
-        num_workers (float): Number of loader worker processes.
-    Returns:
-        dataloader (Dataloader): Dataloader of batches.
-    """
-
-    # Get dataloader
-    dataset = []
-    # for id in range(len(data)):
-    #     for n_trial in range(data[id].shape[0]):
-    #         dataset.append((data[id][n_trial], labels[id][n_trial]))
-    for id in range(len(data)):
-        for n_sess in range(len(data[id])):
-            for n_trial in range(len(data[id][n_sess])):
-                dataset.append((data[id][n_sess][n_trial], labels[id][n_sess][n_trial]))
-    loader = DataLoader(dataset=dataset, batch_size=batch_size,
-                        shuffle=shuffle, num_workers=num_workers,
-                        collate_fn=PadCollate(dim=1))
-
-    return [loader]
-
-
-def balance_pad_loader(data,
+    def pad_loader(self,
+                   data,
                    labels,
-                   batch_size,
                    shuffle,
-                   num_workers):
+                   batch_size,
+                   num_workers,
+                   split_dataset=False):
 
-    """ Create dataloader for multi-channel trials.
-        Input can be padded on the channel dimension
-        with artifical zero channels to match highest
-        number of channels in the batch.
+        """ Create dataloader of data.
+            Trials in a given batch have same number of channels
+            using padding (add zero artificial channels).
 
-    Args:
-        data (list): List of array of trials of dimension
-                     [n_trials x 1 x n_channels x n_time_points].
-        labels (list): List of corresponding array of labels.
-        batch_size (float): Batch size.
-        shuffle (bool): If True, shuffle batches in dataloader.
-        num_workers (float): Number of loader worker processes.
+        Args:
+            data (list): List of EEG trials in .edf format.
+            labels (list): Corresponding labels.
+            shuffle (bool): If True, shuffle batches in dataloader.
+            batch_size (int): Batch size.
+            num_workers (int): Number of loader worker processes.
 
-    Returns:
-        dataloader (Dataloader): Dataloader of batches.
-    """
+        Returns:
+            dataloader (array): Array of dataloader.
+        """
 
-    # Get dataloader
-    datasets = []
-    n_ied_segments = []
-    label_distributions = []
-    for id in range(len(data)):
-        label_distribution = np.concatenate(labels[id])
-        label_distributions.append(label_distribution)
-
-        n_ied_segment = np.sum(label_distribution == 1)
-        n_ied_segments.append(n_ied_segment)
-
+        # Get dataloader
         dataset = []
-        for n_sess in range(len(data[id])):
-            for n_trial in range(len(data[id][n_sess])):
-                dataset.append((data[id][n_sess][n_trial], labels[id][n_sess][n_trial]))
-        datasets.append(dataset)
+        for id in range(len(data)):
+            for n_sess in range(len(data[id])):
+                for n_trial in range(len(data[id][n_sess])):
+                    dataset.append((data[id][n_sess][n_trial],
+                                    labels[id][n_sess][n_trial]))
+        if split_dataset:
+            n = len(dataset)
+            n_train = int(0.80*len(dataset))
+            dataset_train, dataset_val = random_split(dataset, [n_train, n-n_train])
+            n = len(dataset_train)
+            n_train = int(0.80*len(dataset_train))
+            dataset_train, dataset_test = random_split(dataset_train, [n_train, n-n_train])
 
-    # TODO mean or median or quartile ?
-    n_ied_segments = np.array(n_ied_segments)
-    n_ied_segments_mean = np.mean(n_ied_segments)
-    n_ied_segments[n_ied_segments >= n_ied_segments_mean] = n_ied_segments_mean
-    loaders = []
-    for id in range(len(data)):
+            loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
+                                shuffle=shuffle, num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
+            loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size,
+                                shuffle=False, num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
+            loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size,
+                                shuffle=False, num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
+            
+            return [loader_train], [loader_val], [loader_test]
 
-        sampler = class_imbalance_sampler(torch.tensor(label_distributions[id]),
-                                          2*n_ied_segments[id])
+        else:      
+            loader = DataLoader(dataset=dataset, batch_size=batch_size,
+                                shuffle=shuffle, num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
 
-        loaders.append(DataLoader(dataset=datasets[id],
-                                  batch_size=batch_size,
-                                  sampler=sampler,
-                                  num_workers=num_workers,
-                                  collate_fn=PadCollate(dim=1)))
+            return [loader]
 
-    # Sort the loaders in the desending order
+        return dataloader
 
-    argsort = np.argsort(n_ied_segments)
-    loaders = np.array(loaders)[np.flipud(argsort)]
+    def balance_pad_loader(data,
+                           labels,
+                           batch_size,
+                           num_workers):
 
-    return loaders
+        """ Create dataloader of data.
+            Trials in a given batch have same number of channels
+            using padding (add zero artificial channels).
+            Data are split in batches for each subject and for each batch:
+            --> in average, same number of trials with/without spike events.
+            --> at most 2*n_spike_trials.
 
-def load_loaders(data,
-                 labels,
-                 batch_size,
-                 shuffle,
-                 num_workers,
-                 balance):
+        Args:
+            data (list): List of EEG trials in .edf format.
+            labels (list): Corresponding labels.
+            batch_size (int): Batch size.
+            num_workers (int): Number of loader worker processes.
 
-    if balance:
-        return balance_pad_loader(data,
-                              labels,
-                              batch_size,
-                              shuffle,
-                              num_workers)
-    else:
-        return pad_loader(data,
-                              labels,
-                              batch_size,
-                              shuffle,
-                              num_workers)
+        Returns:
+            dataloader (array): Array of subject specific dataloaders
+                                ordered in decreasing order of data.
+        """
+
+        # Get dataloader
+        datasets = []
+        dataloader = []
+        n_ied_segments = []
+        label_distributions = []
+        for id in range(len(data)):
+            dataset = []
+            label_distribution = np.concatenate(labels[id])
+            label_distributions.append(label_distribution)
+            ied_segment = np.sum(label_distribution == 1)
+            n_ied_segments.append(ied_segment)
+            for n_sess in range(len(data[id])):
+                for n_trial in range(len(data[id][n_sess])):
+                    dataset.append((data[id][n_sess][n_trial],
+                                    labels[id][n_sess][n_trial]))
+            datasets.append(dataset)
+
+        # Monitor number of IEDs segments for each subject
+        n_ied_segments = np.array(n_ied_segments)
+        mean_n_ied_segments = np.mean(n_ied_segments)
+
+        # Limit number of IEDs segments to the mean
+        above_mean = (n_ied_segments >= mean_n_ied_segments)
+        n_ied_segments[above_mean] = mean_n_ied_segments
+
+        # Create loader for each subject
+        for id in range(len(data)):
+            sampler = weighted_sampler(torch.tensor(label_distributions[id]),
+                                       2*n_ied_segments[id])
+            loader = DataLoader(dataset=datasets[id],
+                                batch_size=batch_size,
+                                sampler=sampler,
+                                num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
+            dataloader.append(loader)
+
+        # Sort loaders in descending order
+        argsort = np.argsort(n_ied_segments)
+        dataloader = np.array(dataloader)[np.flipud(argsort)]
+
+        return dataloader
+
+    def load(self):
+        if self.balanced:
+            return self.balance_pad_loader(self.data,
+                                           self.labels,
+                                           self.batch_size,
+                                           self.num_workers,
+                                           self.split_dataset)
+        else:
+            return self.pad_loader(self.data,
+                                   self.labels,
+                                   self.shuffle,
+                                   self.batch_size,
+                                   self.num_workers)

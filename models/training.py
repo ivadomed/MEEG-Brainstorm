@@ -9,22 +9,23 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import copy
-from tkinter import N
 import torch
 
 import numpy as np
 
-from sklearn.metrics import f1_score
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import f1_score, accuracy_score
 
-from utils.utils_ import get_next
+from utils.utils_ import get_next_batch
+
 
 class make_model():
 
     def __init__(self,
                  model,
-                 loader_train,
-                 loader_val,
+                 train_loader,
+                 val_loader,
+                 test_loader,
                  optimizer,
                  criterion,
                  n_epochs,
@@ -33,11 +34,11 @@ class make_model():
         """
         Args:
             model (nn.Module): Model.
-            loader (Sampler): Generator of n_train EEG samples for training.
-            loader_valid (Sampler): Generator of n_val samples for validation.
+            train_loader (Dataloader): Loader of EEG samples for training.
+            val_loader (Dataloader): Loader of EEG samples for validation.
+            test_loader (Dataloader): Loader of EEG samples for test.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
-            parameters : Parameters of the model.
             n_epochs (int): Maximum number of epochs to run.
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
@@ -45,11 +46,11 @@ class make_model():
         """
 
         self.model = model
-        self.loader_train = loader_train
-        self.loader_val = loader_val
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
         self.optimizer = optimizer
         self.criterion = criterion
-        # self.parameters = parameters
         self.n_epochs = n_epochs
         self.patience = patience
 
@@ -60,19 +61,23 @@ class make_model():
                   criterion):
 
         """
+        Train model.
         Args:
             model (nn.Module): Model.
-            loader (Sampler): Generator of n_train EEG samples for training.
+            loaders (Sampler): Generator of n_train EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
-            weigthed (Bool): True if the loader if weighted, False otherwise.
+
+        Returns:
+            train_loss (float): Mean loss on the loaders.
+            perf (float): Mean F1-score on the loaders.
         """
 
         # Training loop
         model.train()
         device = next(model.parameters()).device
         train_loss = list()
-        y_pred_all, y_true_all = list(), list()
+        all_preds, all_labels = list(), list()
 
         iter_loader = [iter(loader) for loader in loaders]
 
@@ -83,66 +88,89 @@ class make_model():
                 batch_y_list = [batch_y]
 
                 for id in range(len(loaders[1:])):
-                    batch_x, batch_y = get_next(id, iter_loader, loaders)
+                    batch_x, batch_y = get_next_batch(id, iter_loader, loaders)
                     batch_x_list.append(batch_x)
                     batch_y_list.append(batch_y)
 
                 batch_x = torch.cat(batch_x_list, dim=0)
                 batch_y = torch.cat(batch_y_list, dim=0)
-
-            optimizer.zero_grad()
-
             batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(torch.float).to(device=device)
+            optimizer.zero_grad()
+
+            # Forward
             output, _ = model(batch_x)
             loss = criterion(output, batch_y)
+
+            # Backward
             loss.backward()
             optimizer.step()
+
+            # Recover loss and prediction
             train_loss.append(loss.item())
-            y_pred_all.append(output.detach().cpu().numpy())
-            y_true_all.append(batch_y.detach().cpu().numpy())
+            all_preds.append(output.detach().cpu().numpy())
+            all_labels.append(batch_y.detach().cpu().numpy())
 
-        y_pred = np.concatenate(y_pred_all)
-        y_true = np.concatenate(y_true_all)
+        # Recover binary prediction
+        y_pred = np.concatenate(all_preds)
+        y_pred_binary = (y_pred > 0.5).int()
+        y_true = np.concatenate(all_labels)
 
-        y_pred_binary = np.zeros(len(y_pred))
-        y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
-
+        # Recover mean loss and F1-score
+        train_loss = np.mean(train_loss)
         perf = f1_score(y_true, y_pred_binary)
-        return np.mean(train_loss), perf
+
+        return train_loss, perf
 
     def _validate(self,
                   model,
                   loader,
                   criterion):
 
+        """
+        Evaluate model on validation set.
+        Args:
+            model (nn.Module): Model.
+            loader (Sampler): Generator of n_val EEG samples for validation.
+            criterion (Loss): Loss function.
+
+        Returns:
+            val_loss (float): Mean loss on the loader.
+            perf (float): Mean F1-score on the loader.
+        """
+
         # Validation loop
         model.eval()
         device = next(model.parameters()).device
 
         val_loss = np.zeros(len(loader[0]))
-        y_pred_all, y_true_all = list(), list()
+        all_preds, all_labels = list(), list()
 
         # Loop in validation samples
         with torch.no_grad():
             for idx_batch, (batch_x, batch_y) in enumerate(loader[0]):
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
+
+                # Forward
                 output, _ = model.forward(batch_x)
 
+                # Recover loss and prediction
                 loss = criterion(output, batch_y)
                 val_loss[idx_batch] = loss.item()
+                all_preds.append(output.cpu().numpy())
+                all_labels.append(batch_y.cpu().numpy())
 
-                y_pred_all.append(output.cpu().numpy())
-                y_true_all.append(batch_y.cpu().numpy())
+        # Recover binary prediction
+        y_pred = np.concatenate(all_preds)
+        y_pred_binary = (y_pred > 0.5).int()
+        y_true = np.concatenate(all_labels)
 
-        y_pred = np.concatenate(y_pred_all)
-        y_true = np.concatenate(y_true_all)
-
-        y_pred_binary = np.zeros(len(y_pred))
-        y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
+        # Recover mean loss and F1-score
+        val_loss = np.mean(val_loss)
         perf = f1_score(y_true, y_pred_binary)
-        return np.mean(val_loss), perf
+
+        return val_loss, perf
 
     def train(self):
 
@@ -157,10 +185,10 @@ class make_model():
         """
 
         history = list()
-        best_valid_loss = np.inf
+        best_val_loss = np.inf
         self.best_model = copy.deepcopy(self.model)
         print(
-            "epoch \t train_loss \t valid_loss \t train_perf \t valid_perf"
+            "epoch \t train_loss \t val_loss \t train_perf \t val_perf"
         )
         print("-" * 80)
 
@@ -168,35 +196,35 @@ class make_model():
 
             train_loss, train_perf = self._do_train(
                 self.model,
-                self.loader_train,
+                self.train_loader,
                 self.optimizer,
                 self.criterion,
             )
 
-            valid_loss, valid_perf = self._validate(self.model,
-                                                    self.loader_val,
-                                                    self.criterion)
+            val_loss, val_perf = self._validate(self.model,
+                                                self.val_loader,
+                                                self.criterion)
 
             history.append(
                 {
                     "epoch": epoch,
                     "train_loss": train_loss,
-                    "valid_loss": valid_loss,
+                    "val_loss": val_loss,
                     "train_perf": train_perf,
-                    "valid_perf": valid_perf,
+                    "valid_perf": val_perf,
                 }
             )
 
             print(
-                f"{epoch} \t {train_loss:0.4f} \t {valid_loss:0.4f} \t"
-                f"{train_perf:0.4f} \t {valid_perf:0.4f}"
+                f"{epoch} \t {train_loss:0.4f} \t {val_loss:0.4f} \t"
+                f"{train_perf:0.4f} \t {val_perf:0.4f}"
             )
 
-            if valid_loss < best_valid_loss:
-                print(f"best val loss {best_valid_loss:.4f} "
-                      f"-> {valid_loss:.4f}")
-                best_valid_loss = valid_loss
-                best_model = copy.deepcopy(self.model)
+            if val_loss < best_val_loss:
+                print(f"best val loss {best_val_loss:.4f} "
+                      f"-> {val_loss:.4f}")
+                best_val_loss = val_loss
+                self.best_model = copy.deepcopy(self.model)
                 waiting = 0
             else:
                 waiting += 1
@@ -207,35 +235,40 @@ class make_model():
             else:
                 if waiting >= self.patience:
                     print(f"Stop training at epoch {epoch}")
-                    print(f"Best val loss : {best_valid_loss:.4f}")
+                    print(f"Best val loss : {best_val_loss:.4f}")
                     break
 
         return history
 
-    def score(self, loader):
-        # Compute    performance
+    def score(self):
 
+        # Compute performance on test set
         self.best_model.eval()
         device = next(self.best_model.parameters()).device
 
-        y_pred_all, y_true_all = list(), list()
+        all_preds, all_labels = list(), list()
         with torch.no_grad():
-            for batch_x, batch_y in loader[0]:
+            for batch_x, batch_y in self.test_loader[0]:
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
+
+                # Forward
                 output, _ = self.best_model.forward(batch_x)
-                y_pred_all.append(output.cpu().numpy())
-                y_true_all.append(batch_y.cpu().numpy())
 
-        y_pred = np.concatenate(y_pred_all)
-        y_true = np.concatenate(y_true_all)
+                # Recover prediction
+                all_preds.append(output.cpu().numpy())
+                all_labels.append(batch_y.cpu().numpy())
 
-        y_pred_binary = np.zeros(len(y_pred))
-        y_pred_binary[np.where(y_pred > 0.5)[0]] = 1
+        # Recover binary prediction
+        y_pred = np.concatenate(all_preds)
+        y_pred_binary = (y_pred > 0.5).int()
+        y_true = np.concatenate(all_labels)
 
+        # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
         f1 = f1_score(y_true, y_pred_binary, average='weighted')
-        precision = precision_score(y_true, y_pred_binary, average='weighted')
+        precision = precision_score(y_true, y_pred_binary,
+                                    average='weighted')
         recall = recall_score(y_true, y_pred_binary, average='weighted')
 
         return acc, f1, precision, recall

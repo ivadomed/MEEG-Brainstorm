@@ -333,8 +333,7 @@ class STT(nn.Module):
         self.single_channel = int(n_windows == 1)
 
         # Weight initialization
-        self.detection_head.apply(normal_initialization)
-        self.classification_head.apply(normal_initialization)
+        self.head.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -359,17 +358,17 @@ class STT(nn.Module):
 
         # Embedding
         embedding = self.embedding(attention)
-
+        print('emb ', embedding.size())
         # Temporal Transforming
         code = self.encoder(embedding)
-
+        print('code: ', code.size())
         # Output
         if self.single_channel:
             out = self.head(code.flatten(1)).squeeze(1)
         else:
             out = self.head(code.flatten(1))
-
-        return x, attention_weights, out
+        print('out: ', out.size())
+        return attention_weights, out
 
 
 class RNN_self_attention(nn.Module):

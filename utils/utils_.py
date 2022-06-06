@@ -16,6 +16,7 @@ import pandas as pd
 import seaborn as sns
 
 from loguru import logger
+from torch.utils.data.sampler import WeightedRandomSampler
 
 
 def define_device(gpu_id):
@@ -48,39 +49,19 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
-def get_class_distribution(labels,
-                           display=False,
-                           save=False,
-                           title=None):
+def get_next_batch(id,
+                   iter_loader,
+                   loaders):
 
-    """ Plot the distribution of labels.
+    """ Loop in a dataloader. """
 
-    Args:
-        labels (array): Labels in the dataset.
-        display (bool): Display histogram of class repartition.
-        save (bool): Save image.
-        title (str): Name and format of saved file.
+    try:
+        x, y = next(iter_loader[id])
+    except StopIteration:
+        iter_loader[id] = iter(loaders[id])
+        x, y = next(iter_loader[id])
 
-    Returns:
-        count_labels (dictionnary): Keys - >labels; values ->  proportions.
-    """
-
-    count_labels = {k: 0 for k in labels[::-1]}
-    for k in labels:
-        count_labels[k] += 1
-
-    # Force dictionnary to be ordered by keys
-    count_labels = dict(sorted(count_labels.items(), key=lambda item: item[0]))
-
-    # Plot distribution
-    if display:
-        print("Class Distribution: \n", count_labels)
-        sns.barplot(data=pd.DataFrame.from_dict([count_labels]).melt(),
-                    x="variable", y="value").set_title('Class Distribution')
-    if save:
-        plt.savefig(title)
-
-    return count_labels
+    return x, y
 
 
 def get_spike_events(spike_time_points,
@@ -109,7 +90,7 @@ def get_spike_events(spike_time_points,
 
 
 def get_spike_windows(spike_events,
-                      n_time_windows):
+                      n_windows):
 
     """
     Compute tensor of dimension [batch_size x n_time_windows]
@@ -118,7 +99,7 @@ def get_spike_windows(spike_events,
     Args:
         spike_events (tensor): Tensor of dimension [batch_size x n_time_points]
                                whith 1 when a spike occurs and 0 otherwise.
-        n_time_windows (int): Number of time windows.
+        n_windows (int): Number of time windows.
 
     Return:
         spike_windows (tensor): Tensor of dimension
@@ -128,15 +109,14 @@ def get_spike_windows(spike_events,
     """
 
     # Split spike_events in n_time_windows time windows
-    batch_size = spike_events.shape[0]
-    spike_windows = np.zeros((n_time_windows, batch_size))
-    chunks = torch.chunk(spike_events, n_time_windows, dim=-1)
+    spike_windows = []
+    spike_events = np.array(spike_events)
+    chunks = np.array_split(spike_events, n_windows, axis=-1)
 
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
-        is_spike = (chunk.sum(dim=-1) > 0).int()
-        spike_windows[i] = is_spike
-    spike_windows = torch.Tensor(spike_windows).t()
+        is_spike = int((chunk.sum(axis=-1) > 0))
+        spike_windows.append(is_spike)
 
     return spike_windows
 
@@ -184,6 +164,30 @@ def reset_weights(m):
             layer.reset_parameters()
 
 
+def weighted_sampler(labels,
+                     n_sample):
+
+    """ Create weighted sampler to tackle class imbalance.
+
+    Args:
+        labels (tensor): Labels.
+        n_sample (int): Number of samples to draw.
+
+    Returns:
+        sampler (Sampler): Weighted sampler
+    """
+
+    class_count = torch.bincount(labels.squeeze())
+    class_weighting = 1. / class_count
+    sample_weights = class_weighting[labels]
+    if n_sample == 0:
+        n_sample = 1
+    sampler = WeightedRandomSampler(sample_weights,
+                                    int(n_sample),
+                                    replacement=False)
+    return sampler
+
+
 def xavier_initialization(m):
 
     """ Initialize model weight with xavier uniform.
@@ -192,14 +196,5 @@ def xavier_initialization(m):
     """
 
     if isinstance(m, torch.nn.Linear):
-        torch.nn.init.xavier_uniform(m.weight)
+        torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)
-
-def get_next(id, iter_loader, loaders):
-    try:
-        x, y = next(iter_loader[id])
-    except StopIteration:
-        iter_loader[id] = iter(loaders[id])
-        x, y = next(iter_loader[id])
-
-    return x, y
