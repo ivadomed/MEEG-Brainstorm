@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from loguru import logger
 from torch.nn import BCELoss
 from torch.optim import Adam
 
@@ -82,6 +83,7 @@ subject_ids = np.asarray(list(data.keys()))
 # Apply transformer_detection only if n_windows > 1;
 # otherwise transformer_classification is applied
 if (method == "tranformer_detection") & n_windows < 2:
+    logger.info(" Detection modified in classification. ")
     method = "transformer_classification"
 
 # Apply Leave-One-Patient-Out strategy
