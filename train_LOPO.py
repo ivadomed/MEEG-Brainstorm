@@ -135,7 +135,7 @@ for test_subject_id in subject_ids:
                               shuffle=True,
                               batch_size=batch_size,
                               num_workers=num_workers)
-    train_loader.load()
+    train_dataloader = train_loader.load()
 
     # Validation dataloader
     val_data = []
@@ -169,7 +169,7 @@ for test_subject_id in subject_ids:
                             shuffle=False,
                             batch_size=batch_size,
                             num_workers=num_workers)
-    val_loader.load()
+    val_dataloader = val_loader.load()
 
     # Test dataloader
     test_data = []
@@ -203,7 +203,7 @@ for test_subject_id in subject_ids:
                              shuffle=False,
                              batch_size=batch_size,
                              num_workers=num_workers)
-    test_loader.load()
+    test_dataloader = test_loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
@@ -219,9 +219,9 @@ for test_subject_id in subject_ids:
     # Define training pipeline
     architecture = architecture.to(device)
     model = make_model(architecture,
-                       train_loader,
-                       val_loader,
-                       test_loader,
+                       train_dataloader,
+                       val_dataloader,
+                       test_dataloader,
                        optimizer,
                        criterion,
                        n_epochs=n_epochs,
