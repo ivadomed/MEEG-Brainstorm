@@ -312,6 +312,8 @@ class STT(nn.Module):
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
             n_windows (int): Number of time windows.
+            detection (bool): If True, detect spikes in each
+                              n_windows portions of input.
         """
 
         super().__init__()
