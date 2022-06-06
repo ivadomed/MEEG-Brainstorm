@@ -219,12 +219,12 @@ class make_model():
 
             print(
                 f"{epoch} \t {train_loss:0.4f} \t {val_loss:0.4f} \t"
-                f"{train_perf:0.4f} \t {val_perf:0.4f}"
+                f"{train_perf:0.4f} \t {val_perf:0.4f}\n"
             )
 
             if val_loss < best_val_loss:
                 print(f"Best val loss {best_val_loss:.4f} "
-                      f"-> {val_loss:.4f}")
+                      f"-> {val_loss:.4f}\n")
                 best_val_loss = val_loss
                 self.best_model = copy.deepcopy(self.model)
                 waiting = 0
@@ -237,7 +237,7 @@ class make_model():
             else:
                 if waiting >= self.patience:
                     print(f"Stop training at epoch {epoch}")
-                    print(f"Best val loss : {best_val_loss:.4f}")
+                    print(f"Best val loss : {best_val_loss:.4f}\n")
                     break
 
         return history
@@ -279,7 +279,7 @@ class make_model():
         print("-" * 80)
         print(
             f"{acc:0.4f} \t {f1:0.4f} \t"
-            f"{precision:0.4f} \t {recall:0.4f}"
+            f"{precision:0.4f} \t {recall:0.4f}\n"
         )
 
         return acc, f1, precision, recall
