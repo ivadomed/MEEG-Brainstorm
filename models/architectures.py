@@ -368,7 +368,7 @@ class STT(nn.Module):
         else:
             out = self.head(code.flatten(1))
         print('out: ', out.size())
-        return attention_weights, out
+        return out, attention_weights
 
 
 class RNN_self_attention(nn.Module):
