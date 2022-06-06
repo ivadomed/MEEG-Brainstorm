@@ -122,7 +122,7 @@ for test_subject_id in subject_ids:
                           for data_id in train_data])
     train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
                    for data in data_id] for data_id in train_data]
-    print(train_spikes)
+
     # Dataloader
     if method == "transformer_detection":
 
