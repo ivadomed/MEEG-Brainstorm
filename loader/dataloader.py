@@ -122,6 +122,10 @@ class Loader():
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
+                    print('0: ', labels)
+                    print('1: ', labels[id])
+                    print('2: ', labels[id][n_sess])
+                    print('3: ', labels[id][n_sess][n_trial])
                     dataset.append((data[id][n_sess][n_trial],
                                     labels[id][n_sess][n_trial]))
         loader = DataLoader(dataset=dataset, batch_size=batch_size,
