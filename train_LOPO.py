@@ -77,7 +77,6 @@ else:
 
 dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
-print(data.shape, labels.shape, spikes.shape)
 subject_ids = np.asarray(list(data.keys()))
 
 # Apply Leave-One-Patient-Out strategy
