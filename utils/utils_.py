@@ -16,6 +16,7 @@ import pandas as pd
 import seaborn as sns
 
 from loguru import logger
+from torch.utils.data.sampler import WeightedRandomSampler
 
 
 def define_device(gpu_id):
@@ -48,42 +49,9 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
-def get_class_distribution(labels,
-                           display=False,
-                           save=False,
-                           title=None):
-
-    """ Plot the distribution of labels.
-
-    Args:
-        labels (array): Labels in the dataset.
-        display (bool): Display histogram of class repartition.
-        save (bool): Save image.
-        title (str): Name and format of saved file.
-
-    Returns:
-        count_labels (dictionnary): Keys - >labels; values ->  proportions.
-    """
-
-    count_labels = {k: 0 for k in labels[::-1]}
-    for k in labels:
-        count_labels[k] += 1
-
-    # Force dictionnary to be ordered by keys
-    count_labels = dict(sorted(count_labels.items(), key=lambda item: item[0]))
-
-    # Plot distribution
-    if display:
-        print("Class Distribution: \n", count_labels)
-        sns.barplot(data=pd.DataFrame.from_dict([count_labels]).melt(),
-                    x="variable", y="value").set_title('Class Distribution')
-    if save:
-        plt.savefig(title)
-
-    return count_labels
-
-
-def get_next_batch(id, iter_loader, loaders):
+def get_next_batch(id,
+                   iter_loader,
+                   loaders):
 
     """ Loop in a dataloader. """
 
@@ -143,12 +111,10 @@ def get_spike_windows(spike_events,
     # Split spike_events in n_time_windows time windows
     spike_windows = []
     spike_events = np.array(spike_events)
-    print(spike_events.shape)
     chunks = np.array_split(spike_events, n_windows, axis=-1)
-    print(chunks)
+
     # Put 1 when a spike occurs in the time window, 0 otherwise
     for i, chunk in enumerate(chunks):
-        print(chunk.shape)
         is_spike = int((chunk.sum(axis=-1) > 0))
         spike_windows.append(is_spike)
 
@@ -196,6 +162,30 @@ def reset_weights(m):
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+
+def weighted_sampler(labels,
+                     n_sample):
+
+    """ Create weighted sampler to tackle class imbalance.
+
+    Args:
+        labels (tensor): Labels.
+        n_sample (int): Number of samples to draw.
+
+    Returns:
+        sampler (Sampler): Weighted sampler
+    """
+
+    class_count = torch.bincount(labels.squeeze())
+    class_weighting = 1. / class_count
+    sample_weights = class_weighting[labels]
+    if n_sample == 0:
+        n_sample = 1
+    sampler = WeightedRandomSampler(sample_weights,
+                                    int(n_sample),
+                                    replacement=False)
+    return sampler
 
 
 def xavier_initialization(m):
