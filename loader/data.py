@@ -212,7 +212,7 @@ class Data:
         logger.info("Label creation: number of spikes {} mapped on "
                     "labels {}".format(np.unique(all_n_spikes),
                                        np.unique(all_n_spikes)))
-        print(all_data.shape, all_n_spikes.shape, all_spike_events.shape)
+
         return all_data, all_n_spikes, all_spike_events, sfreq
 
     def get_all_datasets(self,
