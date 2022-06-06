@@ -277,9 +277,13 @@ class make_model():
                                     average='weighted', zero_division=0)
         recall = recall_score(y_true, y_pred_binary, average='weighted',
                               zero_division=0)
-        print(f"Accuracy on test {acc} "
-              f"F1-score on test {f1} "
-              f"Precision on test {precision} "
-              f"Recall on test {recall} ")
+        print(
+            "Accuracy \t F1-score \t Precision \t Recall"
+        )
+        print("-" * 80)
+        print(
+            f"{acc:0.4f} \t {f1:0.4f} \t"
+            f"{precision:0.4f} \t {recall:0.4f}"
+        )
 
         return acc, f1, precision, recall
