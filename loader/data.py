@@ -188,8 +188,7 @@ class Data:
 
                     # Get vector with 1 when a spike occurs and 0 elsewhere
                     N = len(times)
-                    spike_events = get_spike_events(spike_time_points,
-                                                    N, sfreq)
+                    spike_events = get_spike_events(spike_time_points, N)
                     spike_windows = get_spike_windows(spike_events, n_windows)
                     all_spike_events.append(spike_windows)
 
