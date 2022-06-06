@@ -115,7 +115,7 @@ def get_spike_windows(spike_events,
         is_spike = int((chunk.sum(axis=-1) > 0))
         spike_windows.append(is_spike)
 
-    return spike_windows
+    return np.asarray(spike_windows, dtype='int64')
 
 
 def normal_initialization(m):
