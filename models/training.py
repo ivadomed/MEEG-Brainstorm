@@ -278,5 +278,5 @@ class make_model():
               f"F1-score on test {f1} "
               f"Precision on test {precision} "
               f"Recall on test {recall} ")
-        
+
         return acc, f1, precision, recall
