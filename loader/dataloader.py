@@ -137,8 +137,11 @@ class Loader():
                            num_workers):
 
         """ Create dataloader of data.
-            If balanced is True, number of trials with spike events is limited
-            for each subject.
+            Trials in a given batch have same number of channels
+            using padding (add zero artificial channels).
+            Data are split in batches for each subject and for each batch:
+            --> in average, same number of trials with/without spike events.
+            --> at most 2*n_spike_trials.
 
         Args:
             data (list): List of EEG trials in .edf format.
@@ -147,7 +150,8 @@ class Loader():
             num_workers (int): Number of loader worker processes.
 
         Returns:
-            dataloader (array): Array of subject specific dataloaders .
+            dataloader (array): Array of subject specific dataloaders
+                                ordered in decreasing order of data.
         """
 
         # Get dataloader
