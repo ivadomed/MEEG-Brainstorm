@@ -114,7 +114,7 @@ for test_subject_id in subject_ids:
         train_data.append(data[id])
         train_labels.append(labels[id])
         train_spikes.append(spikes[id])
-    print(spikes[id])
+
     # Z-score normalization
     target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
                            for data_id in train_data])
