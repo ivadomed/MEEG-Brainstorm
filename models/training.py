@@ -123,7 +123,10 @@ class make_model():
         y_pred = np.concatenate(all_preds)
         y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
-
+        print('train')
+        print('lab: ', y_true)
+        print('out', y_pred)
+        print('pred: \n', y_pred_binary)
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
         perf = f1_score(y_true, y_pred_binary, average=average,
@@ -176,9 +179,10 @@ class make_model():
         y_pred = np.concatenate(all_preds)
         y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
+        print('val')
         print('lab: ', y_true)
         print('out', y_pred)
-        print('pred: ', y_pred_binary)
+        print('pred: \n', y_pred_binary)
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
         perf = f1_score(y_true, y_pred_binary, average=average,
@@ -273,7 +277,10 @@ class make_model():
         y_pred = np.concatenate(all_preds)
         y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
-
+        print('test')
+        print('lab: ', y_true)
+        print('out', y_pred)
+        print('pred: \n', y_pred_binary)
         # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
         f1 = f1_score(y_true, y_pred_binary, average=self.average,
