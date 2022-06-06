@@ -100,8 +100,8 @@ for test_subject_id in subject_ids:
                                      val_subject_id))
 
     # Training dataloader
-    train_labels = []
     train_data = []
+    train_labels = []
     train_spikes = []
     for id in train_subject_ids:
         train_data.append(data[id])
@@ -138,14 +138,17 @@ for test_subject_id in subject_ids:
     train_loader.load()
 
     # Validation dataloader
-    val_data = data[val_subject_id]
-    val_labels = labels[val_subject_id]
-    val_spikes = spikes[val_subject_id]
+    val_data = []
+    val_labels = []
+    val_spikes = []
+    val_data.append(data[val_subject_id])
+    val_labels.append(labels[val_subject_id])
+    val_spikes.append(spikes[val_subject_id])
 
     # Z-score normalization
-    val_data = [np.expand_dims((data-target_mean) / target_std,
-                axis=1)
-                for data in val_data]
+    val_data = [[np.expand_dims((data-target_mean) / target_std,
+                                axis=1)
+                for data in data_id] for data_id in val_data]
 
     # Dataloader
     if method == "transformer_detection":
@@ -153,7 +156,7 @@ for test_subject_id in subject_ids:
         # Labels are the spike events times
         val_loader = Loader(val_data,
                             val_spikes,
-                            balanced=balanced,
+                            balanced=False,
                             shuffle=False,
                             batch_size=batch_size,
                             num_workers=num_workers)
@@ -162,21 +165,24 @@ for test_subject_id in subject_ids:
         # Label is 1 with a spike occurs in the trial, 0 otherwise
         val_loader = Loader(val_data,
                             val_labels,
-                            balanced=balanced,
+                            balanced=False,
                             shuffle=False,
                             batch_size=batch_size,
                             num_workers=num_workers)
     val_loader.load()
 
     # Test dataloader
-    test_data = data[test_subject_id]
-    test_labels = labels[test_subject_id]
-    test_spikes = spikes[test_subject_id]
+    test_data = []
+    test_labels = []
+    test_spikes = []
+    test_data.append(data[test_subject_id])
+    test_labels.append(labels[test_subject_id])
+    test_spikes.append(spikes[test_subject_id])
 
     # Z-score normalization
-    test_data = [np.expand_dims((data-target_mean) / target_std,
-                                axis=1)
-                 for data in test_data]
+    test_data = [[np.expand_dims((data-target_mean) / target_std,
+                                 axis=1)
+                 for data in data_id] for data_id in test_data]
 
     # Dataloader
     if method == "transformer_detection":
@@ -184,7 +190,7 @@ for test_subject_id in subject_ids:
         # Labels are the spike events times
         test_loader = Loader(test_data,
                              test_spikes,
-                             balanced=balanced,
+                             balanced=False,
                              shuffle=False,
                              batch_size=batch_size,
                              num_workers=num_workers)
@@ -193,7 +199,7 @@ for test_subject_id in subject_ids:
         # Label is 1 with a spike occurs in the trial, 0 otherwise
         test_loader = Loader(test_data,
                              test_labels,
-                             balanced=balanced,
+                             balanced=False,
                              shuffle=False,
                              batch_size=batch_size,
                              num_workers=num_workers)
