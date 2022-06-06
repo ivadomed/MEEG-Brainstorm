@@ -192,9 +192,7 @@ class make_model():
         history = list()
         best_val_loss = np.inf
         self.best_model = copy.deepcopy(self.model)
-        print(
-            "epoch \t train_loss \t val_loss \t train_perf \t val_perf"
-        )
+        print("epoch \t train_loss \t val_loss \t train_perf \t val_perf")
         print("-" * 80)
 
         for epoch in range(1, self.n_epochs + 1):
@@ -211,13 +209,12 @@ class make_model():
                                                 self.val_criterion)
 
             history.append(
-                {
-                    "epoch": epoch,
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "train_perf": train_perf,
-                    "valid_perf": val_perf,
-                }
+                {"epoch": epoch,
+                 "train_loss": train_loss,
+                 "val_loss": val_loss,
+                 "train_perf": train_perf,
+                 "valid_perf": val_perf
+                 }
             )
 
             print(
@@ -226,7 +223,7 @@ class make_model():
             )
 
             if val_loss < best_val_loss:
-                print(f"best val loss {best_val_loss:.4f} "
+                print(f"Best val loss {best_val_loss:.4f} "
                       f"-> {val_loss:.4f}")
                 best_val_loss = val_loss
                 self.best_model = copy.deepcopy(self.model)
@@ -277,9 +274,8 @@ class make_model():
                                     average='weighted', zero_division=0)
         recall = recall_score(y_true, y_pred_binary, average='weighted',
                               zero_division=0)
-        print(
-            "Accuracy \t F1-score \t Precision \t Recall"
-        )
+        print("Performances on test")
+        print("Acc \t F1 \t Precision \t Recall")
         print("-" * 80)
         print(
             f"{acc:0.4f} \t {f1:0.4f} \t"
