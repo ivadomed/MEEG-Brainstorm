@@ -274,5 +274,9 @@ class make_model():
                                     average='weighted', zero_division=0)
         recall = recall_score(y_true, y_pred_binary, average='weighted',
                               zero_division=0)
-
+        print(f"Accuracy on test {acc} "
+              f"F1-score on test {f1} "
+              f"Precision on test {precision} "
+              f"Recall on test {recall} ")
+        
         return acc, f1, precision, recall
