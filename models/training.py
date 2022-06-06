@@ -83,7 +83,6 @@ class make_model():
 
         # Loop on training samples
         for batch_x, batch_y in iter_loader[0]:
-            print('before', batch_y.size())
             if len(loaders) > 1:
                 batch_x_list = [batch_x]
                 batch_y_list = [batch_y]
