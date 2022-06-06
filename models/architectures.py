@@ -358,16 +358,16 @@ class STT(nn.Module):
 
         # Embedding
         embedding = self.embedding(attention)
-        print('emb ', embedding.size())
+
         # Temporal Transforming
         code = self.encoder(embedding)
-        print('code: ', code.size())
+
         # Output
         if self.single_channel:
             out = self.head(code.flatten(1)).squeeze(1)
         else:
             out = self.head(code.flatten(1))
-        print('out: ', out.size())
+
         return out, attention_weights
 
 
