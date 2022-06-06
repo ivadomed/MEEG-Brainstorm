@@ -291,7 +291,8 @@ class STT(nn.Module):
                  num_heads=10,
                  expansion=4,
                  transformer_dropout=0.25,
-                 n_windows=10):
+                 n_windows=10,
+                 detection=False):
 
         """
         Args:
@@ -330,7 +331,7 @@ class STT(nn.Module):
         self.head = nn.Sequential(
                         nn.Linear(flatten_size, n_windows),
                         nn.Sigmoid())
-        self.single_channel = int(n_windows == 1)
+        self.detection = detection
 
         # Weight initialization
         self.head.apply(normal_initialization)
@@ -363,10 +364,10 @@ class STT(nn.Module):
         code = self.encoder(embedding)
 
         # Output
-        if self.single_channel:
-            out = self.head(code.flatten(1)).squeeze(1)
-        else:
+        if self.detection:
             out = self.head(code.flatten(1))
+        else:
+            out = self.head(code.flatten(1)).squeeze(1)
 
         return out, attention_weights
 

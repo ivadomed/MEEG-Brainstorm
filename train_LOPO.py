@@ -80,12 +80,6 @@ dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
-# Apply transformer_detection only if n_windows > 1;
-# otherwise transformer_classification is applied
-if (method == "tranformer_detection") & n_windows < 2:
-    logger.info(" Detection modified in classification. ")
-    method = "transformer_classification"
-
 # Apply Leave-One-Patient-Out strategy
 
 """ Each subject is chosen once as test set while the model is trained
@@ -215,8 +209,11 @@ for test_subject_id in subject_ids:
     # Define architecture
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
-    else:
+    elif method == "transformer_classification":
         architecture = STT(n_windows=n_windows)
+    elif method == "transformer_detection":
+        detection = True
+        architecture = STT(n_windows=n_windows, detection=detection)
     architecture.apply(reset_weights)
 
     # Define optimizer
