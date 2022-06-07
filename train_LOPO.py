@@ -299,8 +299,9 @@ for test_subject_id in subject_ids:
             os.path.join(results_path,
 
                          "results_LOPO_spike_detection_method-{}"
-                         "_balance-{}_{}"
+                         "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
                          "-subjects.csv".format(method, balanced,
+                                                mix_up, cost_sensitive,
                                                 len(subject_ids))
                          )
             )
