@@ -263,8 +263,8 @@ class Data:
                               if isfile(join(path, f))]
                     dataset = self.get_dataset(folder,
                                                wanted_event_label,
-                                               n_windows,
-                                               single_channel)
+                                               single_channel,
+                                               n_windows)
                     data, labels, spike_events, sfreq = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)

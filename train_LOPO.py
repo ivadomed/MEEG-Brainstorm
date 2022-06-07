@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from datetime import datetime
 from loguru import logger
 from torch.nn import BCELoss
 from torch.optim import Adam
@@ -28,13 +29,13 @@ def get_parser():
     """ Set parameters for the experiment."""
 
     parser = argparse.ArgumentParser(
-        "Spike detection", description="Spike detection using attention layer"
+        "Spike detection", description="Spike detection"
     )
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
-    parser.add_argument("--average", type=str, default="weighted")
+    parser.add_argument("--average", type=str, default="macro")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -91,7 +92,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', n_windows, single_channel)
+dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -269,13 +270,14 @@ for test_subject_id in subject_ids:
     )
 
     if save:
+        eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
         # Save results file as csv
         if not os.path.exists("../results"):
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv"
+            "../results/csv_" + eventid
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
@@ -283,7 +285,9 @@ for test_subject_id in subject_ids:
         df_results = pd.DataFrame(results)
         df_results.to_csv(
             os.path.join(results_path,
-                         "accuracy_results_spike_detection_method-{}"
+                         "results_spike_detection_method-{}"
                          "_balance-{}_{}"
                          "-subjects.csv".format(method, balanced,
-                                                len(subject_ids))))
+                                                len(subject_ids))
+                         )
+            )
