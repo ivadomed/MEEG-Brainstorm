@@ -11,30 +11,48 @@ Usage: type "from mix-up import <function>" to use one of its functions.
 Contributor: Ambroise Odonnat.
 """
 
+import torch
 import numpy as np
 
 
 def mixup_data(batch_x,
                batch_y,
-               beta=1.0,
-               use_cuda=True):
+               device,
+               beta=1.0):
 
-    """ Returns mixed inputs, pairs of targets, and lambda. """
-    
+    """ Returns mixed inputs, pairs of targets, and lambda.
+    Args:
+        batch_x (tensor): Batch of data.
+        batch_y (tensor): Batch of labels.
+        device (device): Device.
+        beta (float): Parameter of the Beta Law.
+
+    Returns:
+        mixed_batch_x (tensor): Batch of mixed data.
+        original_batch_y (tensor): Unchanged batch of labels.
+        shuffle_batch_y (tensor): Shuffled batch of labels.
+        lambd (float): Coefficient of the convex combination.
+        """
+
+    # Define convex combination coefficient
     if beta > 0:
-        lam = np.random.beta(beta, beta)
+        lambd = np.random.beta(beta, beta)
     else:
-        lam = 1
+        lambd = 1
+    lambd = torch.Tensor(lambd, device=device)
     batch_size = batch_x.size()[0]
-    device = batch_x.device
     index = torch.randperm(batch_size).to(device=device)
-    else:
-        index = torch.randperm(batch_size)
 
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
+    # Compute mix data
+    mixed_batch_x = lambd * batch_x + (1-lambd) * batch_x[index, :]
+    original_batch_y, shuffle_batch_y = batch_y, batch_y[index]
+    return mixed_batch_x, original_batch_y, shuffle_batch_y, lambd
 
 
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+def mixup_criterion(criterion,
+                    output,
+                    original_batch_y,
+                    shuffle_batch_y,
+                    lambd):
+    return (lambd * criterion(output, original_batch_y) + (1-lambd)
+            * criterion(output, shuffle_batch_y))
