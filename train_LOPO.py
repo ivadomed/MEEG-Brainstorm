@@ -264,6 +264,8 @@ for test_subject_id in subject_ids:
         {
             "method": method,
             "balance": balanced,
+            "mix_up": mix_up,
+            "cost_sensitive": cost_sensitive,
             "test_subject_id": test_subject_id,
             "acc": acc,
             "f1": f1,
@@ -299,7 +301,7 @@ for test_subject_id in subject_ids:
                          "results_LOPO_spike_detection_method-{}"
                          "_balance-{}_{}"
                          "-subjects.csv".format(method, balanced,
-                                                len(subject_ids),)
+                                                len(subject_ids))
                          )
             )
 
