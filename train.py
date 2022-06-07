@@ -33,17 +33,19 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection using attention layer"
     )
-    parser.add_argument("--n_epochs", type=int, default=100)
-    parser.add_argument("--method", type=str, default="RNN_self_attention")
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
+    parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
-    parser.add_argument("--average", type=str, default="weighted")
+    parser.add_argument("--average", type=str, default="macro")
+    parser.add_argument("--n_windows", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--n_epochs", type=int, default=100)
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=0.0)
+    parser.add_argument("--mix_up", action="store_true")
+    parser.add_argument("--beta", type=float, default=0.2)
 
     return parser
 
@@ -52,16 +54,19 @@ def get_parser():
 parser = get_parser()
 args = parser.parse_args()
 path_root = args.path_root
-n_windows = args.n_windows
-n_epochs = args.n_epochs
-save = args.save
 method = args.method
+save = args.save
+balanced = args.balanced
+average = args.average
+n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
-balanced = args.balanced
+n_epochs = args.n_epochs
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
-average = args.average
+mix_up = args.mix_up
+beta = args.beta
+
 
 gpu_id = 0
 weight_decay = 0
@@ -101,17 +106,9 @@ train_labels = []
 train_data = []
 train_spikes = []
 for id in subject_ids:
-    train_data.append(data[id])
+    train_data.append(np.expand_dims(data[id], axis=2))
     train_labels.append(labels[id])
     train_spikes.append(spikes[id])
-
-# Z-score normalization
-target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
-                        for data_id in train_data])
-target_std = np.mean([np.mean([np.std(data) for data in data_id])
-                        for data_id in train_data])
-train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
-                for data in data_id] for data_id in train_data]
 
 for seed in range(5):
     # Dataloader
@@ -124,7 +121,8 @@ for seed in range(5):
                               shuffle=True,
                               batch_size=batch_size,
                               num_workers=num_workers,
-                              split_dataset=True)
+                              split_dataset=True,
+                              seed=seed)
     else:
 
         # Label is 1 with a spike occurs in the trial, 0 otherwise
@@ -134,7 +132,8 @@ for seed in range(5):
                               shuffle=True,
                               batch_size=batch_size,
                               num_workers=num_workers,
-                              split_dataset=True)
+                              split_dataset=True,
+                              seed=seed)
     train_dataloader, val_dataloader, test_dataloader = train_loader.load()
 
     # Define architecture
@@ -163,7 +162,9 @@ for seed in range(5):
                        criterion,
                        n_epochs=n_epochs,
                        patience=patience,
-                       average=average)
+                       average=average,
+                       mix_up=mix_up,
+                       beta=beta)
 
     # Train Model
     history = model.train()
@@ -178,6 +179,8 @@ for seed in range(5):
         {
             "method": method,
             "balance": balanced,
+            "mix_up": mix_up,
+            "cost_sensitive": cost_sensitive,
             "fold": seed,
             "acc": acc,
             "f1": f1,
@@ -205,6 +208,9 @@ for seed in range(5):
         df_results.to_csv(
             os.path.join(results_path,
                             "accuracy_results_spike_detection_method-{}"
-                            "_balance-{}_{}"
-                            "-subjects.csv".format(method, balanced,
-                                                len(subject_ids))))
+                            "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
+                            "-subjects.csv".format(method, 
+                                                   balanced,
+                                                   mix_up,
+                                                   cost_sensitive, 
+                                                   len(subject_ids))))

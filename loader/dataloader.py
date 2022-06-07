@@ -130,27 +130,44 @@ class Loader():
                 for n_trial in range(len(data[id][n_sess])):
                     dataset.append((data[id][n_sess][n_trial],
                                     labels[id][n_sess][n_trial]))
+
         if split_dataset:
             n = len(dataset)
+
+            dataset_train_norm = []
+            dataset_val_norm = []
+            dataset_test_norm = []
+
             n_train = int(0.80*len(dataset))
             dataset_train, dataset_val = random_split(dataset, [n_train, n-n_train], generator=torch.Generator().manual_seed(seed))
             n = len(dataset_train)
             n_train = int(0.80*len(dataset_train))
             dataset_train, dataset_test = random_split(dataset_train, [n_train, n-n_train], generator=torch.Generator().manual_seed(seed))
 
-            loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
+            # Z-score normalization
+            target_mean = np.mean([data[0] for data in dataset_train])
+            target_std = np.std([data[0] for data in dataset_train])
+
+            for i in range(len(dataset_train)):
+                dataset_train_norm.append(((dataset_train[i][0]-target_mean) / target_std, dataset_train[i][1]))
+            for i in range(len(dataset_val)):
+                dataset_val_norm.append(((dataset_val[i][0]-target_mean) / target_std, dataset_val[i][1]))
+            for i in range(len(dataset_test)):
+                dataset_test_norm.append(((dataset_test[i][0]-target_mean) / target_std, dataset_test[i][1]))
+
+            loader_train = DataLoader(dataset=dataset_train_norm, batch_size=batch_size,
                                       shuffle=shuffle, num_workers=num_workers,
                                       collate_fn=PadCollate(dim=1))
-            loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size,
+            loader_val = DataLoader(dataset=dataset_val_norm, batch_size=batch_size,
                                     shuffle=False, num_workers=num_workers,
                                     collate_fn=PadCollate(dim=1))
-            loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size,
+            loader_test = DataLoader(dataset=dataset_test_norm, batch_size=batch_size,
                                      shuffle=False, num_workers=num_workers,
                                      collate_fn=PadCollate(dim=1))
-            
+
             return [loader_train], [loader_val], [loader_test]
 
-        else:      
+        else:
             loader = DataLoader(dataset=dataset, batch_size=batch_size,
                                 shuffle=shuffle, num_workers=num_workers,
                                 collate_fn=PadCollate(dim=1))
