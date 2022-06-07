@@ -13,7 +13,7 @@ import torch
 
 import numpy as np
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 
 from utils.utils_ import pad_tensor, weighted_sampler
 
@@ -75,7 +75,9 @@ class Loader():
                  balanced,
                  shuffle,
                  batch_size,
-                 num_workers):
+                 num_workers,
+                 split_dataset=False,
+                 seed=1):
 
         """
         Args:
@@ -94,13 +96,17 @@ class Loader():
         self.shuffle = shuffle
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.split_dataset = split_dataset
+        self.seed = seed
 
     def pad_loader(self,
                    data,
                    labels,
                    shuffle,
                    batch_size,
-                   num_workers):
+                   num_workers,
+                   split_dataset=False,
+                   seed=1):
 
         """ Create dataloader of data.
             Trials in a given batch have same number of channels
@@ -124,10 +130,32 @@ class Loader():
                 for n_trial in range(len(data[id][n_sess])):
                     dataset.append((data[id][n_sess][n_trial],
                                     labels[id][n_sess][n_trial]))
-        loader = DataLoader(dataset=dataset, batch_size=batch_size,
-                            shuffle=shuffle, num_workers=num_workers,
-                            collate_fn=PadCollate(dim=1))
-        dataloader = np.array([loader])
+        if split_dataset:
+            n = len(dataset)
+            n_train = int(0.80*len(dataset))
+            dataset_train, dataset_val = random_split(dataset, [n_train, n-n_train], generator=torch.Generator().manual_seed(seed))
+            n = len(dataset_train)
+            n_train = int(0.80*len(dataset_train))
+            dataset_train, dataset_test = random_split(dataset_train, [n_train, n-n_train], generator=torch.Generator().manual_seed(seed))
+
+            loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
+                                      shuffle=shuffle, num_workers=num_workers,
+                                      collate_fn=PadCollate(dim=1))
+            loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size,
+                                    shuffle=False, num_workers=num_workers,
+                                    collate_fn=PadCollate(dim=1))
+            loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size,
+                                     shuffle=False, num_workers=num_workers,
+                                     collate_fn=PadCollate(dim=1))
+            
+            return [loader_train], [loader_val], [loader_test]
+
+        else:      
+            loader = DataLoader(dataset=dataset, batch_size=batch_size,
+                                shuffle=shuffle, num_workers=num_workers,
+                                collate_fn=PadCollate(dim=1))
+
+            return [loader]
 
         return dataloader
 
@@ -202,10 +230,12 @@ class Loader():
             return self.balance_pad_loader(self.data,
                                            self.labels,
                                            self.batch_size,
-                                           self.num_workers)
+                                           self.num_workers,)
         else:
             return self.pad_loader(self.data,
                                    self.labels,
                                    self.shuffle,
                                    self.batch_size,
-                                   self.num_workers)
+                                   self.num_workers,
+                                   self.split_dataset,
+                                   self.seed)
