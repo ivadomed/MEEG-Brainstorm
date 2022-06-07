@@ -257,9 +257,9 @@ for test_subject_id in subject_ids:
     history = model.train()
 
     # Compute test performance and save it
-    (acc, f1, precision, recall, f1_macro,
-     precision_macro, recall_macro) = results
-
+    results = model.score()
+    acc, f1, precision, recall = results[:4]
+    f1_macro, precision_macro, recall_macro = results[4:]
     results.append(
         {
             "method": method,
