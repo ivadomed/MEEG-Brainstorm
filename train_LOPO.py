@@ -264,6 +264,7 @@ for test_subject_id in subject_ids:
         {
             "method": method,
             "balance": balanced,
+            "test_subject_id": test_subject_id,
             "acc": acc,
             "f1": f1,
             "precision": precision,
