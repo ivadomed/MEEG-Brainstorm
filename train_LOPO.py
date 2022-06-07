@@ -278,17 +278,6 @@ for test_subject_id in subject_ids:
     mean_precision += precision
     mean_recall += recall
     steps += 1
-    results.append(
-        {
-            "method": method,
-            "balance": balanced,
-            "test_subj_id": test_subject_id,
-            "acc": acc,
-            "f1": f1,
-            "precision": precision,
-            "recall": recall,
-        }
-    )
 
     if save:
 
