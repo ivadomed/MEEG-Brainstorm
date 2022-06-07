@@ -33,7 +33,8 @@ class make_model():
                  n_epochs,
                  patience=None,
                  average='weighted',
-                 mix_up=False):
+                 mix_up=False,
+                 beta=0.2):
 
         """
         Args:
@@ -63,6 +64,7 @@ class make_model():
         self.patience = patience
         self.average = average
         self.mix_up = mix_up
+        self.beta = beta
 
     def _do_train(self,
                   model,
@@ -301,7 +303,8 @@ class make_model():
                                                 self.train_loader,
                                                 self.optimizer,
                                                 self.train_criterion,
-                                                self.average)
+                                                self.average,
+                                                self.beta)
                 train_loss, train_perf = results
             else:
                 train_loss, train_perf = self._do_train(self.model,

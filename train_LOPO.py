@@ -41,6 +41,8 @@ def get_parser():
     parser.add_argument("--n_epochs", type=int, default=100)
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=0.0)
+    parser.add_argument("--mix_up", action="store_true")
+    parser.add_argument("--beta", type=float, default=0.2)
 
     return parser
 
@@ -52,12 +54,15 @@ path_root = args.path_root
 method = args.method
 save = args.save
 balanced = args.balanced
+average = args.average
 n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
+mix_up = args.mix_up
+beta = args.beta
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -240,7 +245,10 @@ for test_subject_id in subject_ids:
                        train_criterion,
                        criterion,
                        n_epochs=n_epochs,
-                       patience=patience)
+                       patience=patience,
+                       average=average,
+                       mix_up=mix_up,
+                       beta=beta)
 
     # Train Model
     history = model.train()
