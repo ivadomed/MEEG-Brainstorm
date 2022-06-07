@@ -179,6 +179,8 @@ for seed in range(5):
         {
             "method": method,
             "balance": balanced,
+            "mix_up": mix_up,
+            "cost_sensitive": cost_sensitive,
             "fold": seed,
             "acc": acc,
             "f1": f1,
@@ -206,6 +208,9 @@ for seed in range(5):
         df_results.to_csv(
             os.path.join(results_path,
                             "accuracy_results_spike_detection_method-{}"
-                            "_balance-{}_{}"
-                            "-subjects.csv".format(method, balanced,
-                                                len(subject_ids))))
+                            "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
+                            "-subjects.csv".format(method, 
+                                                   balanced,
+                                                   mix_up,
+                                                   cost_sensitive, 
+                                                   len(subject_ids))))
