@@ -39,7 +39,6 @@ def mixup_data(batch_x,
         lambd = np.random.beta(beta, beta)
     else:
         lambd = 1
-    lambd = torch.Tensor(lambd, device=device)
     batch_size = batch_x.size()[0]
     index = torch.randperm(batch_size).to(device=device)
 
