@@ -160,20 +160,10 @@ class Data:
 
                 except ValueError:
                     continue
-<<<<<<< HEAD
-            
-            try:
-                wanted_channels = np.unique(wanted_channels)
-                if len(wanted_channels) == 0:
-                    wanted_channels = [np.random.randint(0, len(ch_names))]
-            except UnboundLocalError:
-                print('no wanted channel')
-=======
 
             annotated_channels = np.unique(annotated_channels)
             if len(annotated_channels) == 0:
                 annotated_channels = [np.random.randint(0, len(ch_names))]
->>>>>>> 5bfe1dee298b7b39f0a77f9f5d9f6aed54ff7055
 
         for trial_fname in folder:
             try:
@@ -273,8 +263,8 @@ class Data:
                               if isfile(join(path, f))]
                     dataset = self.get_dataset(folder,
                                                wanted_event_label,
-                                               n_windows,
-                                               single_channel)
+                                               single_channel,
+                                               n_windows)
                     data, labels, spike_events, sfreq = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)
