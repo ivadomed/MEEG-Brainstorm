@@ -291,14 +291,13 @@ for test_subject_id in subject_ids:
     )
 
     if save:
-        eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
         # Save results file as csv
         if not os.path.exists("../results"):
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv_" + eventid
+            "../results/csv_"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
@@ -310,7 +309,7 @@ for test_subject_id in subject_ids:
                          "results_LOPO_spike_detection_method-{}"
                          "_balance-{}_{}"
                          "-subjects.csv".format(method, balanced,
-                                                len(subject_ids))
+                                                len(subject_ids),)
                          )
             )
 
