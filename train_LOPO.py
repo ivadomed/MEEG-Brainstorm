@@ -82,6 +82,8 @@ train_criterion = get_criterion(criterion,
 
 # Recover results
 results = []
+mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
+steps = 0
 
 # Recover dataset
 assert method in ("RNN_self_attention", "transformer_classification",
@@ -256,7 +258,11 @@ for test_subject_id in subject_ids:
 
     # Compute test performance and save it
     acc, f1, precision, recall = model.score()
-
+    mean_acc += acc
+    mean_f1 += f1
+    mean_precision += precision
+    mean_recall += recall
+    steps += 1
     results.append(
         {
             "method": method,
@@ -291,3 +297,10 @@ for test_subject_id in subject_ids:
                                                 len(subject_ids))
                          )
             )
+
+print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
+print("-" * 80)
+print(
+    f"{mean_acc/steps:0.4f} \t {mean_f1/steps:0.4f} \t"
+    f"{mean_precision/steps:0.4f} \t {mean_recall/steps:0.4f}\n"
+)
