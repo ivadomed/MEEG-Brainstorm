@@ -257,7 +257,22 @@ for test_subject_id in subject_ids:
     history = model.train()
 
     # Compute test performance and save it
-    acc, f1, precision, recall = model.score()
+    (acc, f1, precision, recall, f1_macro,
+     precision_macro, recall_macro) = results
+
+    results.append(
+        {
+            "method": method,
+            "balance": balanced,
+            "acc": acc,
+            "f1": f1,
+            "precision": precision,
+            "recall": recall,
+            "f1_macro": f1_macro,
+            "precision_macro": precision_macro,
+            "recall_macro": recall_macro,
+        }
+    )
     mean_acc += acc
     mean_f1 += f1
     mean_precision += precision
