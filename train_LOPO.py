@@ -65,6 +65,7 @@ lambd = args.lambd
 mix_up = args.mix_up
 beta = args.beta
 
+
 # Recover params
 lr = 1e-3  # Learning rate
 patience = 10
@@ -88,6 +89,7 @@ steps = 0
 # Recover dataset
 assert method in ("RNN_self_attention", "transformer_classification",
                   "transformer_detection")
+
 logger.info(f"Method used: {method}")
 if method == 'RNN_self_attention':
     single_channel = True
@@ -105,9 +107,7 @@ subject_ids = np.asarray(list(data.keys()))
 """
 
 for test_subject_id in subject_ids:
-    data_train = []
-    labels_train = []
-    data_train = []
+
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
     val_subject_id = np.random.choice(train_subject_ids)
@@ -291,7 +291,8 @@ for test_subject_id in subject_ids:
         df_results = pd.DataFrame(results)
         df_results.to_csv(
             os.path.join(results_path,
-                         "results_spike_detection_method-{}"
+
+                         "results_LOPO_spike_detection_method-{}"
                          "_balance-{}_{}"
                          "-subjects.csv".format(method, balanced,
                                                 len(subject_ids))
