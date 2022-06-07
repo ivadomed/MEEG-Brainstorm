@@ -18,9 +18,10 @@ import numpy as np
 def mixup_data(batch_x,
                batch_y,
                device,
-               beta=1.0):
+               beta=0.2):
 
-    """ Returns mixed inputs, pairs of targets, and lambda.
+    """ Compute mixed inputs, shuffle labels and convex coefficient.
+
     Args:
         batch_x (tensor): Batch of data.
         batch_y (tensor): Batch of labels.
@@ -29,10 +30,9 @@ def mixup_data(batch_x,
 
     Returns:
         mixed_batch_x (tensor): Batch of mixed data.
-        original_batch_y (tensor): Unchanged batch of labels.
         shuffle_batch_y (tensor): Shuffled batch of labels.
         lambd (float): Coefficient of the convex combination.
-        """
+    """
 
     # Define convex combination coefficient
     if beta > 0:
@@ -45,14 +45,28 @@ def mixup_data(batch_x,
 
     # Compute mix data
     mixed_batch_x = lambd * batch_x + (1-lambd) * batch_x[index, :]
-    original_batch_y, shuffle_batch_y = batch_y, batch_y[index]
-    return mixed_batch_x, original_batch_y, shuffle_batch_y, lambd
+    shuffle_batch_y = batch_y[index]
+
+    return mixed_batch_x, shuffle_batch_y, lambd
 
 
 def mixup_criterion(criterion,
                     output,
-                    original_batch_y,
+                    batch_y,
                     shuffle_batch_y,
                     lambd):
-    return (lambd * criterion(output, original_batch_y) + (1-lambd)
+
+    """ Compute convex combination of loss.
+
+    Args:
+        output (tensor): Output of model.
+        batch_y (tensor): Batch of labels.
+        shuffle_batch_y (tensor): Shuffled batch of labels.
+        lambd (float): Coefficient of the convex combination.
+
+    Returns:
+        Convex combination of loss.
+    """
+
+    return (lambd * criterion(output, batch_y) + (1-lambd)
             * criterion(output, shuffle_batch_y))
