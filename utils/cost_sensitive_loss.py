@@ -8,7 +8,7 @@ Retinopathy Grading from Eye Fundus Images"
 
 Usage: type "from custom_losses import <class>" to use one of its classes.
 
-Contributors: Ambroise Odonnat.
+Contributor: Ambroise Odonnat.
 """
 
 import torch

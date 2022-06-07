@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from datetime import datetime
 from loguru import logger
 from torch.nn import BCELoss
 from torch.optim import Adam
@@ -28,19 +29,21 @@ def get_parser():
     """ Set parameters for the experiment."""
 
     parser = argparse.ArgumentParser(
-        "Spike detection", description="Spike detection using attention layer"
+        "Spike detection", description="Spike detection"
     )
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
-    parser.add_argument("--average", type=str, default="weighted")
+    parser.add_argument("--average", type=str, default="macro")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=0.0)
+    parser.add_argument("--mix_up", action="store_true")
+    parser.add_argument("--beta", type=float, default=0.2)
 
     return parser
 
@@ -52,13 +55,16 @@ path_root = args.path_root
 method = args.method
 save = args.save
 balanced = args.balanced
+average = args.average
 n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
-average = args.average
+mix_up = args.mix_up
+beta = args.beta
+
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -77,6 +83,8 @@ train_criterion = get_criterion(criterion,
 
 # Recover results
 results = []
+mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
+steps = 0
 
 # Recover dataset
 assert method in ("RNN_self_attention", "transformer_classification",
@@ -240,14 +248,21 @@ for test_subject_id in subject_ids:
                        train_criterion,
                        criterion,
                        n_epochs=n_epochs,
-                       patience=patience)
+                       patience=patience,
+                       average=average,
+                       mix_up=mix_up,
+                       beta=beta)
 
     # Train Model
     history = model.train()
 
     # Compute test performance and save it
     acc, f1, precision, recall = model.score()
-
+    mean_acc += acc
+    mean_f1 += f1
+    mean_precision += precision
+    mean_recall += recall
+    steps += 1
     results.append(
         {
             "method": method,
@@ -261,13 +276,14 @@ for test_subject_id in subject_ids:
     )
 
     if save:
+        eventid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
         # Save results file as csv
         if not os.path.exists("../results"):
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv"
+            "../results/csv_" + eventid
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
@@ -275,7 +291,17 @@ for test_subject_id in subject_ids:
         df_results = pd.DataFrame(results)
         df_results.to_csv(
             os.path.join(results_path,
-                         "accuracy_results_LOPO_spike_detection_method-{}"
+
+                         "results_LOPO_spike_detection_method-{}"
                          "_balance-{}_{}"
                          "-subjects.csv".format(method, balanced,
-                                                len(subject_ids))))
+                                                len(subject_ids))
+                         )
+            )
+
+print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
+print("-" * 80)
+print(
+    f"{mean_acc/steps:0.4f} \t {mean_f1/steps:0.4f} \t"
+    f"{mean_precision/steps:0.4f} \t {mean_recall/steps:0.4f}\n"
+)
