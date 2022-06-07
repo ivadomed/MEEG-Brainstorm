@@ -156,7 +156,8 @@ class Loader():
 
         return dataloader
 
-    def balance_pad_loader(data,
+    def balance_pad_loader(self,
+                           data,
                            labels,
                            batch_size,
                            num_workers):

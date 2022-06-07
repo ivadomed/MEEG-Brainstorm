@@ -27,9 +27,11 @@ class make_model():
                  val_loader,
                  test_loader,
                  optimizer,
-                 criterion,
+                 train_criterion,
+                 val_criterion,
                  n_epochs,
-                 patience=None):
+                 patience=None,
+                 average='weighted'):
 
         """
         Args:
@@ -38,11 +40,13 @@ class make_model():
             val_loader (Dataloader): Loader of EEG samples for validation.
             test_loader (Dataloader): Loader of EEG samples for test.
             optimizer (optimizer): Optimizer.
-            criterion (Loss): Loss function.
+            train_criterion (Loss): Loss function for training.
+            val_criterion (Loss): Loss function for validation and test.
             n_epochs (int): Maximum number of epochs to run.
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
                             before stopping training.
+            average (str): Type of averaging on the data.
         """
 
         self.model = model
@@ -50,23 +54,27 @@ class make_model():
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.optimizer = optimizer
-        self.criterion = criterion
+        self.train_criterion = train_criterion
+        self.val_criterion = val_criterion
         self.n_epochs = n_epochs
         self.patience = patience
+        self.average = average
 
     def _do_train(self,
                   model,
                   loaders,
                   optimizer,
-                  criterion):
+                  criterion,
+                  average):
 
         """
         Train model.
         Args:
             model (nn.Module): Model.
-            loaders (Sampler): Generator of n_train EEG samples for training.
+            loaders (Sampler): Loaders of EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
+            average (str): Type of averaging on the data.
 
         Returns:
             train_loss (float): Mean loss on the loaders.
@@ -118,22 +126,24 @@ class make_model():
 
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
-        perf = f1_score(y_true, y_pred_binary, average='weighted',
-                        zero_division=0)
+        perf = f1_score(y_true, y_pred_binary, average=average,
+                        zero_division=1)
 
         return train_loss, perf
 
     def _validate(self,
                   model,
                   loader,
-                  criterion):
+                  criterion,
+                  average):
 
         """
         Evaluate model on validation set.
         Args:
             model (nn.Module): Model.
-            loader (Sampler): Generator of n_val EEG samples for validation.
+            loader (Sampler): Loader EEG samples for validation.
             criterion (Loss): Loss function.
+            average (str): Type of averaging on the data.
 
         Returns:
             val_loss (float): Mean loss on the loader.
@@ -169,8 +179,8 @@ class make_model():
 
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
-        perf = f1_score(y_true, y_pred_binary, average='weighted',
-                        zero_division=0)
+        perf = f1_score(y_true, y_pred_binary, average=average,
+                        zero_division=1)
 
         return val_loss, perf
 
@@ -189,42 +199,38 @@ class make_model():
         history = list()
         best_val_loss = np.inf
         self.best_model = copy.deepcopy(self.model)
-        print(
-            "epoch \t train_loss \t val_loss \t train_perf \t val_perf"
-        )
+        print("epoch \t train_loss \t val_loss \t train_f1 \t val_f1")
         print("-" * 80)
 
         for epoch in range(1, self.n_epochs + 1):
 
-            train_loss, train_perf = self._do_train(
-                self.model,
-                self.train_loader,
-                self.optimizer,
-                self.criterion,
-            )
-
+            train_loss, train_perf = self._do_train(self.model,
+                                                    self.train_loader,
+                                                    self.optimizer,
+                                                    self.train_criterion,
+                                                    self.average)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.criterion)
+                                                self.val_criterion,
+                                                self.average)
 
             history.append(
-                {
-                    "epoch": epoch,
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "train_perf": train_perf,
-                    "valid_perf": val_perf,
-                }
+                {"epoch": epoch,
+                 "train_loss": train_loss,
+                 "val_loss": val_loss,
+                 "train_perf": train_perf,
+                 "valid_perf": val_perf
+                 }
             )
 
             print(
                 f"{epoch} \t {train_loss:0.4f} \t {val_loss:0.4f} \t"
-                f"{train_perf:0.4f} \t {val_perf:0.4f}"
+                f"{train_perf:0.4f} \t {val_perf:0.4f}\n"
             )
 
             if val_loss < best_val_loss:
-                print(f"best val loss {best_val_loss:.4f} "
-                      f"-> {val_loss:.4f}")
+                print(f"Best val loss {best_val_loss:.4f} "
+                      f"-> {val_loss:.4f}\n")
                 best_val_loss = val_loss
                 self.best_model = copy.deepcopy(self.model)
                 waiting = 0
@@ -237,7 +243,7 @@ class make_model():
             else:
                 if waiting >= self.patience:
                     print(f"Stop training at epoch {epoch}")
-                    print(f"Best val loss : {best_val_loss:.4f}")
+                    print(f"Best val loss : {best_val_loss:.4f}\n")
                     break
 
         return history
@@ -268,11 +274,18 @@ class make_model():
 
         # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
-        f1 = f1_score(y_true, y_pred_binary, average='weighted',
-                      zero_division=0)
+        f1 = f1_score(y_true, y_pred_binary, average=self.average,
+                      zero_division=1)
         precision = precision_score(y_true, y_pred_binary,
-                                    average='weighted', zero_division=0)
-        recall = recall_score(y_true, y_pred_binary, average='weighted',
-                              zero_division=0)
+                                    average=self.average, zero_division=1)
+        recall = recall_score(y_true, y_pred_binary, average=self.average,
+                              zero_division=1)
+        print("Performances on test")
+        print("Acc \t F1 \t Precision \t Recall")
+        print("-" * 80)
+        print(
+            f"{acc:0.4f} \t {f1:0.4f} \t"
+            f"{precision:0.4f} \t {recall:0.4f}\n"
+        )
 
         return acc, f1, precision, recall

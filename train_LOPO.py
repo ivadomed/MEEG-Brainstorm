@@ -19,6 +19,7 @@ from models.architectures import RNN_self_attention, STT
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
+from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, reset_weights
 
 
@@ -33,10 +34,13 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
+    parser.add_argument("--average", type=str, default="weighted")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--cost_sensitive", action="store_true")
+    parser.add_argument("--lambd", type=float, default=0.0)
 
     return parser
 
@@ -52,6 +56,8 @@ n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+cost_sensitive = args.cost_sensitive
+lambd = args.lambd
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -64,6 +70,9 @@ available, device = define_device(gpu_id)
 
 # Define loss
 criterion = BCELoss().to(device)
+train_criterion = get_criterion(criterion,
+                                cost_sensitive,
+                                lambd)
 
 # Recover results
 results = []
@@ -228,6 +237,7 @@ for test_subject_id in subject_ids:
                        val_dataloader,
                        test_dataloader,
                        optimizer,
+                       train_criterion,
                        criterion,
                        n_epochs=n_epochs,
                        patience=patience)

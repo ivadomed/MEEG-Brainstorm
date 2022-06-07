@@ -63,10 +63,10 @@ class CostSensitiveLoss(nn.Module):
         loss = self.criterion(logits, targets)
 
         # Recover prediction
-        pred = (logits > 0.5).int()
+        pred = 1 * (logits > 0.5)
 
         # Compute cost-sensitive regularization
-        CS = self.M[pred.long(), targets.long()]
+        CS = self.M[pred.long(), targets.long()].float()
         balanced = CS.sum(axis=-1).mean()
         loss += self.lambd * balanced
 
