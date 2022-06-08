@@ -81,6 +81,12 @@ train_criterion = get_criterion(criterion,
                                 cost_sensitive,
                                 lambd)
 
+# Recover results
+results = []
+mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
+steps = 0
+
+# Recover dataset
 assert method in ("RNN_self_attention", "transformer_classification",
                   "transformer_detection")
 logger.info(f"Method used: {method}")
@@ -91,11 +97,6 @@ else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', single_channel)
-
-# Recover results
-results = []
-mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
-steps = 0
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
