@@ -95,7 +95,8 @@ logger.info(f"Method used: {method}")
 
 # Recover results
 results = []
-
+mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
+steps = 0
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -191,7 +192,11 @@ for seed in range(5):
             "recall_macro": recall_macro,
         }
     )
-
+    mean_acc += acc
+    mean_f1 += f1
+    mean_precision += precision
+    mean_recall += recall
+    steps += 1
     if save:
 
         # Save results file as csv
@@ -213,4 +218,12 @@ for seed in range(5):
                                                    balanced,
                                                    mix_up,
                                                    cost_sensitive, 
-                                                   len(subject_ids))))
+                                                   len(subject_ids))
+                            )
+            )
+print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
+print("-" * 80)
+print(
+    f"{mean_acc/steps:0.4f} \t {mean_f1/steps:0.4f} \t"
+    f"{mean_precision/steps:0.4f} \t {mean_recall/steps:0.4f}\n"
+)
