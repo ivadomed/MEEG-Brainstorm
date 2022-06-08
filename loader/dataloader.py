@@ -240,7 +240,7 @@ class Loader():
 
         # Define training, validation, test splits
         N = len(dataset)
-        ratio = 80
+        ratio = 0.80
         train_size = ratio * N
         test_size = (1-ratio) * N
         print(train_size, test_size)
