@@ -145,8 +145,8 @@ class Loader():
             dataset_train, dataset_test = random_split(dataset_train, [n_train, n-n_train], generator=torch.Generator().manual_seed(seed))
 
             # Z-score normalization
-            target_mean = np.mean([data[0] for data in dataset_train])
-            target_std = np.std([data[0] for data in dataset_train])
+            target_mean = np.mean([np.mean(data[0]) for data in dataset_train])
+            target_std = np.mean([np.std(data[0]) for data in dataset_train])
 
             for i in range(len(dataset_train)):
                 dataset_train_norm.append(((dataset_train[i][0]-target_mean) / target_std, dataset_train[i][1]))
