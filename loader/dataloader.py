@@ -247,8 +247,9 @@ class Loader():
         train_dataset, test_dataset = random_split(dataset,
                                                    [train_size, test_size],
                                                    generator=generator)
-        train_size *= ratio
-        val_size = (1-ratio) * train_size
+        N = len(train_dataset)
+        train_size = ratio * N
+        val_size = (1-ratio) * N
         train_dataset, val_dataset = random_split(train_dataset,
                                                   [train_size, val_size],
                                                   generator=generator)
