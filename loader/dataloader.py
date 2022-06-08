@@ -243,6 +243,7 @@ class Loader():
         ratio = 80
         train_size = ratio * N
         test_size = (1-ratio) * N
+        print(train_size, test_size)
         generator = torch.Generator().manual_seed(seed)
         train_dataset, test_dataset = random_split(dataset,
                                                    [train_size, test_size],
@@ -250,6 +251,7 @@ class Loader():
         N = len(train_dataset)
         train_size = ratio * N
         val_size = (1-ratio) * N
+        print(train_size, val_size)
         train_dataset, val_dataset = random_split(train_dataset,
                                                   [train_size, val_size],
                                                   generator=generator)
