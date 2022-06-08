@@ -296,6 +296,4 @@ class Loader():
                                        self.labels,
                                        self.shuffle,
                                        self.batch_size,
-                                       self.num_workers,
-                                       self.split_dataset,
-                                       self.seed)
+                                       self.num_workers)
