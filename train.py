@@ -42,7 +42,7 @@ def get_parser():
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-4)
     parser.add_argument("--mix_up", action="store_true")
-    parser.add_argument("--beta", type=float, default=0.2)
+    parser.add_argument("--beta", type=float, default=0.4)
 
     return parser
 
