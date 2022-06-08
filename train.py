@@ -36,7 +36,6 @@ def get_parser():
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
-    parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--average", type=str, default="binary")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -56,7 +55,6 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
-balanced = args.balanced
 average = args.average
 n_windows = args.n_windows
 batch_size = args.batch_size
@@ -96,7 +94,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel)
+dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -107,6 +105,7 @@ train_labels = []
 train_data = []
 train_spikes = []
 for id in subject_ids:
+    print(data[id].shape)
     train_data.append(np.expand_dims(data[id], axis=2))
     train_labels.append(labels[id])
     train_spikes.append(spikes[id])
@@ -116,26 +115,26 @@ for seed in range(5):
     if method == "transformer_detection":
 
         # Labels are the spike events times
-        train_loader = Loader(train_data,
-                              train_spikes,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers,
-                              split_dataset=True,
-                              seed=seed)
+        loader = Loader(train_data,
+                        train_spikes,
+                        balanced=False,
+                        shuffle=True,
+                        batch_size=batch_size,
+                        num_workers=num_workers,
+                        split_dataset=True,
+                        seed=seed)
     else:
 
         # Label is 1 with a spike occurs in the trial, 0 otherwise
-        train_loader = Loader(train_data,
-                              train_labels,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers,
-                              split_dataset=True,
-                              seed=seed)
-    train_dataloader, val_dataloader, test_dataloader = train_loader.load()
+        loader = Loader(train_data,
+                        train_labels,
+                        balanced=False,
+                        shuffle=True,
+                        batch_size=batch_size,
+                        num_workers=num_workers,
+                        split_dataset=True,
+                        seed=seed)
+    train_dataloader, val_dataloader, test_dataloader = loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
@@ -214,10 +213,10 @@ for seed in range(5):
             os.path.join(results_path,
                             "accuracy_results_spike_detection_method-{}"
                             "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
-                            "-subjects.csv".format(method, 
+                            "-subjects.csv".format(method,
                                                    balanced,
                                                    mix_up,
-                                                   cost_sensitive, 
+                                                   cost_sensitive,
                                                    len(subject_ids))
                             )
             )
