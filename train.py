@@ -105,7 +105,7 @@ train_labels = []
 train_data = []
 train_spikes = []
 for id in subject_ids:
-    print(data[id].shape)
+    print(len(data[id]))
     train_data.append(np.expand_dims(data[id], axis=2))
     train_labels.append(labels[id])
     train_spikes.append(spikes[id])
