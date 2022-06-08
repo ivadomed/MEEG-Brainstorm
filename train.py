@@ -209,7 +209,7 @@ for seed in range(5):
         df_results.to_csv(
             os.path.join(results_path,
                          "accuracy_results_spike_detection_method-{}"
-                         "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
+                         "_mix-up-{}_cost-sensitive-{}_{}"
                          "-subjects.csv".format(method,
                                                 mix_up,
                                                 cost_sensitive,
