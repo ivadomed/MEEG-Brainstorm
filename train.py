@@ -178,7 +178,6 @@ for seed in range(5):
     results.append(
         {
             "method": method,
-            "balance": balanced,
             "mix_up": mix_up,
             "cost_sensitive": cost_sensitive,
             "fold": seed,
