@@ -224,7 +224,7 @@ class TransformerEncoder(nn.Sequential):
         super().__init__()
         dim = expansion * emb_size
         encoder_layer = nn.TransformerEncoderLayer(d_model=emb_size,
-                                                   n_heads=num_heads,
+                                                   nhead=num_heads,
                                                    dim_feedforward=dim,
                                                    dropout=dropout,
                                                    activation='gelu')
@@ -291,7 +291,8 @@ class STT(nn.Module):
                  num_heads=10,
                  expansion=4,
                  transformer_dropout=0.25,
-                 n_windows=10):
+                 n_windows=10,
+                 detection=False):
 
         """
         Args:
@@ -311,6 +312,8 @@ class STT(nn.Module):
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
             n_windows (int): Number of time windows.
+            detection (bool): If True, detect spikes in each
+                              n_windows portions of input.
         """
 
         super().__init__()
@@ -330,11 +333,10 @@ class STT(nn.Module):
         self.head = nn.Sequential(
                         nn.Linear(flatten_size, n_windows),
                         nn.Sigmoid())
-        self.single_channel = int(n_windows == 1)
+        self.detection = detection
 
         # Weight initialization
-        self.detection_head.apply(normal_initialization)
-        self.classification_head.apply(normal_initialization)
+        self.head.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -364,12 +366,12 @@ class STT(nn.Module):
         code = self.encoder(embedding)
 
         # Output
-        if self.single_channel:
-            out = self.head(code.flatten(1)).squeeze(1)
-        else:
+        if self.detection:
             out = self.head(code.flatten(1))
+        else:
+            out = self.head(code.flatten(1)).squeeze(1)
 
-        return x, attention_weights, out
+        return out, attention_weights
 
 
 class RNN_self_attention(nn.Module):
@@ -420,7 +422,8 @@ class RNN_self_attention(nn.Module):
         """
 
         # First LSTM
-        x, (_, _) = self.LSTM_1(x)
+        self.LSTM_1.flatten_parameters()
+        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
         x = x.transpose(0, 1)
@@ -432,6 +435,7 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(0, 1)
 
         # Second LSTM
+        self.LSTM_2.flatten_parameters()
         x, (_, _) = self.LSTM_2(x)
         x = self.tanh(x)
         x = self.avgPool(x.transpose(1, 2))
@@ -439,6 +443,6 @@ class RNN_self_attention(nn.Module):
 
         # Classifier
         out = self.classifier(x.flatten(1))
-        out = self.sigmoid(x).squeeze(1)
+        out = self.sigmoid(out).squeeze(1)
 
         return out, attention_weights
