@@ -35,7 +35,7 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
-    parser.add_argument("--average", type=str, default="macro")
+    parser.add_argument("--average", type=str, default="binary")
     parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
