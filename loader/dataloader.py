@@ -234,7 +234,7 @@ class Loader():
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
-                    x = np.expand_dims(data[id][n_sess][n_trial], axis=1)
+                    x = np.expand_dims(data[id][n_sess][n_trial], axis=0)
                     y = labels[id][n_sess][n_trial]
                     dataset.append((x, y))
 
