@@ -81,17 +81,16 @@ train_criterion = get_criterion(criterion,
                                 cost_sensitive,
                                 lambd)
 
+assert method in ("RNN_self_attention", "transformer_classification",
+                  "transformer_detection")
+logger.info(f"Method used: {method}")
+
 if method == 'RNN_self_attention':
     single_channel = True
 else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', single_channel)
-all_dataset = dataset.all_datasets()
-
-assert method in ("RNN_self_attention", "transformer_classification",
-                  "transformer_detection")
-logger.info(f"Method used: {method}")
 
 # Recover results
 results = []
