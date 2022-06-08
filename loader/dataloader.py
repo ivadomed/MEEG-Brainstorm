@@ -241,16 +241,16 @@ class Loader():
         # Define training, validation, test splits
         N = len(dataset)
         ratio = 0.80
-        train_size = ratio * N
-        test_size = (1-ratio) * N
+        train_size = int(ratio * N)
+        test_size = N - train_size
         print(train_size, test_size)
         generator = torch.Generator().manual_seed(seed)
         train_dataset, test_dataset = random_split(dataset,
                                                    [train_size, test_size],
                                                    generator=generator)
         N = len(train_dataset)
-        train_size = ratio * N
-        val_size = (1-ratio) * N
+        train_size = int(ratio * N)
+        val_size = N - train_size
         print(train_size, val_size)
         train_dataset, val_dataset = random_split(train_dataset,
                                                   [train_size, val_size],
