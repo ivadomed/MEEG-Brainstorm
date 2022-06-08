@@ -63,12 +63,13 @@ lambd = args.lambd
 mix_up = args.mix_up
 beta = args.beta
 
-
+# Recover params
 gpu_id = 0
 weight_decay = 0
 lr = 1e-3  # Learning rate
 patience = 10
 
+# Define device
 available, device = define_device(gpu_id)
 
 # Define loss
@@ -96,25 +97,23 @@ dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
-# TODO z-score with only trin data
-
 # Training dataloader
-train_labels = []
-train_data = []
-train_spikes = []
+data_list = []
+labels_list = []
+spikes_list = []
 for id in subject_ids:
-    print(data[id][0].shape)
-    train_data.append(np.expand_dims(data[id], axis=2))
-    train_labels.append(labels[id])
-    train_spikes.append(spikes[id])
+    data_list.append(data[id])
+    labels_list.append(labels[id])
+    spikes_list.append(spikes[id])
 
 for seed in range(5):
+
     # Dataloader
     if method == "transformer_detection":
 
         # Labels are the spike events times
-        loader = Loader(train_data,
-                        train_spikes,
+        loader = Loader(data_list,
+                        spikes_list,
                         balanced=False,
                         shuffle=True,
                         batch_size=batch_size,
@@ -124,8 +123,8 @@ for seed in range(5):
     else:
 
         # Label is 1 with a spike occurs in the trial, 0 otherwise
-        loader = Loader(train_data,
-                        train_labels,
+        loader = Loader(data_list,
+                        labels_list,
                         balanced=False,
                         shuffle=True,
                         batch_size=batch_size,
@@ -146,7 +145,7 @@ for seed in range(5):
 
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,
-                        weight_decay=weight_decay)
+                     weight_decay=weight_decay)
 
     # Define training pipeline
     architecture = architecture.to(device)
@@ -171,8 +170,9 @@ for seed in range(5):
         os.mkdir("../results")
 
     # Compute test performance and save it
-    acc, f1, precision, recall, f1_macro, precision_macro, recall_macro = model.score()
-
+    metrics = model.score()
+    acc, f1, precision, recall = metrics[:4]
+    f1_macro, precision_macro, recall_macro = metrics[4:]
     results.append(
         {
             "method": method,
@@ -208,14 +208,13 @@ for seed in range(5):
         df_results = pd.DataFrame(results)
         df_results.to_csv(
             os.path.join(results_path,
-                            "accuracy_results_spike_detection_method-{}"
-                            "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
-                            "-subjects.csv".format(method,
-                                                   balanced,
-                                                   mix_up,
-                                                   cost_sensitive,
-                                                   len(subject_ids))
-                            )
+                         "accuracy_results_spike_detection_method-{}"
+                         "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
+                         "-subjects.csv".format(method,
+                                                mix_up,
+                                                cost_sensitive,
+                                                len(subject_ids))
+                         )
             )
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)

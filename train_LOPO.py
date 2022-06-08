@@ -289,7 +289,7 @@ for test_subject_id in subject_ids:
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv_"
+            "../results/csv"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
