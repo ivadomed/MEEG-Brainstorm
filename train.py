@@ -7,12 +7,10 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
 import argparse
-import json
 import os
 from platform import architecture
 import numpy as np
 import pandas as pd
-import torch
 
 from loguru import logger
 from torch.nn import BCELoss
@@ -105,7 +103,7 @@ train_labels = []
 train_data = []
 train_spikes = []
 for id in subject_ids:
-    print(len(data[id]))
+    print(data[id][0].shape)
     train_data.append(np.expand_dims(data[id], axis=2))
     train_labels.append(labels[id])
     train_spikes.append(spikes[id])
