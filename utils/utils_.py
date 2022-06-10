@@ -178,6 +178,7 @@ def weight(labels,
 
     count_labels = [0, 0]
     for k in labels:
+        print(k)
         count_labels[k] += 1
 
     # Compute the corresponding weights
