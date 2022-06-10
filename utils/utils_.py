@@ -158,8 +158,8 @@ def reset_weights(m):
             layer.reset_parameters()
 
 
-def weight(labels,
-           beta=0.9):
+def get_weight(labels,
+               beta=0.9):
 
     """
     Compute Effective Number of Samples (ENS) inspired by:
