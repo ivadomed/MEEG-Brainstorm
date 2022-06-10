@@ -181,6 +181,7 @@ def get_weight(labels,
         for n_sess in range(len(labels[id])):
             for n_trial in range(len(labels[id][n_sess])):
                 label = labels[id][n_sess][n_trial]
+                print(label)
                 count_labels[label] += 1
     print(count_labels)
     # Compute the corresponding weights
