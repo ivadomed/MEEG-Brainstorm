@@ -187,6 +187,7 @@ def get_weight(labels,
     # Compute the corresponding weights
     weight = (1-beta) / (1-np.power(beta, torch.tensor(count_labels,
                                                        dtype=torch.float)))
+    print(weight)
     return weight
 
 
