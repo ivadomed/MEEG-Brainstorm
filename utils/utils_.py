@@ -176,7 +176,7 @@ def weight(labels,
 
     assert beta < 1, " Beta takes its values between 0 and 1 excluded. "
 
-    count_labels = {k: 0 for k in labels}
+    count_labels = {labels[i]: 0 for i in range(len(labels))}
     for k in labels:
         count_labels[k] += 1
     class_count = [count_labels[k] for k in np.unique(labels)]
