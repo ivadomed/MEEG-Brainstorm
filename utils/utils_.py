@@ -177,9 +177,11 @@ def weight(labels,
     assert beta < 1, " Beta takes its values between 0 and 1 excluded. "
 
     count_labels = [0, 0]
-    for k in labels:
-        print(k)
-        count_labels[k] += 1
+    for id in range(len(labels)):
+        for n_sess in range(len(labels[id])):
+            for n_trial in range(len(labels[id][n_sess])):
+                label = labels[id][n_sess][n_trial]
+                count_labels[label] += 1
 
     # Compute the corresponding weights
     weight = (1-beta) / (1-np.power(beta, torch.tensor(count_labels,
