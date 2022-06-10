@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from loguru import logger
-from torch.nn import BCELoss
+from torch import nn
 from torch.optim import Adam
 
 from models.architectures import RNN_self_attention, STT
@@ -22,7 +22,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, reset_weights
+from utils.utils_ import define_device, reset_weights, weighted_loss
 
 
 def get_parser():
@@ -41,6 +41,7 @@ def get_parser():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
     parser.add_argument("--mix_up", action="store_true")
@@ -61,6 +62,7 @@ n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 mix_up = args.mix_up
@@ -77,10 +79,7 @@ gpu_id = 0
 available, device = define_device(gpu_id)
 
 # Define loss
-criterion = BCELoss().to(device)
-train_criterion = get_criterion(criterion,
-                                cost_sensitive,
-                                lambd)
+criterion = nn.BCELoss().to(device)
 
 # Recover results
 results = []
@@ -236,6 +235,16 @@ for test_subject_id in subject_ids:
         architecture = STT(n_windows=n_windows, detection=detection)
     architecture.apply(reset_weights)
 
+    # Define training loss
+    # Possibility to weight the loss
+    if weight_loss:
+        weight = weight_loss(train_labels).to(device)
+        train_criterion = nn.BCELoss(weight=weight).to(device)
+    else:
+        train_criterion = criterion
+    train_criterion = get_criterion(criterion,
+                                    cost_sensitive,
+                                    lambd)
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,
                      weight_decay=weight_decay)

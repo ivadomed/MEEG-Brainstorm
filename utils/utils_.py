@@ -161,6 +161,36 @@ def reset_weights(m):
             layer.reset_parameters()
 
 
+def weighted_loss(labels,
+                  beta=0.9):
+
+    """
+    Compute Effective Number of Samples (ENS) inspired by:
+    `"Class-Balanced Loss Based on Effective Number of Samples"
+    <https://arxiv.org/pdf/1901.05555.pdf>`_.
+
+    Args:
+        labels (list): Labels in the training dataset.
+        beta (float): Hyperparameters in [0,1[.
+
+    Return:
+        weight (tensor): Class weights.
+    """
+
+    assert beta < 1, " Beta takes its values between 0 and 1 excluded. "
+
+    count_labels = {k: 0 for k in labels}
+    for k in labels:
+        count_labels[k] += 1
+    class_count = [count_labels[k] for k in np.unique(labels)]
+
+    # Compute the corresponding weights
+    weight = (1-beta) / (1-np.power(beta, torch.tensor(class_count,
+                                                       dtype=torch.float)))
+
+    return weight
+
+
 def weighted_sampler(labels,
                      n_sample):
 
