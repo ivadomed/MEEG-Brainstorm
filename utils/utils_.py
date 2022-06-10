@@ -10,10 +10,7 @@ Contributors: Ambroise Odonnat.
 
 import torch
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 
 from loguru import logger
 from torch.utils.data.sampler import WeightedRandomSampler
