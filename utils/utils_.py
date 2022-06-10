@@ -182,11 +182,10 @@ def get_weight(labels,
             for n_trial in range(len(labels[id][n_sess])):
                 label = labels[id][n_sess][n_trial]
                 count_labels[label] += 1
-
+    print(count_labels)
     # Compute the corresponding weights
     weight = (1-beta) / (1-np.power(beta, torch.tensor(count_labels,
                                                        dtype=torch.float)))
-
     return weight
 
 
