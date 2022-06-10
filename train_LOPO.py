@@ -281,6 +281,7 @@ for test_subject_id in subject_ids:
             "method": method,
             "balance": balanced,
             "mix_up": mix_up,
+            "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
             "test_subject_id": test_subject_id,
             "acc": acc,
@@ -315,9 +316,11 @@ for test_subject_id in subject_ids:
             os.path.join(results_path,
 
                          "results_LOPO_spike_detection_method-{}"
-                         "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
+                         "_balance-{}_mix-up-{}_weight-loss-{}_"
+                         "cost-sensitive-{}_{}"
                          "-subjects.csv".format(method, balanced,
-                                                mix_up, cost_sensitive,
+                                                mix_up, weight_loss,
+                                                cost_sensitive,
                                                 len(subject_ids))
                          )
             )
