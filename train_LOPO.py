@@ -8,10 +8,11 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 
 import argparse
 import os
+import random
+
 import numpy as np
 import pandas as pd
 
-from datetime import datetime
 from loguru import logger
 from torch.nn import BCELoss
 from torch.optim import Adam
@@ -110,13 +111,14 @@ for test_subject_id in subject_ids:
 
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
-    val_subject_id = np.random.choice(train_subject_ids)
+    size = 0.20 * train_subject_ids.shape[0]
+    val_subject_ids = np.asarray(random.sample(list(train_subject_ids), size))
     train_subject_ids = np.delete(train_subject_ids,
                                   np.where(train_subject_ids
-                                           == val_subject_id))
+                                           == val_subject_ids))
     print('Test on: {}, '
           'Validation on: {}'.format(test_subject_id,
-                                     val_subject_id))
+                                     val_subject_ids))
 
     # Training dataloader
     train_data = []
@@ -160,9 +162,9 @@ for test_subject_id in subject_ids:
     val_data = []
     val_labels = []
     val_spikes = []
-    val_data.append(data[val_subject_id])
-    val_labels.append(labels[val_subject_id])
-    val_spikes.append(spikes[val_subject_id])
+    val_data.append(data[val_subject_ids])
+    val_labels.append(labels[val_subject_ids])
+    val_spikes.append(spikes[val_subject_ids])
 
     # Z-score normalization
     val_data = [[np.expand_dims((data-target_mean) / target_std,
