@@ -110,7 +110,7 @@ for test_subject_id in subject_ids:
 
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
-    size = 0.20 * train_subject_ids.shape[0]
+    size = int(0.20 * train_subject_ids.shape[0])
     val_subject_ids = np.asarray(random.sample(list(train_subject_ids), size))
     train_subject_ids = np.delete(train_subject_ids,
                                   np.where(train_subject_ids
