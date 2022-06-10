@@ -161,9 +161,10 @@ for test_subject_id in subject_ids:
     val_data = []
     val_labels = []
     val_spikes = []
-    val_data.append(data[val_subject_ids])
-    val_labels.append(labels[val_subject_ids])
-    val_spikes.append(spikes[val_subject_ids])
+    for id in val_subject_ids:
+        val_data.append(data[id])
+        val_labels.append(labels[id])
+        val_spikes.append(spikes[id])
 
     # Z-score normalization
     val_data = [[np.expand_dims((data-target_mean) / target_std,
