@@ -176,13 +176,12 @@ def weight(labels,
 
     assert beta < 1, " Beta takes its values between 0 and 1 excluded. "
 
-    count_labels = {labels[i]: 0 for i in range(len(labels))}
+    count_labels = [0, 0]
     for k in labels:
         count_labels[k] += 1
-    class_count = [count_labels[k] for k in np.unique(labels)]
 
     # Compute the corresponding weights
-    weight = (1-beta) / (1-np.power(beta, torch.tensor(class_count,
+    weight = (1-beta) / (1-np.power(beta, torch.tensor(count_labels,
                                                        dtype=torch.float)))
 
     return weight
