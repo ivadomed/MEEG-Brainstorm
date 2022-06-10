@@ -111,7 +111,11 @@ for test_subject_id in subject_ids:
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
     size = int(0.20 * train_subject_ids.shape[0])
-    val_subject_ids = np.asarray(random.sample(list(train_subject_ids), size))
+    if size > 1:
+        val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
+                                                   size))
+    else:
+        val_subject_ids = np.random.choice(train_subject_ids)
     train_subject_ids = np.delete(train_subject_ids,
                                   np.where(train_subject_ids
                                            == val_subject_ids))
