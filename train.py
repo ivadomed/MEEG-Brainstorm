@@ -136,10 +136,7 @@ for seed in range(5):
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
     elif method == "transformer_classification":
-        architecture = STT(n_windows=n_windows)
-    elif method == "transformer_detection":
-        detection = True
-        architecture = STT(n_windows=n_windows, detection=detection)
+        architecture = STT()
     architecture.apply(reset_weights)
 
     if weight_loss:
