@@ -128,6 +128,7 @@ def get_pos_weight(labels):
 
     """
     Compute weight for positive class.
+    If no positive examples in the dataset, return 1.
 
     Args:
         labels (list): Labels in the training dataset.
@@ -148,7 +149,10 @@ def get_pos_weight(labels):
                     neg += 1
 
     # Compute the corresponding weights
-    pos_weight = torch.as_tensor(neg / pos)
+    if pos:
+        pos_weight = torch.as_tensor(neg / pos)
+    else:
+        pos_weight = torch.ones(1)
 
     return pos_weight
 
