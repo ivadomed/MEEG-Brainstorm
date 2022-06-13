@@ -124,7 +124,7 @@ def normal_initialization(m):
             m.bias.data.zero_()
 
 
-def pos_weight(labels):
+def get_pos_weight(labels):
 
     """
     Compute weight for positive class.
@@ -148,7 +148,7 @@ def pos_weight(labels):
 
     # Compute the corresponding weights
     pos_weight = torch.as_tensor(neg / pos)
-    
+
     return pos_weight
 
 

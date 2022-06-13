@@ -22,7 +22,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, pos_weight, reset_weights
+from utils.utils_ import define_device, get_pos_weight, reset_weights
 
 
 def get_parser():
@@ -242,7 +242,7 @@ for test_subject_id in subject_ids:
 
     # Define training loss
     if weight_loss:
-        pos_weight = pos_weight(train_labels).to(device)
+        pos_weight = get_pos_weight(train_labels).to(device)
         print(pos_weight)
         train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         train_criterion = train_criterion.to(device)
