@@ -143,7 +143,6 @@ def get_pos_weight(labels):
         for n_sess in range(len(labels[id])):
             for n_trial in range(len(labels[id][n_sess])):
                 label = labels[id][n_sess][n_trial]
-                print('l', label, 'pos', pos, 'neg', neg)
                 if label == 1:
                     pos += 1
                 else:
