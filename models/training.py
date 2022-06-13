@@ -204,7 +204,7 @@ class make_model():
                                    shuffle_batch_y,
                                    lambd)
             pred = self.sigmoid(output)
-
+            print('pred', pred, 'label', batch_y)
             # Backward
             loss.backward()
             optimizer.step()
