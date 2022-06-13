@@ -243,7 +243,6 @@ for test_subject_id in subject_ids:
     # Define training loss
     if weight_loss:
         pos_weight = get_pos_weight(train_labels).to(device)
-        print(pos_weight)
         train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         train_criterion = train_criterion.to(device)
     else:
