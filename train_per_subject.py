@@ -144,7 +144,7 @@ for train_subject_id in subject_ids:
         architecture.apply(reset_weights)
 
         if weight_loss:
-            pos_weight = get_pos_weight(train_labels).to(device)
+            pos_weight = get_pos_weight([[train_labels]]).to(device)
             train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
             train_criterion = train_criterion.to(device)
         else:
