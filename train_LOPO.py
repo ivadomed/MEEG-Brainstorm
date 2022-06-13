@@ -244,7 +244,8 @@ for test_subject_id in subject_ids:
     # Possibility to weight the loss
     if weight_loss:
         weight = get_weight(train_labels).to(device)
-        train_criterion = nn.BCELoss(weight=weight).to(device)
+        print(weight)
+        criterion = nn.BCELoss(weight=weight).to(device)
     else:
         train_criterion = criterion
     train_criterion = get_criterion(criterion,
