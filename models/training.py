@@ -373,7 +373,7 @@ class make_model():
                 pred = self.sigmoid(output)
 
                 # Recover prediction
-                all_preds.append(output.cpu().numpy())
+                all_preds.append(pred.cpu().numpy())
                 all_labels.append(batch_y.cpu().numpy())
 
         # Recover binary prediction
