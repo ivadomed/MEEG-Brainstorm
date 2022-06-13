@@ -324,10 +324,10 @@ class STT(nn.Module):
                                           expansion,
                                           transformer_dropout)
         flatten_size = emb_size * n_time_points
-        self.head = nn.Sequential(nn.Linear(flatten_size, 1))
+        self.classifier = nn.Sequential(nn.Linear(flatten_size, 1))
 
         # Weight initialization
-        self.head.apply(normal_initialization)
+        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -355,7 +355,7 @@ class STT(nn.Module):
         code = self.encoder(embedding)
 
         # Output
-        out = self.head(code.flatten(1)).squeeze(1)
+        out = self.classifier(code.flatten(1)).squeeze(1)
 
         return out, attention_weights
 

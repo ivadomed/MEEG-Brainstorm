@@ -226,7 +226,7 @@ class Loader():
             seed (int): Seed for reproductibility.
 
         Returns:
-            tuple: tuple of Array of dataloaders.
+            tuple: tuple of all dataloaders and the training labels.
         """
 
         # Get dataset of every tuple (data, label)

@@ -21,7 +21,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, reset_weights, get_weight
+from utils.utils_ import define_device, get_pos_weight, reset_weights
 
 
 def get_parser():
@@ -130,7 +130,7 @@ for seed in range(5):
                         num_workers=num_workers,
                         split_dataset=True,
                         seed=seed)
-    train_dataloader, val_dataloader, test_dataloader, train_labels = loader.load()
+    train_loader, val_loader, test_loader, train_labels = loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
@@ -143,12 +143,12 @@ for seed in range(5):
     architecture.apply(reset_weights)
 
     if weight_loss:
-        weight = get_weight([[train_labels]]).to(device)
-        print(weight)
-        criterion = nn.BCELoss(weight=weight).to(device)
+        pos_weight = get_pos_weight(train_labels).to(device)
+        train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        train_criterion = train_criterion.to(device)
     else:
         train_criterion = criterion
-    train_criterion = get_criterion(criterion,
+    train_criterion = get_criterion(train_criterion,
                                     cost_sensitive,
                                     lambd)
 
@@ -160,9 +160,9 @@ for seed in range(5):
     architecture = architecture.to(device)
 
     model = make_model(architecture,
-                       train_dataloader,
-                       val_dataloader,
-                       test_dataloader,
+                       train_loader,
+                       val_loader,
+                       test_loader,
                        optimizer,
                        train_criterion,
                        criterion,
