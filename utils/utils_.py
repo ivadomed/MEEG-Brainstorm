@@ -131,7 +131,8 @@ def get_pos_weight(labels):
     If no positive examples in the dataset, return 1.
 
     Args:
-        labels (list): Labels in the training dataset.
+        labels (list): Labels in the training dataset recovered
+                       with labels[subject][session][trial].
 
     Return:
         pos_weight (tensor): Positive class weight.
