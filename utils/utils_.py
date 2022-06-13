@@ -153,7 +153,7 @@ def get_pos_weight(labels):
         pos_weight = torch.as_tensor(neg / pos)
     else:
         pos_weight = torch.ones(1)
-
+    print(pos_weight)
     return pos_weight
 
 
