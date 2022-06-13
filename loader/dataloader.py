@@ -236,7 +236,6 @@ class Loader():
                 for n_trial in range(len(data[id][n_sess])):
                     x = np.expand_dims(data[id][n_sess][n_trial], axis=0)
                     y = labels[id][n_sess][n_trial]
-                    print(y)
                     dataset.append((x, y))
 
         # Define training, validation, test splits

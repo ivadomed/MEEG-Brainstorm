@@ -116,7 +116,9 @@ class make_model():
 
             # Forward
             output, _ = model(batch_x)
+            print(output, batch_y)
             loss = criterion(output, batch_y)
+            print(loss)
             pred = self.sigmoid(output)
 
             # Backward

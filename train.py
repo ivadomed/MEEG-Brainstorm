@@ -131,7 +131,7 @@ for seed in range(5):
                         split_dataset=True,
                         seed=seed)
     train_loader, val_loader, test_loader, train_labels = loader.load()
-
+    print(train_labels)
     # Define architecture
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
