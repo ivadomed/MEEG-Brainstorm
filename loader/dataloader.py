@@ -258,8 +258,10 @@ class Loader():
         target_mean = np.mean([np.mean(data[0]) for data in train_dataset])
         target_std = np.mean([np.std(data[0]) for data in train_dataset])
         train_data, val_data, test_data = [], [], []
+        train_labels = []
         for (x, y) in train_dataset:
             train_data.append(((x-target_mean) / target_std, y))
+            train_labels.append(y)
         for (x, y) in val_dataset:
             val_data.append(((x-target_mean) / target_std, y))
         for (x, y) in test_dataset:
@@ -275,7 +277,7 @@ class Loader():
                                  shuffle=False, num_workers=num_workers,
                                  collate_fn=PadCollate(dim=1))
 
-        return [train_loader], [val_loader], [test_loader]
+        return [train_loader], [val_loader], [test_loader], train_labels
 
     def load(self):
         if self.split_dataset:
