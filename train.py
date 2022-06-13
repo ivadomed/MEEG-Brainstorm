@@ -94,7 +94,7 @@ data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
 # Define loss
-criterion = nn.BCELossWithLogits().to(device)
+criterion = nn.BCEWithLogitsLoss().to(device)
 
 # Training dataloader
 data_list = []
