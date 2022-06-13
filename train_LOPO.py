@@ -22,7 +22,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, reset_weights, get_weight
+from utils.utils_ import define_device, pos_weight, reset_weights
 
 
 def get_parser():
@@ -79,7 +79,7 @@ gpu_id = 0
 available, device = define_device(gpu_id)
 
 # Define loss
-criterion = nn.BCELoss().to(device)
+criterion = nn.BCEWithLogitsLoss().to(device)
 
 # Recover results
 results = []
@@ -241,14 +241,14 @@ for test_subject_id in subject_ids:
     architecture.apply(reset_weights)
 
     # Define training loss
-    # Possibility to weight the loss
     if weight_loss:
-        weight = get_weight(train_labels).to(device)
-        print(weight)
-        criterion = nn.BCELoss(weight=weight).to(device)
+        pos_weight = pos_weight(train_labels).to(device)
+        print(pos_weight)
+        train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        train_criterion = train_criterion.to(device)
     else:
         train_criterion = criterion
-    train_criterion = get_criterion(criterion,
+    train_criterion = get_criterion(train_criterion,
                                     cost_sensitive,
                                     lambd)
     # Define optimizer

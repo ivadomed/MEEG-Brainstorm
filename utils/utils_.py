@@ -124,6 +124,34 @@ def normal_initialization(m):
             m.bias.data.zero_()
 
 
+def pos_weight(labels):
+
+    """
+    Compute weight for positive class.
+
+    Args:
+        labels (list): Labels in the training dataset.
+
+    Return:
+        pos_weight (tensor): Positive class weight.
+    """
+
+    neg, pos = 0, 0
+    for id in range(len(labels)):
+        for n_sess in range(len(labels[id])):
+            for n_trial in range(len(labels[id][n_sess])):
+                label = labels[id][n_sess][n_trial]
+                if label == 1:
+                    pos += 1
+                else:
+                    neg += 1
+
+    # Compute the corresponding weights
+    pos_weight = torch.Tensor(neg / pos)
+
+    return pos_weight
+
+
 def pad_tensor(x,
                n_pads,
                dim):
@@ -156,38 +184,6 @@ def reset_weights(m):
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
-
-
-def get_weight(labels,
-               beta=0.9):
-
-    """
-    Compute Effective Number of Samples (ENS) inspired by:
-    `"Class-Balanced Loss Based on Effective Number of Samples"
-    <https://arxiv.org/pdf/1901.05555.pdf>`_.
-
-    Args:
-        labels (list): Labels in the training dataset.
-        beta (float): Hyperparameters in [0,1[.
-
-    Return:
-        weight (tensor): Class weights.
-    """
-
-    assert beta < 1, " Beta takes its values between 0 and 1 excluded. "
-
-    count_labels = [0, 0]
-    for id in range(len(labels)):
-        for n_sess in range(len(labels[id])):
-            for n_trial in range(len(labels[id][n_sess])):
-                label = labels[id][n_sess][n_trial]
-                count_labels[label] += 1
-                
-    # Compute the corresponding weights
-    weight = (1-beta) / (1-np.power(beta, torch.tensor(count_labels,
-                                                       dtype=torch.float)))
-
-    return weight
 
 
 def weighted_sampler(labels,
