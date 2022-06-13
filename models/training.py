@@ -265,7 +265,7 @@ class make_model():
                 # Forward
                 output, _ = model.forward(batch_x)
                 pred = self.sigmoid(output)
-
+                print('pred', pred, 'label', batch_y)
                 # Recover loss and prediction
                 loss = criterion(output, batch_y)
                 val_loss[idx_batch] = loss.item()
