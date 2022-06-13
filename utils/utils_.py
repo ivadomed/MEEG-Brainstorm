@@ -147,8 +147,8 @@ def pos_weight(labels):
                     neg += 1
 
     # Compute the corresponding weights
-    pos_weight = torch.Tensor(neg / pos)
-
+    pos_weight = torch.as_tensor(neg / pos)
+    
     return pos_weight
 
 
