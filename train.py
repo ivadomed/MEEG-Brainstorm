@@ -35,7 +35,6 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--average", type=str, default="binary")
-    parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -55,7 +54,6 @@ path_root = args.path_root
 method = args.method
 save = args.save
 average = args.average
-n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -89,7 +87,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
+dataset = Data(path_root, 'spikeandwave', single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -183,6 +181,7 @@ for seed in range(5):
         {
             "method": method,
             "mix_up": mix_up,
+            "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
             "fold": seed,
             "acc": acc,
@@ -215,9 +214,10 @@ for seed in range(5):
         df_results.to_csv(
             os.path.join(results_path,
                          "accuracy_results_spike_detection_method-{}"
-                         "_mix-up-{}_cost-sensitive-{}_{}"
+                         "_mix-up-{}_weight-loss-{}_cost-sensitive-{}_{}"
                          "-subjects.csv".format(method,
                                                 mix_up,
+                                                weight_loss,
                                                 cost_sensitive,
                                                 len(subject_ids))
                          )

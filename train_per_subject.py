@@ -21,7 +21,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, reset_weights, get_weight
+from utils.utils_ import define_device, get_pos_weight, reset_weights
 
 
 def get_parser():
@@ -35,7 +35,6 @@ def get_parser():
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--average", type=str, default="binary")
-    parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -55,7 +54,6 @@ path_root = args.path_root
 method = args.method
 save = args.save
 average = args.average
-n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -75,7 +73,7 @@ gpu_id = 0
 available, device = define_device(gpu_id)
 
 # Define loss
-criterion = nn.BCELoss().to(device)
+criterion = nn.BCEWithLogitsLoss().to(device)
 
 # Recover results
 results = []
@@ -92,7 +90,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
+dataset = Data(path_root, 'spikeandwave', single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -136,47 +134,44 @@ for train_subject_id in subject_ids:
                             num_workers=num_workers,
                             split_dataset=True,
                             seed=seed)
-        train_dataloader, val_dataloader, test_dataloader = loader.load()
+        train_loader, val_loader, test_loader, train_labels = loader.load()
 
         # Define architecture
         if method == "RNN_self_attention":
             architecture = RNN_self_attention()
         elif method == "transformer_classification":
-            architecture = STT(n_windows=n_windows)
-        elif method == "transformer_detection":
-            detection = True
-            architecture = STT(n_windows=n_windows, detection=detection)
+            architecture = STT()
         architecture.apply(reset_weights)
 
-
         if weight_loss:
-            weight = get_weight(train_labels).to(device)
-            criterion = nn.BCELoss(weight=weight).to(device)
+            pos_weight = get_pos_weight(train_labels).to(device)
+            train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            train_criterion = train_criterion.to(device)
         else:
             train_criterion = criterion
-        train_criterion = get_criterion(criterion,
+        train_criterion = get_criterion(train_criterion,
                                         cost_sensitive,
                                         lambd)
 
         # Define optimizer
         optimizer = Adam(architecture.parameters(), lr=lr,
-                        weight_decay=weight_decay)
+                         weight_decay=weight_decay)
 
         # Define training pipeline
         architecture = architecture.to(device)
 
         model = make_model(architecture,
-                        train_dataloader,
-                        val_dataloader,
-                        test_dataloader,
-                        optimizer,
-                        train_criterion,
-                        criterion,
-                        n_epochs=n_epochs,
-                        patience=patience,
-                        average=average,
-                        mix_up=mix_up,
-                        beta=beta)
+                           train_loader,
+                           val_loader,
+                           test_loader,
+                           optimizer,
+                           train_criterion,
+                           criterion,
+                           n_epochs=n_epochs,
+                           patience=patience,
+                           average=average,
+                           mix_up=mix_up,
+                           beta=beta)
 
         # Train Model
         history = model.train()
@@ -192,6 +187,7 @@ for train_subject_id in subject_ids:
             {
                 "method": method,
                 "mix_up": mix_up,
+                "weight_loss": weight_loss,
                 "cost_sensitive": cost_sensitive,
                 "subject_id": train_subject_id,
                 "fold": seed,
@@ -224,13 +220,14 @@ for train_subject_id in subject_ids:
             df_results = pd.DataFrame(results)
             df_results.to_csv(
                 os.path.join(results_path,
-                            "results_intra_subject_spike_detection_method-{}"
-                            "_mix-up-{}_cost-sensitive-{}_{}"
-                            "-subjects.csv".format(method,
+                             "results_intra_subject_spike_detection_method-{}"
+                             "_mix-up-{}_weight-loss-{}_cost-sensitive-{}_{}"
+                             "-subjects.csv".format(method,
                                                     mix_up,
+                                                    weight_loss,
                                                     cost_sensitive,
                                                     len(subject_ids))
-                            )
+                             )
                 )
     print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
     print("-" * 80)
