@@ -118,7 +118,6 @@ for seed in range(5):
                         split_dataset=True,
                         seed=seed)
     else:
-
         # Label is 1 with a spike occurs in the trial, 0 otherwise
         loader = Loader(data_list,
                         labels_list,
