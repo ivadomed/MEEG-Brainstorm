@@ -27,10 +27,9 @@ fnames = list(
 )
 df = pd.concat([pd.read_csv(fname) for fname in fnames], axis=0)
 df["method"] = df["method"].replace({"transformer_classification": "STT"})
+
 # fig = plt.figure()
-# sns.boxplot(data=df, x="balance", y="f1", palette="Set2")
-# sns.swarmplot(data=df, x="balance", y="f1", hue="test_subj_id", palette="Spectral")
-# plt.legend([],[], frameon=False)
+# sns.boxplot(data=df, x="method", y="f1_macro", hue='cost_sensitive', palette="Set2")
 # plt.title(f"Results for F1 score")
 # plt.tight_layout()
 
@@ -40,23 +39,14 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 #     bbox_inches="tight",
 # )
 
-# fig = plt.figure()
-# sns.boxplot(data=df, x="balance", y="acc", palette="Set2" )
-# sns.swarmplot(data=df, x="method", y="acc", color=".25")
-# plt.title(f"Results for accuracy score")
-# plt.tight_layout()
-
-
-# fig.savefig(
-#      "../results/images/results_acc_score_{}_subjects.pdf".format(n_subjects),
-#     bbox_inches="tight",
-# )
 g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
 g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
+hue_labels = ['without cs loss', 'with cs loss']
 g.add_legend()
-g.fig.suptitle('LOPO')
+g.fig.suptitle('classic')
+
 g.savefig(
-     "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
+     "../results/images/results_classic_F1_score_{}_subjects.pdf".format(n_subjects),
     bbox_inches="tight",
 )
 
