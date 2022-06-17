@@ -191,14 +191,13 @@ def reset_weights(m):
             layer.reset_parameters()
 
 
-def weighted_sampler(labels,
-                     num_samples):
+def weighted_sampler(labels):
 
     """ Create weighted sampler to tackle class imbalance.
+        Oversample ied trials in dataloader.
 
     Args:
         labels (tensor): Labels.
-        n_sample (int): Number of samples to draw.
 
     Returns:
         sampler (Sampler): Weighted sampler
