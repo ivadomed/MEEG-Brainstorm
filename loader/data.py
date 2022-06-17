@@ -278,6 +278,8 @@ class Data:
                 # Recover trials, labels and spike events
                 annotated_channels = []
                 if single_channel:
+                    
+                    # Select channels if ied annotation
                     for i in range(len(sessions)):
                         path = sessions[i] + '/'
                         folder = [path + f for f in listdir(path)
@@ -286,16 +288,18 @@ class Data:
                                                     wanted_event_label)
                         if channel:
                             annotated_channels.append(channel)
-                        print(annotated_channels)
+
+                    # Select a random channel if none annotated channel
+                    # in the entire session
                     if not annotated_channels:
-                        print('ok')
-                        annotated_channels = [np.random.randint(0, 20)]
-                        print(annotated_channels)
-                    print('after dicho', annotated_channels)
+                        channel = np.random.randint(0, 20)
+                        annotated_channels = np.asarray([channel])
+
+                    # Remove duplicates
                     annotated_channels = np.concatenate(annotated_channels)
                     annotated_channels = np.unique(annotated_channels)
                     annotated_channels = annotated_channels.astype('int64')
-                    print(annotated_channels)
+
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
