@@ -126,14 +126,14 @@ class Loader():
 
         # Get dataloader
         dataset = []
-        labels = []
+        labels_list = []
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
                     dataset.append((data[id][n_sess][n_trial],
                                     labels[id][n_sess][n_trial]))
-                    labels.append(labels[id][n_sess][n_trial])
-        sampler = weighted_sampler(labels)
+                    labels_list.append(labels[id][n_sess][n_trial])
+        sampler = weighted_sampler(labels_list)
         loader = DataLoader(dataset=dataset, batch_size=batch_size,
                             sampler=sampler, num_workers=num_workers,
                             collate_fn=PadCollate(dim=1))
