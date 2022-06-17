@@ -285,6 +285,7 @@ class Data:
                         channel = self.get_channels(folder,
                                                     wanted_event_label)
                         annotated_channels.append(channel)
+                        print('non empy', annotated_channels)
                     if len(annotated_channels) == 0:
                         print('ok')
                         annotated_channels = [np.random.randint(0, 20)]
