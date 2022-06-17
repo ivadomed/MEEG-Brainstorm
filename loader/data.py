@@ -290,7 +290,7 @@ class Data:
                     annotated_channels = np.concatenate(annotated_channels)
                     annotated_channels = np.unique(annotated_channels)
                     annotated_channels = annotated_channels.astype('int64')
-
+                    print(annotated_channels)
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
