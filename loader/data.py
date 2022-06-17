@@ -293,7 +293,7 @@ class Data:
                     # in the entire session
                     if not annotated_channels:
                         channel = np.random.randint(0, 20)
-                        annotated_channels = np.asarray([channel])
+                        annotated_channels = np.unique([channel])
 
                     # Remove duplicates
                     annotated_channels = np.concatenate(annotated_channels)
