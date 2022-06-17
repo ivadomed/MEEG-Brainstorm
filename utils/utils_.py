@@ -192,7 +192,7 @@ def reset_weights(m):
 
 
 def weighted_sampler(labels,
-                     n_sample):
+                     num_samples):
 
     """ Create weighted sampler to tackle class imbalance.
 
@@ -204,13 +204,12 @@ def weighted_sampler(labels,
         sampler (Sampler): Weighted sampler
     """
 
-    class_count = torch.bincount(labels.squeeze())
+    class_count = torch.bincount(torch.tensor(labels))
     class_weighting = 1. / class_count
-    sample_weights = class_weighting[labels]
-    if n_sample == 0:
-        n_sample = 1
-    sampler = WeightedRandomSampler(sample_weights,
-                                    int(n_sample),
+    weights = class_weighting[labels]
+    num_samples = len(weights)
+    sampler = WeightedRandomSampler(weights,
+                                    num_samples,
                                     replacement=False)
     return sampler
 

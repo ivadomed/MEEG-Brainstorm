@@ -127,44 +127,19 @@ class Loader():
         """
 
         # Get dataloader
-        datasets = []
-        dataloader = []
-        n_ied_segments = []
-        label_distributions = []
+        dataset = []
+        labels = []
         for id in range(len(data)):
-            dataset = []
-            label_distribution = np.concatenate(labels[id])
-            label_distributions.append(label_distribution)
-            ied_segment = np.sum(label_distribution == 1)
-            n_ied_segments.append(ied_segment)
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
                     dataset.append((data[id][n_sess][n_trial],
                                     labels[id][n_sess][n_trial]))
-            datasets.append(dataset)
-
-        # Monitor number of IEDs segments for each subject
-        n_ied_segments = np.array(n_ied_segments)
-        mean_n_ied_segments = np.mean(n_ied_segments)
-
-        # Limit number of IEDs segments to the mean
-        above_mean = (n_ied_segments >= mean_n_ied_segments)
-        n_ied_segments[above_mean] = mean_n_ied_segments
-
-        # Create loader for each subject
-        for id in range(len(data)):
-            sampler = weighted_sampler(torch.tensor(label_distributions[id]),
-                                       2*n_ied_segments[id])
-            loader = DataLoader(dataset=datasets[id],
-                                batch_size=batch_size,
-                                sampler=sampler,
-                                num_workers=num_workers,
-                                collate_fn=PadCollate(dim=1))
-            dataloader.append(loader)
-
-        # Sort loaders in descending order
-        argsort = np.argsort(n_ied_segments)
-        dataloader = np.array(dataloader)[np.flipud(argsort)]
+                    labels.append(labels[id][n_sess][n_trial])
+        sampler = weighted_sampler(labels)
+        loader = DataLoader(dataset=dataset, batch_size=batch_size,
+                            sampler=sampler, num_workers=num_workers,
+                            collate_fn=PadCollate(dim=1))
+        dataloader = [loader]
 
         return dataloader
 
