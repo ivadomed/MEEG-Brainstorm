@@ -284,7 +284,8 @@ class Data:
                                   if isfile(join(path, f))]
                         channel = self.get_channels(folder,
                                                     wanted_event_label)
-                        annotated_channels.append(channel)
+                        if channel:
+                            annotated_channels.append(channel)
                     if not annotated_channels:
                         annotated_channels = [np.random.randint(0, 20)]
                     annotated_channels = np.concatenate(annotated_channels)
