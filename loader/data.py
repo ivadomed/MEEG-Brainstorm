@@ -283,8 +283,7 @@ class Data:
                         folder = [path + f for f in listdir(path)
                                   if isfile(join(path, f))]
                         channel = self.get_channels(folder,
-                                                    wanted_event_label,
-                                                    single_channel)
+                                                    wanted_event_label)
                         annotated_channels.append(channel)
                     if len(annotated_channels) == 0:
                         annotated_channels = [np.random.randint(0, 20)]
