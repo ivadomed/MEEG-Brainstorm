@@ -286,8 +286,11 @@ class Data:
                                                     wanted_event_label)
                         if channel:
                             annotated_channels.append(channel)
+                        print(annotated_channels)
                     if not annotated_channels:
+                        print('ok')
                         annotated_channels = [np.random.randint(0, 20)]
+                        print(annotated_channels)
                     annotated_channels = np.concatenate(annotated_channels)
                     annotated_channels = np.unique(annotated_channels)
                     annotated_channels = annotated_channels.astype('int64')
