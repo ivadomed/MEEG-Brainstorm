@@ -111,9 +111,7 @@ class Loader():
         """ Create dataloader of data.
             Trials in a given batch have same number of channels
             using padding (add zero artificial channels).
-            Data are split in batches for each subject and for each batch:
-            --> in average, same number of trials with/without spike events.
-            --> at most 2*n_spike_trials.
+            Oversample ied trials in the dataloader.
 
         Args:
             data (list): List of EEG trials in .edf format.
