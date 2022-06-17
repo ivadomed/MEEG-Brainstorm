@@ -286,7 +286,7 @@ class Data:
                                   if isfile(join(path, f))]
                         channel = self.get_channels(folder,
                                                     wanted_event_label)
-                        if channel:
+                        if len(channel) != 0:
                             annotated_channels.append(channel)
 
                     # Remove duplicates
