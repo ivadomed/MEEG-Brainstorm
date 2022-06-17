@@ -285,14 +285,12 @@ class Data:
                         channel = self.get_channels(folder,
                                                     wanted_event_label)
                         annotated_channels.append(channel)
-                        print('non empy', annotated_channels)
-                    if len(annotated_channels) == 0:
-                        print('ok')
+                    if not annotated_channels:
                         annotated_channels = [np.random.randint(0, 20)]
-                        print(annotated_channels)
                     annotated_channels = np.concatenate(annotated_channels)
                     annotated_channels = np.unique(annotated_channels)
                     annotated_channels = annotated_channels.astype('int64')
+                    print(annotated_channels)
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
