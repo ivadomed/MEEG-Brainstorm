@@ -13,6 +13,7 @@ def get_parser():
     )
     parser.add_argument("--path_root", type=str, default="../IvadomedNifti/")
     parser.add_argument("--method", type=str, nargs="+", default=["RNN_self_attention"])
+    parser.add_argument("--options", type=str, nargs="+", default=[' --mix_up', ' --cost_sensitive', ' --weight_loss'])
     parser.add_argument(
         "--training", type=str, nargs="+", default=['train']
     )
@@ -30,10 +31,9 @@ parser = get_parser()
 args = parser.parse_args()
 methods = args.method
 trainings = args.training
-
+options = args.options
 # load data filtered
 path_root = args.path_root
-options =  [' --mix_up', ' --cost_sensitive', ' --weight_loss']
 for training in trainings:
     for method in methods:
         for i, combo in enumerate(powerset(options), 1):
