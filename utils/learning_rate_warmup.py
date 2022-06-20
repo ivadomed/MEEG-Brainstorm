@@ -14,23 +14,29 @@ Contributors: Ambroise Odonnat.
 class NoamOpt():
 
     """
-    Warmup method inspired by:
+    Implementation inspired by:
     `<http://nlp.seas.harvard.edu/2018/04/03/attention.html>`_.
     """
 
-    def __init__(self, max_lr, warmup, optimizer):
+    def __init__(self,
+                 model_size,
+                 factor,
+                 warmup,
+                 optimizer):
 
         """
         Args:
-            max_lr (float): Maximum value of learning rate after warmup steps.
+            model_size (int): Size of the Transformer model.
             warmup (int): Warmup steps value.
             optimizer (Optimizer): Adaptative Optimizer chosen for training.
         """
 
-        self.max_lr = max_lr
+        self.model_size = model_size
+        self.factor = factor
         self.warmup = warmup
         self.optimizer = optimizer
         self._step = 0
+        self._rate = 0
 
     def step(self):
 
@@ -42,6 +48,7 @@ class NoamOpt():
         rate = self.rate()
         for p in self.optimizer.param_groups:
             p['lr'] = rate
+        self._rate = rate
         self.optimizer.step()
 
     def rate(self):
@@ -50,4 +57,8 @@ class NoamOpt():
         Compute rate.
         """
 
-        return min(self.max_lr, self._step * self.warmup ** (-1.5))
+        if step is None:
+            step = self._step
+        return self.factor * \
+            (self.model_size ** (-0.5) *
+             min(step ** (-0.5), step * self.warmup ** (-1.5)))
