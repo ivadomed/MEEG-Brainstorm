@@ -12,7 +12,11 @@ def get_parser():
         "Spike detection", description="Epileptic spike detection"
     )
     parser.add_argument("--path_root", type=str, default="../IvadomedNifti/")
-    parser.add_argument("--method", type=str, nargs="+", default=["RNN_self_attention"])
+    parser.add_argument("--method", type=str, nargs="+",
+                        default=["RNN_self_attention"])
+    parser.add_argument("--options", type=str, nargs="+",
+                        default=['--mix_up', '--cost_sensitive',
+                                 '--weight_loss', '--balanced'])
     parser.add_argument(
         "--training", type=str, nargs="+", default=['train']
     )
@@ -29,11 +33,11 @@ def powerset(iterable):
 parser = get_parser()
 args = parser.parse_args()
 methods = args.method
+options = args.options
 trainings = args.training
 
 # load data filtered
 path_root = args.path_root
-options =  [' --mix_up', ' --cost_sensitive', ' --weight_loss']
 for training in trainings:
     for method in methods:
         for i, combo in enumerate(powerset(options), 1):
@@ -41,4 +45,8 @@ for training in trainings:
             for option in combo:
                 options_combo += option
 
-            os.system(' python {}.py --path_root {} --save{} --method {}'.format(training, path_root, options_combo, method))
+            os.system(' python {}.py --path_root {}'
+                      '--save{} --method {}'.format(training,
+                                                    path_root,
+                                                    options_combo,
+                                                    method))
