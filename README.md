@@ -1,20 +1,23 @@
-# MEEG-Brainstorm
+# MEEG-classification 
 
-Repository for training MEEG datasets with the [ivadomed](https://ivadomed.org) framework in Brainstorm.
+Repository for epileptic spike classification based on [Transformer-based Spatial-Temporal Feature
+Learning for EEG Decoding](https://arxiv.org/pdf/2106.11170.pdf).
 
-# General description of the project
-[Brainstorm](https://neuroimage.usc.edu/brainstorm/Introduction) is a widely used analysis software for MEG/EEG/fNIRS/ECoG/Invasive neurophysiology. Brainstorm allows users to perform their entire analysis (importing of raw signals, preprocessing, analysis pipelines, visualizations, create paper figures etc.) without any programming skills needed. Everything is done with the usage of a user-friendly GUI.
+## Architecture
+![Screenshot 2022-06-20 at 3 57 54 PM](https://user-images.githubusercontent.com/64415312/174670350-f829cd5e-5281-4e06-8a3a-9157072800b0.png)
 
-The scope of this project is to create seemless interoperability between Brainstorm and Ivadomed.
+## Recover code
+Clone this github repository by running in terminal `git clone -b ao/seizure_classification https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
 
-For this project, we are using a development version of Brainstorm (https://github.com/mpompolas/brainstorm3/tree/ivadomed_repo).
-All changes are happening on the Brainstorm side, with the use of converters that create fake "BIDS" MRI datasets that are used as an input to Ivadomed. The term "fake" here refers just to the naming conventions that are used in the dataset and the fact that it is an MRI BIDS, not EEG or MEG BIDS. The dataset is comprised of NIFTI files.
+## Virtual environment setup
+First, make sure that a compatible version of Python 3 is installed on your system by running in terminal: `python3 --version`.  
+It requires Python >= 3.6 and <3.10.  
 
-Changes on the Ivadomed side have been kept to the minimum. Users only need to deactivate the BIDS validator, to avoid issues with the naming conventions used:
-https://github.com/ivadomed/ivadomed/blob/master/ivadomed/loader/bids_dataframe.py#L105 (if the users install Ivadomed from Brainstorm's plugin manager, this step will be done automatically).
-(Change to:  `indexer = pybids.BIDSLayoutIndexer(force_index=force_index, validate=False)`)
+With X being your python3 version, create virtual environment by running in terminal: `python3.X -m venv transformer_env`.   
 
+Activate transformer_env by running in terminal: `source transformer_env/bin/activate`.  
 
+<<<<<<< HEAD
 The general pipeline can be visualized by the following schematic:
 ![image](https://user-images.githubusercontent.com/23224563/144139372-d0592453-7f04-4ad7-a59e-ac5301f28757.png)
 
@@ -103,3 +106,6 @@ Help is needed on the training of the datasets to optimize parameters.
 2. [Detection of mesial temporal lobe epileptiform discharges on intracranial electrodes using deep learning](https://pubmed.ncbi.nlm.nih.gov/31760212/)
 3. [Neurophysiologically interpretable DNN predicts complex movement components from brain activity](https://www.nature.com/articles/s41598-022-05079-0)
 
+=======
+Go to repository location. Install the requirements by running in terminal: `pip install -r requirements.txt`
+>>>>>>> 8eee143ce93f79d3aedf78ed9beefc58ac4bdfae
