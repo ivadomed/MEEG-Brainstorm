@@ -10,10 +10,7 @@ Contributors: Ambroise Odonnat.
 
 import torch
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 
 from loguru import logger
 from torch.utils.data.sampler import WeightedRandomSampler
@@ -127,6 +124,39 @@ def normal_initialization(m):
             m.bias.data.zero_()
 
 
+def get_pos_weight(labels):
+
+    """
+    Compute weight for positive class.
+    If no positive examples in the dataset, return 1.
+
+    Args:
+        labels (list): Labels in the training dataset recovered
+                       with labels[subject][session][trial].
+
+    Return:
+        pos_weight (tensor): Positive class weight.
+    """
+
+    neg, pos = 0, 0
+    for id in range(len(labels)):
+        for n_sess in range(len(labels[id])):
+            for n_trial in range(len(labels[id][n_sess])):
+                label = labels[id][n_sess][n_trial]
+                if label == 1:
+                    pos += 1
+                else:
+                    neg += 1
+
+    # Compute the corresponding weights
+    if pos:
+        pos_weight = torch.as_tensor(neg / pos)
+    else:
+        pos_weight = torch.ones(1)
+
+    return pos_weight
+
+
 def pad_tensor(x,
                n_pads,
                dim):
@@ -161,26 +191,24 @@ def reset_weights(m):
             layer.reset_parameters()
 
 
-def weighted_sampler(labels,
-                     n_sample):
+def weighted_sampler(labels):
 
     """ Create weighted sampler to tackle class imbalance.
+        Oversample ied trials in dataloader.
 
     Args:
         labels (tensor): Labels.
-        n_sample (int): Number of samples to draw.
 
     Returns:
         sampler (Sampler): Weighted sampler
     """
 
-    class_count = torch.bincount(labels.squeeze())
+    class_count = torch.bincount(torch.tensor(labels))
     class_weighting = 1. / class_count
-    sample_weights = class_weighting[labels]
-    if n_sample == 0:
-        n_sample = 1
-    sampler = WeightedRandomSampler(sample_weights,
-                                    int(n_sample),
+    weights = class_weighting[labels]
+    num_samples = len(weights)
+    sampler = WeightedRandomSampler(weights,
+                                    num_samples,
                                     replacement=False)
     return sampler
 

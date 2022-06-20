@@ -8,12 +8,13 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 
 import argparse
 import os
+import random
+
 import numpy as np
 import pandas as pd
 
-from datetime import datetime
 from loguru import logger
-from torch.nn import BCELoss
+from torch import nn
 from torch.optim import Adam
 
 from models.architectures import RNN_self_attention, STT
@@ -21,7 +22,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
-from utils.utils_ import define_device, reset_weights
+from utils.utils_ import define_device, get_pos_weight, reset_weights
 
 
 def get_parser():
@@ -36,14 +37,14 @@ def get_parser():
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--average", type=str, default="binary")
-    parser.add_argument("--n_windows", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
-    parser.add_argument("--lambd", type=float, default=0.0)
+    parser.add_argument("--lambd", type=float, default=1e-3)
     parser.add_argument("--mix_up", action="store_true")
-    parser.add_argument("--beta", type=float, default=0.2)
+    parser.add_argument("--beta", type=float, default=0.4)
 
     return parser
 
@@ -56,10 +57,10 @@ method = args.method
 save = args.save
 balanced = args.balanced
 average = args.average
-n_windows = args.n_windows
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 mix_up = args.mix_up
@@ -76,10 +77,7 @@ gpu_id = 0
 available, device = define_device(gpu_id)
 
 # Define loss
-criterion = BCELoss().to(device)
-train_criterion = get_criterion(criterion,
-                                cost_sensitive,
-                                lambd)
+criterion = nn.BCEWithLogitsLoss().to(device)
 
 # Recover results
 results = []
@@ -96,7 +94,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel, n_windows)
+dataset = Data(path_root, 'spikeandwave', single_channel)
 data, labels, spikes, sfreq = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -110,13 +108,18 @@ for test_subject_id in subject_ids:
 
     train_subject_ids = np.delete(subject_ids,
                                   np.where(subject_ids == test_subject_id))
-    val_subject_id = np.random.choice(train_subject_ids)
-    train_subject_ids = np.delete(train_subject_ids,
-                                  np.where(train_subject_ids
-                                           == val_subject_id))
+    size = int(0.20 * train_subject_ids.shape[0])
+    if size > 1:
+        val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
+                                                   size))
+    else:
+        val_subject_ids = np.asarray([np.random.choice(train_subject_ids)])
+    for id in val_subject_ids:
+        train_subject_ids = np.delete(train_subject_ids,
+                                      np.where(train_subject_ids == id))
     print('Test on: {}, '
           'Validation on: {}'.format(test_subject_id,
-                                     val_subject_id))
+                                     val_subject_ids))
 
     # Training dataloader
     train_data = []
@@ -160,9 +163,10 @@ for test_subject_id in subject_ids:
     val_data = []
     val_labels = []
     val_spikes = []
-    val_data.append(data[val_subject_id])
-    val_labels.append(labels[val_subject_id])
-    val_spikes.append(spikes[val_subject_id])
+    for id in val_subject_ids:
+        val_data.append(data[id])
+        val_labels.append(labels[id])
+        val_spikes.append(spikes[id])
 
     # Z-score normalization
     val_data = [[np.expand_dims((data-target_mean) / target_std,
@@ -228,12 +232,19 @@ for test_subject_id in subject_ids:
     if method == "RNN_self_attention":
         architecture = RNN_self_attention()
     elif method == "transformer_classification":
-        architecture = STT(n_windows=n_windows)
-    elif method == "transformer_detection":
-        detection = True
-        architecture = STT(n_windows=n_windows, detection=detection)
+        architecture = STT()
     architecture.apply(reset_weights)
 
+    # Define training loss
+    if weight_loss:
+        pos_weight = get_pos_weight(train_labels).to(device)
+        train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        train_criterion = train_criterion.to(device)
+    else:
+        train_criterion = criterion
+    train_criterion = get_criterion(train_criterion,
+                                    cost_sensitive,
+                                    lambd)
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,
                      weight_decay=weight_decay)
@@ -257,23 +268,19 @@ for test_subject_id in subject_ids:
     history = model.train()
 
     # Compute test performance and save it
-    metrics = model.score()
-    acc, f1, precision, recall = metrics[:4]
-    f1_macro, precision_macro, recall_macro = metrics[4:]
+    acc, f1, precision, recall = model.score()
     results.append(
         {
             "method": method,
             "balance": balanced,
             "mix_up": mix_up,
+            "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
             "test_subject_id": test_subject_id,
             "acc": acc,
             "f1": f1,
             "precision": precision,
-            "recall": recall,
-            "f1_macro": f1_macro,
-            "precision_macro": precision_macro,
-            "recall_macro": recall_macro,
+            "recall": recall
         }
     )
     mean_acc += acc
@@ -289,7 +296,7 @@ for test_subject_id in subject_ids:
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv_"
+            "../results/csv"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
@@ -297,11 +304,14 @@ for test_subject_id in subject_ids:
         df_results = pd.DataFrame(results)
         df_results.to_csv(
             os.path.join(results_path,
-
                          "results_LOPO_spike_detection_method-{}"
-                         "_balance-{}_mix-up-{}_cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method, balanced,
-                                                mix_up, cost_sensitive,
+                         "_balance-{}_mix-up-{}_weight-loss-{}_"
+                         "cost-sensitive-{}_{}"
+                         "-subjects.csv".format(method,
+                                                balanced,
+                                                mix_up,
+                                                weight_loss,
+                                                cost_sensitive,
                                                 len(subject_ids))
                          )
             )

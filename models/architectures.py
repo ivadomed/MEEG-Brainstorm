@@ -264,9 +264,7 @@ class STT(nn.Module):
     """ Spatial Temporal Transformer inspired by:
         `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
         <https://arxiv.org/pdf/2106.11170.pdf>`_.
-        If task == 'classification', indicates if a trial contains spikes.
-        If task == 'detection', indicates in which time windows
-        spikes occur, if any.
+        Predicts probability of spike occurence in a trial.
 
     Input (tensor): Batch of trials of dimension
                     [batch_size x 1 x n_channels x n_time_points].
@@ -290,9 +288,7 @@ class STT(nn.Module):
                  depth=3,
                  num_heads=10,
                  expansion=4,
-                 transformer_dropout=0.25,
-                 n_windows=10,
-                 detection=False):
+                 transformer_dropout=0.25):
 
         """
         Args:
@@ -312,8 +308,6 @@ class STT(nn.Module):
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
             n_windows (int): Number of time windows.
-            detection (bool): If True, detect spikes in each
-                              n_windows portions of input.
         """
 
         super().__init__()
@@ -330,13 +324,10 @@ class STT(nn.Module):
                                           expansion,
                                           transformer_dropout)
         flatten_size = emb_size * n_time_points
-        self.head = nn.Sequential(
-                        nn.Linear(flatten_size, n_windows),
-                        nn.Sigmoid())
-        self.detection = detection
+        self.classifier = nn.Sequential(nn.Linear(flatten_size, 1))
 
         # Weight initialization
-        self.head.apply(normal_initialization)
+        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -350,9 +341,7 @@ class STT(nn.Module):
             x (tensor): Batch of trials with dimension
                         [batch_size x 1 x n_channels x n_time_points].
             attention_weights (tensor): Attention weights of channel attention.
-            out (tensor): If n_windows > 1 --> Logits of dimension
-                                              [batch_size x n_windows].
-                          If n_windows == 1 --> Logits of dimension
+            out (tensor): If n_windows == 1 --> Logits of dimension
                                                [batch_size].
         """
 
@@ -366,10 +355,7 @@ class STT(nn.Module):
         code = self.encoder(embedding)
 
         # Output
-        if self.detection:
-            out = self.head(code.flatten(1))
-        else:
-            out = self.head(code.flatten(1)).squeeze(1)
+        out = self.classifier(code.flatten(1)).squeeze(1)
 
         return out, attention_weights
 
@@ -383,7 +369,7 @@ class RNN_self_attention(nn.Module):
 
     Input (tensor): Batch of trials of dimension
                     [batch_size x n_time_points x 1].
-    Output (tensor): Logits of dimension [batch_size x 1].
+    Output (tensor): Logits of dimension [batch_size].
     """
 
     def __init__(self,
@@ -406,7 +392,6 @@ class RNN_self_attention(nn.Module):
         self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1,
                               batch_first=True)
         self.classifier = nn.Linear(256, 1)
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self,
                 x: Tensor):
@@ -442,7 +427,6 @@ class RNN_self_attention(nn.Module):
         x = x.transpose(1, 2)
 
         # Classifier
-        out = self.classifier(x.flatten(1))
-        out = self.sigmoid(out).squeeze(1)
+        out = self.classifier(x.flatten(1)).squeeze(1)
 
         return out, attention_weights

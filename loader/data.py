@@ -103,9 +103,60 @@ class Data:
 
         return data, count_spikes, spike_time_points, times, bad_trial, sfreq
 
+    def get_channels(self,
+                     folder,
+                     wanted_event_label):
+
+        """ Recover annotated channels for single channel selection.
+
+        Args:
+            folder (list): Folder with a subject data.
+            wanted_event_label (str): Annotation of wanted event.
+                                      Default: 'spikeandwave'.
+
+        Returns:
+            annotated_channels (list): Channels if ied annotation.
+        """
+
+        annotated_channels = []
+
+        # Loop on trials
+        for trial_fname in folder:
+            try:
+                raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
+                                                stim_channel=None,
+                                                verbose=False)
+                events = mne.events_from_annotations(raw_trial,
+                                                     verbose=False)
+                ch_names = raw_trial.info.ch_names
+                for event in events[1].keys():
+                    len_string_event = len(wanted_event_label)
+                    match = (event[-len_string_event:]
+                             == wanted_event_label)
+                    possible = (len(event) > len_string_event)
+                    if match & possible:
+                        ID = 'EEG '
+                        i = 0
+                        while event[i] != '_':
+                            ID += event[i]
+                            i += 1
+                        ID = ID.upper()
+                        position_channels = np.where(
+                                            np.array(ch_names) == ID)[0]
+                        if len(position_channels) != 0:
+                            annotated_channels.append(position_channels[0])
+
+            except ValueError:
+                continue
+
+        annotated_channels = np.unique(annotated_channels)
+
+        return annotated_channels
+
     def get_dataset(self,
                     folder,
                     wanted_event_label,
+                    annotated_channels,
                     single_channel,
                     n_windows=1):
 
@@ -133,37 +184,6 @@ class Data:
         all_data = []
         all_n_spikes = []
         all_spike_events = []
-
-        # Loop on trials
-        annotated_channels = []
-
-        if single_channel:
-            for trial_fname in folder:
-                try:
-                    raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
-                                                    stim_channel=None,
-                                                    verbose=False)
-                    events = mne.events_from_annotations(raw_trial,
-                                                         verbose=False)
-                    ch_names = raw_trial.info.ch_names
-                    for event in events[1].keys():
-                        len_string_event = len(wanted_event_label)
-                        match = (event[-len_string_event:]
-                                 == wanted_event_label)
-                        possible = (len(event) > len_string_event)
-                        if match & possible:
-                            ID = 'EEG ' + event[:2].upper()
-                            position_channels = np.where(
-                                                np.array(ch_names) == ID)[0]
-                            if len(position_channels) != 0:
-                                annotated_channels.append(position_channels[0])
-
-                except ValueError:
-                    continue
-
-            annotated_channels = np.unique(annotated_channels)
-            if len(annotated_channels) == 0:
-                annotated_channels = [np.random.randint(0, len(ch_names))]
 
         for trial_fname in folder:
             try:
@@ -256,13 +276,40 @@ class Data:
                             if f.is_dir()]
 
                 # Recover trials, labels and spike events
+                annotated_channels = []
+                if single_channel:
+
+                    # Select channels with ied annotation
+                    for i in range(len(sessions)):
+                        path = sessions[i] + '/'
+                        folder = [path + f for f in listdir(path)
+                                  if isfile(join(path, f))]
+                        channel = self.get_channels(folder,
+                                                    wanted_event_label)
+                        if len(channel) != 0:
+                            annotated_channels.append(channel)
+
+                    # Remove duplicates
+                    if annotated_channels:
+                        annotated_channels = np.concatenate(annotated_channels)
+                        annotated_channels = np.unique(annotated_channels)
+                        annotated_channels = annotated_channels.astype('int64')
+
+                    # Select a random channel if none annotated channel
+                    # in the entire session
+                    else:
+                        channel = np.random.randint(0, 20)
+                        annotated_channels = np.unique([channel])
+                        annotated_channels = annotated_channels.astype('int64')
 
                 for i in range(len(sessions)):
                     path = sessions[i] + '/'
                     folder = [path + f for f in listdir(path)
                               if isfile(join(path, f))]
+
                     dataset = self.get_dataset(folder,
                                                wanted_event_label,
+                                               annotated_channels,
                                                single_channel,
                                                n_windows)
                     data, labels, spike_events, sfreq = dataset

@@ -15,6 +15,7 @@ import numpy as np
 
 from sklearn.metrics import precision_score, recall_score
 from sklearn.metrics import f1_score, accuracy_score
+from torch import nn
 
 from utils.mix_up import mixup_data, mixup_criterion
 from utils.utils_ import get_next_batch
@@ -65,6 +66,7 @@ class make_model():
         self.average = average
         self.mix_up = mix_up
         self.beta = beta
+        self.sigmoid = nn.Sigmoid()
 
     def _do_train(self,
                   model,
@@ -115,6 +117,7 @@ class make_model():
             # Forward
             output, _ = model(batch_x)
             loss = criterion(output, batch_y)
+            pred = self.sigmoid(output)
 
             # Backward
             loss.backward()
@@ -122,7 +125,7 @@ class make_model():
 
             # Recover loss and prediction
             train_loss.append(loss.item())
-            all_preds.append(output.detach().cpu().numpy())
+            all_preds.append(pred.detach().cpu().numpy())
             all_labels.append(batch_y.detach().cpu().numpy())
 
         # Recover binary prediction
@@ -200,6 +203,7 @@ class make_model():
                                    batch_y,
                                    shuffle_batch_y,
                                    lambd)
+            pred = self.sigmoid(output)
 
             # Backward
             loss.backward()
@@ -207,7 +211,7 @@ class make_model():
 
             # Recover loss and prediction
             train_loss.append(loss.item())
-            all_preds.append(output.detach().cpu().numpy())
+            all_preds.append(pred.detach().cpu().numpy())
             all_labels.append(batch_y.detach().cpu().numpy())
             all_shuffle_labels.append(shuffle_batch_y.detach().cpu().numpy())
 
@@ -260,11 +264,12 @@ class make_model():
 
                 # Forward
                 output, _ = model.forward(batch_x)
+                pred = self.sigmoid(output)
 
                 # Recover loss and prediction
                 loss = criterion(output, batch_y)
                 val_loss[idx_batch] = loss.item()
-                all_preds.append(output.cpu().numpy())
+                all_preds.append(pred.cpu().numpy())
                 all_labels.append(batch_y.cpu().numpy())
 
         # Recover binary prediction
@@ -365,9 +370,10 @@ class make_model():
 
                 # Forward
                 output, _ = self.best_model.forward(batch_x)
+                pred = self.sigmoid(output)
 
                 # Recover prediction
-                all_preds.append(output.cpu().numpy())
+                all_preds.append(pred.cpu().numpy())
                 all_labels.append(batch_y.cpu().numpy())
 
         # Recover binary prediction
@@ -383,12 +389,7 @@ class make_model():
                                     average=self.average, zero_division=1)
         recall = recall_score(y_true, y_pred_binary, average=self.average,
                               zero_division=1)
-        f1_macro = f1_score(y_true, y_pred_binary, average='macro',
-                            zero_division=1)
-        precision_macro = precision_score(y_true, y_pred_binary,
-                                          average='macro', zero_division=1)
-        recall_macro = recall_score(y_true, y_pred_binary, average='macro',
-                                    zero_division=1)
+
         print("Performances on test")
         print("Acc \t F1 \t Precision \t Recall")
         print("-" * 80)
@@ -397,5 +398,4 @@ class make_model():
             f"{precision:0.4f} \t {recall:0.4f}\n"
         )
 
-        return (acc, f1, precision, recall, f1_macro,
-                precision_macro, recall_macro)
+        return (acc, f1, precision, recall)
