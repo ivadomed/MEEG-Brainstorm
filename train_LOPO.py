@@ -268,9 +268,7 @@ for test_subject_id in subject_ids:
     history = model.train()
 
     # Compute test performance and save it
-    metrics = model.score()
-    acc, f1, precision, recall = metrics[:4]
-    f1_macro, precision_macro, recall_macro = metrics[4:]
+    acc, f1, precision, recall = model.score()
     results.append(
         {
             "method": method,
@@ -282,10 +280,7 @@ for test_subject_id in subject_ids:
             "acc": acc,
             "f1": f1,
             "precision": precision,
-            "recall": recall,
-            "f1_macro": f1_macro,
-            "precision_macro": precision_macro,
-            "recall_macro": recall_macro,
+            "recall": recall
         }
     )
     mean_acc += acc
@@ -312,8 +307,10 @@ for test_subject_id in subject_ids:
                          "results_LOPO_spike_detection_method-{}"
                          "_balance-{}_mix-up-{}_weight-loss-{}_"
                          "cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method, balanced,
-                                                mix_up, weight_loss,
+                         "-subjects.csv".format(method,
+                                                balanced,
+                                                mix_up,
+                                                weight_loss,
                                                 cost_sensitive,
                                                 len(subject_ids))
                          )

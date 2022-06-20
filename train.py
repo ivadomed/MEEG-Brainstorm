@@ -173,9 +173,7 @@ for seed in range(5):
         os.mkdir("../results")
 
     # Compute test performance and save it
-    metrics = model.score()
-    acc, f1, precision, recall = metrics[:4]
-    f1_macro, precision_macro, recall_macro = metrics[4:]
+    acc, f1, precision, recall = model.score()
     results.append(
         {
             "method": method,
@@ -186,10 +184,7 @@ for seed in range(5):
             "acc": acc,
             "f1": f1,
             "precision": precision,
-            "recall": recall,
-            "f1_macro": f1_macro,
-            "precision_macro": precision_macro,
-            "recall_macro": recall_macro,
+            "recall": recall
         }
     )
     mean_acc += acc
