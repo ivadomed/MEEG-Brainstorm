@@ -1,0 +1,67 @@
+{
+    "cross_validation": {
+        "n_repeats": 1,
+        "n_splits": 5,
+        "random_state": 42,
+        "val_size": 0.2
+    },
+    "intra_subject": true,
+    "loader_parameters": {
+        "binary_classification": true,
+        "path_root": "../../Neuropoly_Internship/MEEG_data/EEG_signals/",
+        "sample_frequence": 100,
+        "wanted_channel_type": [
+            "EEG"
+        ],
+        "wanted_event_label": "saw_EST"
+    },
+    "model": {
+        "attention_dropout": 0,
+        "attention_num_heads": 3,
+        "channels_kernel": 20,
+        "channels_stride": 1,
+        "depth": 3,
+        "detector_dropout": 0,
+        "emb_size": 30,
+        "embedding_dropout": 0,
+        "expansion": 4,
+        "n_maps": 5,
+        "n_time_points": 201,
+        "n_time_windows": 10,
+        "num_heads": 10,
+        "position_kernel": 50,
+        "positional_dropout": 0.25,
+        "spatial_dropout": 0,
+        "time_kernel": 20,
+        "time_stride": 1,
+        "transformer_dropout": 0.25
+    },
+    "optimizer": {
+        "b1": 0.9,
+        "b2": 0.999,
+        "early_stopping": {
+            "patience": 10
+        },
+        "learning_rate_warmup": 200,
+        "lr": 0.001,
+        "scheduler": {
+            "factor": 0.5,
+            "min_lr": 1e-05,
+            "patience": 20,
+            "use_scheduler": true
+        },
+        "use_amsgrad": false,
+        "weight_decay": 0
+    },
+    "period": 1,
+    "training_parameters": {
+        "BETA": 0.4,
+        "batch_size": 8,
+        "epochs": 1,
+        "l1_penality": 0.01,
+        "lambda": 0.001,
+        "num_workers": 0,
+        "use_cost_sensitive": true,
+        "use_mix_up": false
+    }
+}

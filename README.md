@@ -3,14 +3,13 @@
 Repository for epileptic spike classification based on [Transformer-based Spatial-Temporal Feature
 Learning for EEG Decoding](https://arxiv.org/pdf/2106.11170.pdf).
 
-## Data
-Dataset can be found on rosenberg cluster: ~/duke/temp/konstantinos/EEG_signals/seconds_2_trials 
+## Architecture
+![Screenshot 2022-06-20 at 3 57 54 PM](https://user-images.githubusercontent.com/64415312/174670350-f829cd5e-5281-4e06-8a3a-9157072800b0.png)
 
 ## Recover code
 Clone this github repository by running in terminal `git clone -b ao/seizure_classification https://github.com/AmbroiseOdonnat/MEEG-Brainstorm.git`.  
 
 ## Virtual environment setup
-
 First, make sure that a compatible version of Python 3 is installed on your system by running in terminal: `python3 --version`.  
 It requires Python >= 3.6 and <3.10.  
 
