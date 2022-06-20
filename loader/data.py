@@ -77,30 +77,48 @@ class Data:
 
         # Load the trial and corresponding channels
         events_name = events[1].keys()
-
+        print(events_name)
         # Count seizure events and recover spikes events times
-        count_spikes = 0
         spike_time_points = []
         bad_trial = 0
 
-        if wanted_event_label in events_name:
-            events_points = np.where(events[0][:, 2]
-                                     == events[1][wanted_event_label])
-            count_spikes += len(events_points)
-            spike_time_points = events[0][events_points, 0][0]
+        # if wanted_event_label in events_name:
+        #     events_points = np.where(events[0][:, 2]
+        #                              == events[1][wanted_event_label])
+        #     count_spikes += len(events_points)
+        #     spike_time_points = events[0][events_points, 0][0]
 
-        if 'BAD' in events_name:
-            bad_trial = 1
+        # if 'BAD' in events_name:
+        #     bad_trial = 1
 
         # Recover data and time points
+        annotated_channels = [1, 2]
         if single_channel:
-            data = raw_trial[:][0][annotated_channels, :-49]
+            data = raw_trial[:][0][annotated_channels, :]
         else:
-            data = raw_trial[:][0][:, :-49]
-
-        times = raw_trial.times[:-49]
+            data = raw_trial[:][0]
+        data = data
         sfreq = raw_trial.info['sfreq']
+        times = raw_trial.times
+        len_trials = 2
+        len_data = data.shape[1]
+        n_trials = int(len_data/sfreq / len_trials)
+        data = data[:, :int(n_trials*len_trials*sfreq)]
+        len_data = data.shape[1]
+        times = np.split(np.linspace(0, len_data-1, len_data), n_trials)
+        data = np.split(data, n_trials, axis=1)
+        count_spikes = np.zeros(n_trials)
 
+        for event in events[0]:
+            try:
+                if events[1][wanted_event_label] == event[2]:
+                    j = 0
+                    while event[0] >= times[j][-1]:
+                        j += 1
+                    count_spikes[j] += 1
+            except KeyError:
+                continue
+        print(sfreq)
         return data, count_spikes, spike_time_points, times, bad_trial, sfreq
 
     def get_channels(self,
@@ -186,36 +204,33 @@ class Data:
         all_spike_events = []
 
         for trial_fname in folder:
-            try:
-                raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
-                                                stim_channel=None,
-                                                verbose=False)
-                events = mne.events_from_annotations(raw_trial, verbose=False)
-                dataset = self.get_trial(raw_trial,
-                                         events,
-                                         wanted_event_label,
-                                         annotated_channels,
-                                         single_channel)
+            raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
+                                            stim_channel=None,
+                                            verbose=False)
+            events = mne.events_from_annotations(raw_trial, verbose=False)
 
-                data, n_spike, spike_time_points, times, bad, sfreq = dataset
+            dataset = self.get_trial(raw_trial,
+                                        events,
+                                        wanted_event_label,
+                                        annotated_channels,
+                                        single_channel)
 
-                # Apply binary classification
-                # label = 1 if at least one spike occurs, label = 0 otherwise
-                n_spike = int((n_spike > 0))
+            data, n_spike, spike_time_points, times, bad, sfreq = dataset
+            # Apply binary classification
+            # label = 1 if at least one spike occurs, label = 0 otherwise
+            n_spike = int((n_spike > 0))
 
-                # Append data and labels from each good trial
-                if bad == 0:
-                    all_data.append(data)
-                    all_n_spikes.append(n_spike)
+            # Append data and labels from each good trial
+            if bad == 0:
+                all_data.append(data)
+                all_n_spikes.append(n_spike)
 
-                    # Get vector with 1 when a spike occurs and 0 elsewhere
-                    N = len(times)
-                    spike_events = get_spike_events(spike_time_points, N)
-                    spike_windows = get_spike_windows(spike_events, n_windows)
-                    all_spike_events.append(spike_windows)
+                # Get vector with 1 when a spike occurs and 0 elsewhere
+                N = len(times)
+                spike_events = get_spike_events(spike_time_points, N)
+                spike_windows = get_spike_windows(spike_events, n_windows)
+                all_spike_events.append(spike_windows)
 
-            except ValueError:
-                continue
 
         # Stack Dataset along axis 0
         all_data = np.stack(all_data, axis=0)
