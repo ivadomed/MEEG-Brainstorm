@@ -15,8 +15,8 @@ def get_parser():
     parser.add_argument("--method", type=str, nargs="+",
                         default=["RNN_self_attention"])
     parser.add_argument("--options", type=str, nargs="+",
-                        default=['--mix_up', '--cost_sensitive',
-                                 '--weight_loss', '--balanced'])
+                        default=[' --mix_up', ' --cost_sensitive',
+                                 ' --weight_loss'])
     parser.add_argument(
         "--training", type=str, nargs="+", default=['train']
     )
@@ -46,7 +46,7 @@ for training in trainings:
                 options_combo += option
 
             os.system(' python {}.py --path_root {}'
-                      '--save{} --method {}'.format(training,
+                      ' --save{} --method {}'.format(training,
                                                     path_root,
                                                     options_combo,
                                                     method))
