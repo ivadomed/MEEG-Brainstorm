@@ -180,9 +180,7 @@ for train_subject_id in subject_ids:
             os.mkdir("../results")
 
         # Compute test performance and save it
-        metrics = model.score()
-        acc, f1, precision, recall = metrics[:4]
-        f1_macro, precision_macro, recall_macro = metrics[4:]
+        acc, f1, precision, recall = model.score()
         results.append(
             {
                 "method": method,
@@ -194,10 +192,7 @@ for train_subject_id in subject_ids:
                 "acc": acc,
                 "f1": f1,
                 "precision": precision,
-                "recall": recall,
-                "f1_macro": f1_macro,
-                "precision_macro": precision_macro,
-                "recall_macro": recall_macro,
+                "recall": recall
             }
         )
         mean_acc += acc
