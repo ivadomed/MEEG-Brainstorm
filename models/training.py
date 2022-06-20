@@ -389,12 +389,7 @@ class make_model():
                                     average=self.average, zero_division=1)
         recall = recall_score(y_true, y_pred_binary, average=self.average,
                               zero_division=1)
-        f1_macro = f1_score(y_true, y_pred_binary, average='macro',
-                            zero_division=1)
-        precision_macro = precision_score(y_true, y_pred_binary,
-                                          average='macro', zero_division=1)
-        recall_macro = recall_score(y_true, y_pred_binary, average='macro',
-                                    zero_division=1)
+
         print("Performances on test")
         print("Acc \t F1 \t Precision \t Recall")
         print("-" * 80)
@@ -403,5 +398,4 @@ class make_model():
             f"{precision:0.4f} \t {recall:0.4f}\n"
         )
 
-        return (acc, f1, precision, recall, f1_macro,
-                precision_macro, recall_macro)
+        return (acc, f1, precision, recall)
