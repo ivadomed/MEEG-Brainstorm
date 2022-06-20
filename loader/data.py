@@ -131,10 +131,9 @@ class Data:
                 ch_names = raw_trial.info.ch_names
                 for event in events[1].keys():
                     len_string_event = len(wanted_event_label)
-                    match = (event[-len_string_event:]
-                             == wanted_event_label)
-                    possible = (len(event) > len_string_event)
-                    if match & possible:
+                    match = (event[-(len_string_event+1):]
+                             == '_' + wanted_event_label)
+                    if match:
                         ID = 'EEG '
                         i = 0
                         while event[i] != '_':
