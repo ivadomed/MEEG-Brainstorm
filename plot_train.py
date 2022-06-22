@@ -39,9 +39,8 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 #     bbox_inches="tight",
 # )
 
-g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
-g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
-hue_labels = ['without cs loss', 'with cs loss']
+g = sns.FacetGrid(df.loc[(df['cost_sensitive'] == False)], row="mix_up", col="weight_loss", margin_titles=True)
+g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
 g.add_legend()
 g.fig.suptitle('classic')
 
