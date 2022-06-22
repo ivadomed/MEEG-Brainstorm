@@ -34,7 +34,6 @@ def get_parser():
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
-    parser.add_argument("--average", type=str, default="binary")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -53,7 +52,6 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
-average = args.average
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -169,7 +167,6 @@ for train_subject_id in subject_ids:
                            criterion,
                            n_epochs=n_epochs,
                            patience=patience,
-                           average=average,
                            mix_up=mix_up,
                            beta=beta)
 

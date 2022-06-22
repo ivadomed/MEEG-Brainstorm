@@ -33,7 +33,6 @@ class make_model():
                  val_criterion,
                  n_epochs,
                  patience=None,
-                 average='weighted',
                  mix_up=False,
                  beta=0.2):
 
@@ -50,7 +49,6 @@ class make_model():
             patience (int): Indicates how many epochs without improvement
                             on validation loss to wait for
                             before stopping training.
-            average (str): Type of averaging on the data.
             mix_up (bool): If True, applu mix-up strategy.
         """
 
@@ -63,7 +61,6 @@ class make_model():
         self.val_criterion = val_criterion
         self.n_epochs = n_epochs
         self.patience = patience
-        self.average = average
         self.mix_up = mix_up
         self.beta = beta
         self.sigmoid = nn.Sigmoid()
@@ -72,8 +69,7 @@ class make_model():
                   model,
                   loaders,
                   optimizer,
-                  criterion,
-                  average):
+                  criterion):
 
         """
         Train model.
@@ -82,7 +78,6 @@ class make_model():
             loaders (Sampler): Loaders of EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
-            average (str): Type of averaging on the data.
 
         Returns:
             train_loss (float): Mean loss on the loaders.
@@ -135,7 +130,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
-        perf = f1_score(y_true, y_pred_binary, average=average,
+        perf = f1_score(y_true, y_pred_binary, average='binary',
                         zero_division=1)
 
         return train_loss, perf
@@ -145,7 +140,6 @@ class make_model():
                          loaders,
                          optimizer,
                          criterion,
-                         average,
                          beta):
 
         """
@@ -155,7 +149,6 @@ class make_model():
             loaders (Sampler): Loaders of EEG samples for training.
             optimizer (optimizer): Optimizer.
             criterion (Loss): Loss function.
-            average (str): Type of averaging on the data.
             beta (float): Parameter of the Beta Law.
 
         Returns:
@@ -224,17 +217,16 @@ class make_model():
         # Recover mean loss and F1-score
         train_loss = np.mean(train_loss)
         perf = (lambd * f1_score(y_true, y_pred_binary,
-                                 average=average, zero_division=1)
+                                 average='binary', zero_division=1)
                 + (1-lambd) * f1_score(shuffle_y_true, y_pred_binary,
-                                       average=average, zero_division=1))
+                                       average='binary', zero_division=1))
 
         return train_loss, perf
 
     def _validate(self,
                   model,
                   loader,
-                  criterion,
-                  average):
+                  criterion):
 
         """
         Evaluate model on validation set.
@@ -242,7 +234,6 @@ class make_model():
             model (nn.Module): Model.
             loader (Sampler): Loader EEG samples for validation.
             criterion (Loss): Loss function.
-            average (str): Type of averaging on the data.
 
         Returns:
             val_loss (float): Mean loss on the loader.
@@ -279,7 +270,7 @@ class make_model():
 
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
-        perf = f1_score(y_true, y_pred_binary, average=average,
+        perf = f1_score(y_true, y_pred_binary, average='binary',
                         zero_division=1)
 
         return val_loss, perf
@@ -308,19 +299,16 @@ class make_model():
                                                 self.train_loader,
                                                 self.optimizer,
                                                 self.train_criterion,
-                                                self.average,
                                                 self.beta)
                 train_loss, train_perf = results
             else:
                 train_loss, train_perf = self._do_train(self.model,
                                                         self.train_loader,
                                                         self.optimizer,
-                                                        self.train_criterion,
-                                                        self.average)
+                                                        self.train_criterion)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.val_criterion,
-                                                self.average)
+                                                self.val_criterion)
 
             history.append(
                 {"epoch": epoch,
@@ -383,11 +371,11 @@ class make_model():
 
         # Recover performances
         acc = accuracy_score(y_true, y_pred_binary)
-        f1 = f1_score(y_true, y_pred_binary, average=self.average,
+        f1 = f1_score(y_true, y_pred_binary, average='binary',
                       zero_division=1)
         precision = precision_score(y_true, y_pred_binary,
-                                    average=self.average, zero_division=1)
-        recall = recall_score(y_true, y_pred_binary, average=self.average,
+                                    average='binary', zero_division=1)
+        recall = recall_score(y_true, y_pred_binary, average='binary',
                               zero_division=1)
 
         print("Performances on test")
