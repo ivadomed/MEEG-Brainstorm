@@ -91,7 +91,7 @@ else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', single_channel)
-data, labels, spikes, sfreq = dataset.all_datasets()
+data, labels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
 # Apply Leave-One-Patient-Out strategy
@@ -104,10 +104,8 @@ for train_subject_id in subject_ids:
     # Training dataloader
     data_list = []
     labels_list = []
-    spikes_list = []
     data_list.append(data[train_subject_id])
     labels_list.append(labels[train_subject_id])
-    spikes_list.append(spikes[train_subject_id])
 
     for seed in range(5):
 
@@ -116,7 +114,7 @@ for train_subject_id in subject_ids:
 
             # Labels are the spike events times
             loader = Loader(data_list,
-                            spikes_list,
+                            labels_list,
                             balanced=False,
                             shuffle=True,
                             batch_size=batch_size,
@@ -138,9 +136,11 @@ for train_subject_id in subject_ids:
 
         # Define architecture
         if method == "RNN_self_attention":
-            architecture = RNN_self_attention()
+            n_time_points = len(data_list[0][0][0])
+            architecture = RNN_self_attention(n_time_points=n_time_points)
         elif method == "transformer_classification":
-            architecture = STT()
+            n_time_points = len(data_list[0][0][0][0])
+            architecture = STT(n_time_points=n_time_points)
         architecture.apply(reset_weights)
 
         if weight_loss:

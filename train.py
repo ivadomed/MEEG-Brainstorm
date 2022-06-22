@@ -88,7 +88,7 @@ else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', single_channel)
-data, labels, spikes, sfreq = dataset.all_datasets()
+data, labels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
 # Define loss
@@ -97,12 +97,9 @@ criterion = nn.BCEWithLogitsLoss().to(device)
 # Training dataloader
 data_list = []
 labels_list = []
-spikes_list = []
 for id in subject_ids:
     data_list.append(data[id])
     labels_list.append(labels[id])
-    spikes_list.append(spikes[id])
-
 for seed in range(5):
 
     # Dataloader
@@ -110,7 +107,7 @@ for seed in range(5):
 
         # Labels are the spike events times
         loader = Loader(data_list,
-                        spikes_list,
+                        labels_list,
                         balanced=False,
                         shuffle=True,
                         batch_size=batch_size,
@@ -131,9 +128,11 @@ for seed in range(5):
 
     # Define architecture
     if method == "RNN_self_attention":
-        architecture = RNN_self_attention()
+        n_time_points = len(data_list[0][0][0])
+        architecture = RNN_self_attention(n_time_points=n_time_points)
     elif method == "transformer_classification":
-        architecture = STT()
+        n_time_points = len(data_list[0][0][0][0])
+        architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 
     if weight_loss:

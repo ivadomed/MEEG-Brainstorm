@@ -95,7 +95,7 @@ else:
     single_channel = False
 
 dataset = Data(path_root, 'spikeandwave', single_channel)
-data, labels, spikes, sfreq = dataset.all_datasets()
+data, labels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
 # Apply Leave-One-Patient-Out strategy
@@ -124,11 +124,9 @@ for test_subject_id in subject_ids:
     # Training dataloader
     train_data = []
     train_labels = []
-    train_spikes = []
     for id in train_subject_ids:
         train_data.append(data[id])
         train_labels.append(labels[id])
-        train_spikes.append(spikes[id])
 
     # Z-score normalization
     target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
@@ -143,7 +141,7 @@ for test_subject_id in subject_ids:
 
         # Labels are the spike events times
         train_loader = Loader(train_data,
-                              train_spikes,
+                              train_labels,
                               balanced=balanced,
                               shuffle=True,
                               batch_size=batch_size,
@@ -162,11 +160,9 @@ for test_subject_id in subject_ids:
     # Validation dataloader
     val_data = []
     val_labels = []
-    val_spikes = []
     for id in val_subject_ids:
         val_data.append(data[id])
         val_labels.append(labels[id])
-        val_spikes.append(spikes[id])
 
     # Z-score normalization
     val_data = [[np.expand_dims((data-target_mean) / target_std,
@@ -178,7 +174,7 @@ for test_subject_id in subject_ids:
 
         # Labels are the spike events times
         val_loader = Loader(val_data,
-                            val_spikes,
+                            val_labels,
                             balanced=False,
                             shuffle=False,
                             batch_size=batch_size,
@@ -197,10 +193,8 @@ for test_subject_id in subject_ids:
     # Test dataloader
     test_data = []
     test_labels = []
-    test_spikes = []
     test_data.append(data[test_subject_id])
     test_labels.append(labels[test_subject_id])
-    test_spikes.append(spikes[test_subject_id])
 
     # Z-score normalization
     test_data = [[np.expand_dims((data-target_mean) / target_std,
@@ -212,7 +206,7 @@ for test_subject_id in subject_ids:
 
         # Labels are the spike events times
         test_loader = Loader(test_data,
-                             test_spikes,
+                             test_labels,
                              balanced=False,
                              shuffle=False,
                              batch_size=batch_size,
@@ -230,9 +224,12 @@ for test_subject_id in subject_ids:
 
     # Define architecture
     if method == "RNN_self_attention":
-        architecture = RNN_self_attention()
+        n_time_points = len(train_data[0][0][0][0])
+        architecture = RNN_self_attention(n_time_points=n_time_points)
     elif method == "transformer_classification":
-        architecture = STT()
+        n_time_points = len(train_data[0][0][0][0][0])
+        print(n_time_points)
+        architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 
     # Define training loss
