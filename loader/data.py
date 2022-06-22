@@ -53,7 +53,7 @@ class Data:
         self.sfreq = sfreq
         self.n_windows = n_windows
 
-    def get_trial(self,
+    def get_trials(self,
                   raw_trial,
                   events,
                   wanted_event_label,
@@ -100,8 +100,8 @@ class Data:
                                         np.array(ch_names) == ID)[0]
                     if len(position_channels) != 0:
                         annotated_channels.append(position_channels[0])
-
-            if annotated_channels.any():
+            annotated_channels = [1, 2]
+            if annotated_channels == []:
                 # if no spikeandwave in the session select all channels
                 data = raw_trial[:][0]
             else:
@@ -110,17 +110,19 @@ class Data:
         else:
             data = raw_trial[:][0]
 
-        data = scipy.signal.resample(data, sfreq, axis=1)
+        
 
         # split the data in trials
         # TODO deal with overlap and clean this script
 
         len_data = data.shape[1]
-        n_trials = int(len_data/sfreq / len_trials)
-        data = data[:, :int(n_trials*len_trials*sfreq)]
+        sfreq_ini = raw_trial.info['sfreq']
+        n_trials = int(len_data/sfreq_ini / len_trials)
+        data = data[:, :int(n_trials*len_trials*sfreq_ini)]
         len_data = data.shape[1]
         times = np.split(np.linspace(0, len_data-1, len_data), n_trials)
         data = np.split(data, n_trials, axis=1)
+        data = np.array(data)
         count_spikes = np.zeros(n_trials)
         count_bad = np.zeros(n_trials)
 
@@ -143,6 +145,10 @@ class Data:
 
             except KeyError:
                 continue
+
+        # Resample the data to the frequence wanted
+        len_data = data.shape[2]
+        data = scipy.signal.resample(data, int(len_data/sfreq_ini*sfreq), axis=2)
 
         return data, count_spikes, count_bad
 
@@ -196,7 +202,6 @@ class Data:
             good_trials = np.where(count_bad == 0)[0]
             data = data[good_trials]
             labels = labels[good_trials]
-
         # Stack Dataset along axis 0
         # all_data = np.stack(all_data, axis=0)
 
@@ -205,8 +210,7 @@ class Data:
 
             # Each channels become a trials
             data = data.reshape(ntrials*nchan, ntime)
-            labels = np.concatenanate([labels for _ in range(nchan)])
-
+            labels = np.concatenate([labels for _ in range(nchan)])
         logger.info("Number of spikes {}".format(np.sum(labels)))
 
         return data, labels
