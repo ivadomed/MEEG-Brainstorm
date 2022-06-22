@@ -256,6 +256,110 @@ class TransformerEncoder(nn.Sequential):
         return out
 
 
+""" ********** Gated Transformer Network ********** """
+
+
+class GTN(nn.Module):
+
+    """ Gated Transformer Network inspired by:
+        `"Gated Transformer Networks for Multivariate
+        Time Series Classification"
+        <https://arxiv.org/pdf/2103.14438.pdf>`_.
+        Implementation inspired by
+        Predicts probability of spike occurence in a trial.
+
+    Input (tensor): Batch of trials of dimension
+                    [batch_size x n_channels x n_time_points].
+    Output (tensor): Logits of dimension [batch_size x 1].
+    """
+
+    def __init__(self,
+                 n_time_points=201,
+                 channel_num_heads=1,
+                 channel_dropout=0.1,
+                 emb_size=30,
+                 n_maps=5,
+                 position_kernel=50,
+                 channels_kernel=20,
+                 channels_stride=1,
+                 time_kernel=20,
+                 time_stride=1,
+                 positional_dropout=0.25,
+                 depth=3,
+                 num_heads=10,
+                 expansion=4,
+                 transformer_dropout=0.25):
+
+        """
+        Args:
+            n_time_points (int): Number of time points in EEF/MEG trials.
+            channel_num_heads (int): Number of heads in ChannelAttention.
+            channel_dropout (float): Dropout value in ChannelAttention.
+            emb_size (int): Size of embedding vectors in Temporal transforming.
+            n_maps (int): Number of feature maps for positional encoding.
+            position_kernel (int): Kernel size for positional encoding.
+            channels_kernel (int): Kernel size for convolution on channels.
+            channels_stride (int): Stride for convolution on channels.
+            time_kernel (int): Kernel size for convolution on time axis.
+            time_stride (int): Stride for convolution on channel axis.
+            positional_dropout (float): Dropout value for positional encoding.
+            depth (int): Depth of the Transformer encoder.
+            num_heads (int): Number of heads in multi-attention layer.
+            expansion (int): Expansion coefficient in Feed Forward layer.
+            transformer_dropout (float): Dropout value after Transformer.
+            n_windows (int): Number of time windows.
+        """
+
+        super().__init__()
+        self.spatial_transforming = ChannelAttention(n_time_points,
+                                                     channel_num_heads,
+                                                     channel_dropout)
+        self.embedding = PatchEmbedding(n_time_points, emb_size,
+                                        n_maps, position_kernel,
+                                        channels_kernel,
+                                        channels_stride, time_kernel,
+                                        time_stride, positional_dropout)
+        self.encoder = TransformerEncoder(depth, emb_size,
+                                          num_heads,
+                                          expansion,
+                                          transformer_dropout)
+        flatten_size = emb_size * n_time_points
+        self.classifier = nn.Sequential(nn.Linear(flatten_size, 1))
+
+        # Weight initialization
+        self.classifier.apply(normal_initialization)
+
+    def forward(self,
+                x: Tensor):
+
+        """ Apply STT model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_channels x n_time_points].
+
+        Returns:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_channels x n_time_points].
+            attention_weights (tensor): Attention weights of channel attention.
+            out (tensor): If n_windows == 1 --> Logits of dimension
+                                               [batch_size].
+        """
+
+        # Spatial Transforming
+        attention, attention_weights = self.spatial_transforming(x)
+
+        # Embedding
+        embedding = self.embedding(attention)
+
+        # Temporal Transforming
+        code = self.encoder(embedding)
+
+        # Output
+        out = self.classifier(code.flatten(1)).squeeze(1)
+
+        return out, attention_weights
+
+
 """ ********** Spatial Temporal Transformers ********** """
 
 
@@ -268,10 +372,7 @@ class STT(nn.Module):
 
     Input (tensor): Batch of trials of dimension
                     [batch_size x 1 x n_channels x n_time_points].
-    Output (tensor): If task == 'detection' --> Logits of dimension
-                                                [batch_size x n_time_windows].
-                     If task == 'classification' --> Logits of dimension
-                                                     [batch_size x 1].
+    Output (tensor): Logits of dimension [batch_size x 1].
     """
 
     def __init__(self, n_time_points=201,
@@ -360,9 +461,12 @@ class STT(nn.Module):
         return out, attention_weights
 
 
+""" ********** RNN self-attention ********** """
+
+
 class RNN_self_attention(nn.Module):
 
-    """ Spatial Temporal Transformer inspired by:
+    """ RNN self-attention inspired by:
         `"Epileptic spike detection by recurrent neural
         networks with self-attention mechanism"
         <https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9747560>`_.
