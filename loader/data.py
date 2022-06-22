@@ -100,7 +100,6 @@ class Data:
                                         np.array(ch_names) == ID)[0]
                     if len(position_channels) != 0:
                         annotated_channels.append(position_channels[0])
-            annotated_channels = [1, 2]
             if annotated_channels == []:
                 # if no spikeandwave in the session select all channels
                 data = raw_trial[:][0]
