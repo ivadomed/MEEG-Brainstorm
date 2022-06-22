@@ -265,6 +265,7 @@ class GTN(nn.Module):
         `"Gated Transformer Networks for Multivariate
         Time Series Classification"
         <https://arxiv.org/pdf/2103.14438.pdf>`_.
+        Implementation inspired by
         Predicts probability of spike occurence in a trial.
 
     Input (tensor): Batch of trials of dimension
@@ -272,7 +273,8 @@ class GTN(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, n_time_points=201,
+    def __init__(self,
+                 n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
                  emb_size=30,
