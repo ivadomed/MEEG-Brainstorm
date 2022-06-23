@@ -56,9 +56,19 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
 g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
 g.add_legend()
-g.fig.suptitle('Intra sujet')
+# g.fig.suptitle('Intra sujet')
 g.savefig(
      "../results/images/results_intra_subject_F1_score_{}_subjects.pdf".format(n_subjects),
+    bbox_inches="tight",
+)
+
+g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] == False)], col="weight_loss", margin_titles=True)
+g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
+g.map(sns.swarmplot, "method", "f1", "subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
+g.add_legend()
+# g.fig.suptitle('LOPO')
+g.savefig(
+     "../results/images/results_intra_subject_F1_score_swarmplot_{}_subjects.pdf".format(n_subjects),
     bbox_inches="tight",
 )
 print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss']).mean().reset_index())

@@ -46,8 +46,17 @@ sns.swarmplot(data=df, x="method", y="f1", hue="test_subject_id", palette="tab10
 plt.tight_layout()
 
 
-fig.savefig(
-     "../results/images/results_f1_score_len_{}_subjects.pdf".format(n_subjects),
+# fig.savefig(
+#      "../results/images/results_acc_score_{}_subjects.pdf".format(n_subjects),
+#     bbox_inches="tight",
+# )
+g = sns.FacetGrid(df.loc[(df['cost_sensitive'] == False)], row="mix_up", col="weight_loss", margin_titles=True)
+g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
+g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
+g.add_legend()
+# g.fig.suptitle('LOPO')
+g.savefig(
+     "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
     bbox_inches="tight",
 )
 # g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
@@ -58,6 +67,16 @@ fig.savefig(
 #      "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
 #     bbox_inches="tight",
 # )
+
+g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] == False)], col="weight_loss", margin_titles=True)
+g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
+g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
+g.add_legend()
+# g.fig.suptitle('LOPO')
+g.savefig(
+     "../results/images/results_LOPO_F1_score_swarmplot_{}_subjects.pdf".format(n_subjects),
+    bbox_inches="tight",
+)
 
 print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss']).mean().reset_index())
 print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss']).std().reset_index())
