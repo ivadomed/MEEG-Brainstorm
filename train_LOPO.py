@@ -43,6 +43,7 @@ def get_parser():
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
+    parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--mix_up", action="store_true")
     parser.add_argument("--beta", type=float, default=0.4)
 
@@ -63,6 +64,7 @@ n_epochs = args.n_epochs
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
+len_trials = args.len_trials
 mix_up = args.mix_up
 beta = args.beta
 
@@ -94,7 +96,7 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel)
+dataset = Data(path_root, 'spikeandwave', single_channel, len_trials=len_trials)
 data, labels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -273,6 +275,7 @@ for test_subject_id in subject_ids:
             "mix_up": mix_up,
             "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
+            "len_trials": len_trials,
             "test_subject_id": test_subject_id,
             "acc": acc,
             "f1": f1,
@@ -293,7 +296,7 @@ for test_subject_id in subject_ids:
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv"
+            "../results/csv_len_trial"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
