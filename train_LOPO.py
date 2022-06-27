@@ -228,7 +228,6 @@ for test_subject_id in subject_ids:
         architecture = RNN_self_attention(n_time_points=n_time_points)
     elif method == "transformer_classification":
         n_time_points = len(train_data[0][0][0][0][0])
-        print(n_time_points)
         architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 

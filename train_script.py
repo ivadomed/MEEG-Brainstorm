@@ -12,23 +12,16 @@ def get_parser():
         "Spike detection", description="Epileptic spike detection"
     )
     parser.add_argument("--path_root", type=str, default="../IvadomedNifti/")
-<<<<<<< HEAD
-    parser.add_argument("--method", type=str, nargs="+", default=["RNN_self_attention"])
-    parser.add_argument("--options", type=str, nargs="+", default=[' --mix_up', ' --cost_sensitive', ' --weight_loss'])
-=======
+
     parser.add_argument("--method", type=str, nargs="+",
                         default=["RNN_self_attention"])
     parser.add_argument("--options", type=str, nargs="+",
-<<<<<<< HEAD
-                        default=[' --mix_up', ' --cost_sensitive',
-                                 ' --weight_loss'])
-=======
-                        default=['--mix_up', '--cost_sensitive',
-                                 '--weight_loss', '--balanced'])
->>>>>>> 96d6bb7e227c13e2f4255a48d2096997c21035fd
->>>>>>> c1ee8fddf76f97795d43399b0a3222da97379f5a
+                        default=[])
     parser.add_argument(
         "--training", type=str, nargs="+", default=['train']
+    )
+    parser.add_argument(
+        "--len_trials", type=float, nargs="+", default=[2]
     )
     return parser
 
@@ -45,18 +38,21 @@ args = parser.parse_args()
 methods = args.method
 options = args.options
 trainings = args.training
-options = args.options
+len_trials = args.len_trials
+
 # load data filtered
 path_root = args.path_root
 for training in trainings:
     for method in methods:
-        for i, combo in enumerate(powerset(options), 1):
-            options_combo = ''
-            for option in combo:
-                options_combo += option
+        for len_trial in len_trials:
+            for i, combo in enumerate(powerset(options), 1):
+                options_combo = ''
+                for option in combo:
+                    options_combo += option
 
-            os.system(' python {}.py --path_root {}'
-                      ' --save{} --method {}'.format(training,
-                                                    path_root,
-                                                    options_combo,
-                                                    method))
+                os.system(' python {}.py --path_root {}'
+                        ' --save{} --method {} --len_trials {}'.format(training,
+                                                        path_root,
+                                                        options_combo,
+                                                        method,
+                                                        len_trial))
