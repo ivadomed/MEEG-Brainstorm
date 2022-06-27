@@ -94,10 +94,9 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel, len_trials=len_trials)
-data, labels = dataset.all_datasets()
+dataset = Data(path_root, 'spikeandwave', len_trials=len_trials)
+data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
-
 # Apply Leave-One-Patient-Out strategy
 
 """ Each subject is chosen once as test set while the model is trained
@@ -106,128 +105,24 @@ subject_ids = np.asarray(list(data.keys()))
 
 for test_subject_id in subject_ids:
 
-    train_subject_ids = np.delete(subject_ids,
-                                  np.where(subject_ids == test_subject_id))
-    size = int(0.20 * train_subject_ids.shape[0])
-    if size > 1:
-        val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
-                                                   size))
-    else:
-        val_subject_ids = np.asarray([np.random.choice(train_subject_ids)])
-    for id in val_subject_ids:
-        train_subject_ids = np.delete(train_subject_ids,
-                                      np.where(train_subject_ids == id))
-    print('Test on: {}, '
-          'Validation on: {}'.format(test_subject_id,
-                                     val_subject_ids))
+    # Labels are the spike events times
+    loader = Loader(data,
+                    labels,
+                    annotated_channels,
+                    single_channel=single_channel,
+                    batch_size=batch_size,
+                    subject_LOPO=test_subject_id,
+                    num_workers=num_workers,
+                    )
 
-    # Training dataloader
-    train_data = []
-    train_labels = []
-    for id in train_subject_ids:
-        train_data.append(data[id])
-        train_labels.append(labels[id])
-
-    # Z-score normalization
-    target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
-                           for data_id in train_data])
-    target_std = np.mean([np.mean([np.std(data) for data in data_id])
-                          for data_id in train_data])
-    train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
-                   for data in data_id] for data_id in train_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        train_loader = Loader(train_data,
-                              train_labels,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        train_loader = Loader(train_data,
-                              train_labels,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers)
-    train_dataloader = train_loader.load()
-
-    # Validation dataloader
-    val_data = []
-    val_labels = []
-    for id in val_subject_ids:
-        val_data.append(data[id])
-        val_labels.append(labels[id])
-
-    # Z-score normalization
-    val_data = [[np.expand_dims((data-target_mean) / target_std,
-                                axis=1)
-                for data in data_id] for data_id in val_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        val_loader = Loader(val_data,
-                            val_labels,
-                            balanced=False,
-                            shuffle=False,
-                            batch_size=batch_size,
-                            num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        val_loader = Loader(val_data,
-                            val_labels,
-                            balanced=False,
-                            shuffle=False,
-                            batch_size=batch_size,
-                            num_workers=num_workers)
-    val_dataloader = val_loader.load()
-
-    # Test dataloader
-    test_data = []
-    test_labels = []
-    test_data.append(data[test_subject_id])
-    test_labels.append(labels[test_subject_id])
-
-    # Z-score normalization
-    test_data = [[np.expand_dims((data-target_mean) / target_std,
-                                 axis=1)
-                 for data in data_id] for data_id in test_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        test_loader = Loader(test_data,
-                             test_labels,
-                             balanced=False,
-                             shuffle=False,
-                             batch_size=batch_size,
-                             num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        test_loader = Loader(test_data,
-                             test_labels,
-                             balanced=False,
-                             shuffle=False,
-                             batch_size=batch_size,
-                             num_workers=num_workers)
-    test_dataloader = test_loader.load()
+    train_loader, val_loader, test_loader, train_labels = loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
-        n_time_points = len(train_data[0][0][0][0])
+        n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = RNN_self_attention(n_time_points=n_time_points)
     elif method == "transformer_classification":
-        n_time_points = len(train_data[0][0][0][0][0])
+        n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 
@@ -248,12 +143,13 @@ for test_subject_id in subject_ids:
     # Define training pipeline
     architecture = architecture.to(device)
     model = make_model(architecture,
-                       train_dataloader,
-                       val_dataloader,
-                       test_dataloader,
+                       train_loader,
+                       val_loader,
+                       test_loader,
                        optimizer,
                        train_criterion,
                        criterion,
+                       single_channel=single_channel,
                        n_epochs=n_epochs,
                        patience=patience,
                        mix_up=mix_up,

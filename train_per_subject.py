@@ -90,8 +90,8 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel, len_trials=len_trials)
-data, labels = dataset.all_datasets()
+dataset = Data(path_root, 'spikeandwave', len_trials=len_trials)
+data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
 # Apply Leave-One-Patient-Out strategy
@@ -109,37 +109,24 @@ for train_subject_id in subject_ids:
 
     for seed in range(5):
 
-        # Dataloader
-        if method == "transformer_detection":
+        # Labels are the spike events times
+        loader = Loader(data,
+                        labels,
+                        annotated_channels,
+                        single_channel=single_channel,
+                        batch_size=batch_size,
+                        subject_LOPO=None,
+                        num_workers=num_workers,
+                        )
 
-            # Labels are the spike events times
-            loader = Loader(data_list,
-                            labels_list,
-                            balanced=False,
-                            shuffle=True,
-                            batch_size=batch_size,
-                            num_workers=num_workers,
-                            split_dataset=True,
-                            seed=seed)
-        else:
-
-            # Label is 1 with a spike occurs in the trial, 0 otherwise
-            loader = Loader(data_list,
-                            labels_list,
-                            balanced=False,
-                            shuffle=True,
-                            batch_size=batch_size,
-                            num_workers=num_workers,
-                            split_dataset=True,
-                            seed=seed)
         train_loader, val_loader, test_loader, train_labels = loader.load()
 
-        # Define architecture
+        ## Define architecture
         if method == "RNN_self_attention":
-            n_time_points = len(data_list[0][0][0])
+            n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = RNN_self_attention(n_time_points=n_time_points)
         elif method == "transformer_classification":
-            n_time_points = len(data_list[0][0][0][0])
+            n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = STT(n_time_points=n_time_points)
         architecture.apply(reset_weights)
 
@@ -167,6 +154,7 @@ for train_subject_id in subject_ids:
                            optimizer,
                            train_criterion,
                            criterion,
+                           single_channel,
                            n_epochs=n_epochs,
                            patience=patience,
                            mix_up=mix_up,
