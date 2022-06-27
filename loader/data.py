@@ -29,7 +29,6 @@ class Data:
     def __init__(self,
                  path_root,
                  wanted_event_label,
-                 single_channel,
                  len_trials=2,
                  sfreq=128,
                  n_windows=1):
@@ -46,7 +45,6 @@ class Data:
 
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
-        self.single_channel = single_channel
         self.len_trials = len_trials
         self.sfreq = sfreq
         self.n_windows = n_windows
@@ -188,15 +186,7 @@ class Data:
             good_trials = np.where(count_bad == 0)[0]
             data = data[good_trials]
             labels = labels[good_trials]
-        # Stack Dataset along axis 0
-        # all_data = np.stack(all_data, axis=0)
 
-        # if single_channel:
-        #     ntrials, nchan, ntime = data.shape
-
-        #     # Each channels become a trials
-        #     data = data.reshape(ntrials*nchan, ntime)
-        #     labels = np.concatenate([labels for _ in range(nchan)])
         logger.info("Number of spikes {}".format(np.sum(labels)))
 
         return data, labels, annotated_channels

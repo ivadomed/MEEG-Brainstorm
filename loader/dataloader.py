@@ -74,7 +74,7 @@ class Loader():
                  data,
                  labels,
                  annotated_channels,
-                 single_channels,
+                 single_channel,
                  batch_size,
                  num_workers,
                  subject_LOPO=None,
@@ -85,7 +85,7 @@ class Loader():
             data (list): List of EEG trials in .edf format.
             labels (list): Corresponding labels.
             annotated_channels (list): channels where the spike occurs.
-            single_channels (bool): If True, select just one channel in training.
+            single_channel (bool): If True, select just one channel in training.
             batch_size (int): Batch size.
             num_workers (int): Number of loader worker processes.
             split_dataset (bool): If True, split dataset into training,
@@ -96,7 +96,7 @@ class Loader():
         self.data = data
         self.labels = labels
         self.annotated_channels = annotated_channels
-        self.single_channels = single_channels
+        self.single_channel = single_channel
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.subject_LOPO = subject_LOPO
@@ -106,7 +106,7 @@ class Loader():
                    data,
                    labels,
                    annotated_channels,
-                   single_channels,
+                   single_channel,
                    shuffle,
                    batch_size,
                    num_workers):
@@ -127,14 +127,15 @@ class Loader():
         """
 
         # Get dataloader
+        subject_ids = np.asarray(list(annotated_channels.keys()))
         dataset = []
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
                     x = data[id][n_sess][n_trial]
                     y = labels[id][n_sess][n_trial]
-                    chan = annotated_channels[id][n_sess]
-                    if single_channels:
+                    chan = annotated_channels[subject_ids[id]][n_sess]
+                    if single_channel:
                         # Select only the channels where a spike occurs
                         if chan != []:
                             x = x[:, chan]
@@ -153,7 +154,7 @@ class Loader():
                         data,
                         labels,
                         annotated_channels,
-                        single_channels,
+                        single_channel,
                         batch_size,
                         num_workers,
                         subject_LOPO,
@@ -231,25 +232,24 @@ class Loader():
         test_data = [[np.expand_dims((data-target_mean) / target_std,
                                     axis=1)
                     for data in data_id] for data_id in test_data]
-
         train_loader = self.pad_loader(train_data,
                                        train_labels,
                                        annotated_channels,
-                                       single_channels,
+                                       single_channel,
                                        shuffle=True,
                                        batch_size=batch_size,
                                        num_workers=num_workers)
         val_loader = self.pad_loader(val_data,
                                      val_labels,
                                      annotated_channels,
-                                     single_channels=False,
+                                     single_channel=False,
                                      shuffle=False,
                                      batch_size=batch_size,
                                      num_workers=num_workers)
         test_loader = self.pad_loader(test_data,
                                       test_labels,
                                       annotated_channels,
-                                      single_channels=False,
+                                      single_channel=False,
                                       shuffle=False,
                                       batch_size=batch_size,
                                       num_workers=num_workers)
@@ -260,7 +260,7 @@ class Loader():
                                 data,
                                 labels,
                                 annotated_channels,
-                                single_channels,
+                                single_channel,
                                 batch_size,
                                 num_workers,
                                 seed):
@@ -316,7 +316,7 @@ class Loader():
         for (x, y, chan) in train_dataset:
 
             x = (x-target_mean) / target_std
-            if single_channels:
+            if single_channel:
                 # Select only the channels where a spike occurs
                 if chan != []:
                     x = x[:, chan]
@@ -348,7 +348,7 @@ class Loader():
             return self.LOPO_dataloader(self.data,
                                         self.labels,
                                         self.annotated_channels,
-                                        self.single_channels,
+                                        self.single_channel,
                                         self.batch_size,
                                         self.num_workers,
                                         self.subject_LOPO,
@@ -357,7 +357,7 @@ class Loader():
             return self.train_val_test_dataloader(self.data,
                                                   self.labels,
                                                   self.annotated_channels,
-                                                  self.single_channels,
+                                                  self.single_channel,
                                                   self.batch_size,
                                                   self.num_workers,
                                                   self.seed)
