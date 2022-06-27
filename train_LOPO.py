@@ -23,6 +23,7 @@ from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
+from utils.select_subject import select_subject
 
 
 def get_parser():
@@ -39,6 +40,7 @@ def get_parser():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--n_subjects", type=int, default=5)
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
@@ -59,6 +61,7 @@ balanced = args.balanced
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+n_subjects = args.n_subjects
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
@@ -94,7 +97,12 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', len_trials=len_trials)
+path_subject_info = (
+    "../results/info_subject_{}".format(len_trials)
+)
+selected_subjects = select_subject(n_subjects, path_subject_info, path_root, len_trials)
+
+dataset = Data(path_root, 'spikeandwave', selected_subjects, len_trials=len_trials)
 data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 # Apply Leave-One-Patient-Out strategy

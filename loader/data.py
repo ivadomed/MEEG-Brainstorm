@@ -29,6 +29,7 @@ class Data:
     def __init__(self,
                  path_root,
                  wanted_event_label,
+                 selected_subjects,
                  len_trials=2,
                  sfreq=128,
                  n_windows=1):
@@ -45,6 +46,7 @@ class Data:
 
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
+        self.selected_subjects = selected_subjects
         self.len_trials = len_trials
         self.sfreq = sfreq
         self.n_windows = n_windows
@@ -194,6 +196,7 @@ class Data:
     def get_all_datasets(self,
                          path_root,
                          wanted_event_label,
+                         selected_subjects,
                          len_trials,
                          sfreq,
                          n_windows=1):
@@ -221,7 +224,11 @@ class Data:
         all_data = {}
         all_labels = {}
         all_annotated_channels = {}
-        for item in os.listdir(path_root):
+        
+        if selected_subjects == []:
+            selected_subjects = os.listdir(path_root)
+
+        for item in selected_subjects:
 
             if not isfile(path_root + item):
                 logger.info("Recover data for {}".format(item))
@@ -258,6 +265,7 @@ class Data:
 
         return self.get_all_datasets(self.path_root,
                                      self.wanted_event_label,
+                                     self.selected_subjects,
                                      self.len_trials,
                                      self.sfreq,
                                      self.n_windows)
