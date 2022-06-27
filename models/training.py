@@ -31,10 +31,12 @@ class make_model():
                  optimizer,
                  train_criterion,
                  val_criterion,
+                 single_channel,
                  n_epochs,
                  patience=None,
                  mix_up=False,
-                 beta=0.2):
+                 beta=0.2,
+                 n_good_detection=1):
 
         """
         Args:
@@ -59,15 +61,17 @@ class make_model():
         self.optimizer = optimizer
         self.train_criterion = train_criterion
         self.val_criterion = val_criterion
+        self.single_channel = single_channel
         self.n_epochs = n_epochs
         self.patience = patience
         self.mix_up = mix_up
         self.beta = beta
+        self.n_good_detection = n_good_detection
         self.sigmoid = nn.Sigmoid()
 
     def _do_train(self,
                   model,
-                  loaders,
+                  loader,
                   optimizer,
                   criterion):
 
@@ -90,19 +94,10 @@ class make_model():
         train_loss = list()
         all_preds, all_labels = list(), list()
 
-        iter_loader = [iter(loader) for loader in loaders]
 
         # Loop on training samples
-        for batch_x, batch_y in iter_loader[0]:
-            if len(loaders) > 1:
-                batch_x_list = [batch_x]
-                batch_y_list = [batch_y]
-                for id in range(len(loaders[1:])):
-                    batch_x, batch_y = get_next_batch(id, iter_loader, loaders)
-                    batch_x_list.append(batch_x)
-                    batch_y_list.append(batch_y)
-                batch_x = torch.cat(batch_x_list, dim=0)
-                batch_y = torch.cat(batch_y_list, dim=0)
+        for batch_x, batch_y in loader:
+
             batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(torch.float).to(device=device)
 
@@ -137,7 +132,7 @@ class make_model():
 
     def _do_mix_up_train(self,
                          model,
-                         loaders,
+                         loader,
                          optimizer,
                          criterion,
                          beta):
@@ -162,19 +157,10 @@ class make_model():
         train_loss = list()
         all_preds, all_labels, all_shuffle_labels = list(), list(), list()
 
-        iter_loader = [iter(loader) for loader in loaders]
 
         # Loop on training samples
-        for batch_x, batch_y in iter_loader[0]:
-            if len(loaders) > 1:
-                batch_x_list = [batch_x]
-                batch_y_list = [batch_y]
-                for id in range(len(loaders[1:])):
-                    batch_x, batch_y = get_next_batch(id, iter_loader, loaders)
-                    batch_x_list.append(batch_x)
-                    batch_y_list.append(batch_y)
-                batch_x = torch.cat(batch_x_list, dim=0)
-                batch_y = torch.cat(batch_y_list, dim=0)
+        for batch_x, batch_y in loader:
+
             batch_x = batch_x.to(torch.float).to(device=device)
             batch_y = batch_y.to(torch.float).to(device=device)
 
@@ -226,7 +212,8 @@ class make_model():
     def _validate(self,
                   model,
                   loader,
-                  criterion):
+                  criterion,
+                  n_good_detection):
 
         """
         Evaluate model on validation set.
@@ -244,33 +231,48 @@ class make_model():
         model.eval()
         device = next(model.parameters()).device
 
-        val_loss = np.zeros(len(loader[0]))
+        val_loss = np.zeros(len(loader))
         all_preds, all_labels = list(), list()
 
         # Loop in validation samples
         with torch.no_grad():
-            for idx_batch, (batch_x, batch_y) in enumerate(loader[0]):
+            for idx_batch, (batch_x, batch_y) in enumerate(loader):
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
 
                 # Forward
-                output, _ = model.forward(batch_x)
-                pred = self.sigmoid(output)
+                if self.single_channel:
+                    losses = []
+                    preds = np.zeros((batch_x.shape[0], batch_x.shape[2]))
+                    for i in range(batch_x.shape[2]):
+                        output, _ = model.forward(batch_x[:, :, i])
+                        pred = (self.sigmoid(output).cpu().numpy() > 0.5)
+                        # Recover loss and prediction
+                        loss = criterion(output, batch_y)
 
-                # Recover loss and prediction
-                loss = criterion(output, batch_y)
+                        losses.append(loss)
+                        preds[:, i] = pred
+
+                    pred = 1*(np.sum(preds, axis=1) >= n_good_detection)
+                    loss =  torch.mean(torch.tensor(losses))
+                else:
+
+                    output, _ = model.forward(batch_x)
+                    pred = 1*(self.sigmoid(output).cpu().numpy() > 0.5)
+
+                    # Recover loss and prediction
+                    loss = criterion(output, batch_y)
+
                 val_loss[idx_batch] = loss.item()
-                all_preds.append(pred.cpu().numpy())
+                all_preds.append(pred)
                 all_labels.append(batch_y.cpu().numpy())
-
         # Recover binary prediction
         y_pred = np.concatenate(all_preds)
-        y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
 
         # Recover mean loss and F1-score
         val_loss = np.mean(val_loss)
-        perf = f1_score(y_true, y_pred_binary, average='binary',
+        perf = f1_score(y_true, y_pred, average='binary',
                         zero_division=1)
 
         return val_loss, perf
@@ -308,7 +310,8 @@ class make_model():
                                                         self.train_criterion)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.val_criterion)
+                                                self.val_criterion,
+                                                self.n_good_detection)
 
             history.append(
                 {"epoch": epoch,
@@ -352,30 +355,40 @@ class make_model():
 
         all_preds, all_labels = list(), list()
         with torch.no_grad():
-            for batch_x, batch_y in self.test_loader[0]:
+            for batch_x, batch_y in self.test_loader:
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
-
                 # Forward
-                output, _ = self.best_model.forward(batch_x)
-                pred = self.sigmoid(output)
+                if self.single_channel:
+                    losses = []
+                    preds = np.zeros((batch_x.shape[0], batch_x.shape[2]))
+                    for i in range(batch_x.shape[2]):
+                        output, _ = self.best_model.forward(batch_x[:, :, i])
+                        pred = (self.sigmoid(output).cpu().numpy() > 0.5)
+
+                        preds[:, i] = pred
+
+                    pred = 1*(np.sum(preds, axis=1) >= self.n_good_detection)
+                else:
+
+                    output, _ = self.best_model.forward(batch_x)
+                    pred = 1*(self.sigmoid(output).cpu().numpy() > 0.5)
 
                 # Recover prediction
-                all_preds.append(pred.cpu().numpy())
+                all_preds.append(pred)
                 all_labels.append(batch_y.cpu().numpy())
 
         # Recover binary prediction
         y_pred = np.concatenate(all_preds)
-        y_pred_binary = 1 * (y_pred > 0.5)
         y_true = np.concatenate(all_labels)
 
         # Recover performances
-        acc = accuracy_score(y_true, y_pred_binary)
-        f1 = f1_score(y_true, y_pred_binary, average='binary',
+        acc = accuracy_score(y_true, y_pred)
+        f1 = f1_score(y_true, y_pred, average='binary',
                       zero_division=1)
-        precision = precision_score(y_true, y_pred_binary,
+        precision = precision_score(y_true, y_pred,
                                     average='binary', zero_division=1)
-        recall = recall_score(y_true, y_pred_binary, average='binary',
+        recall = recall_score(y_true, y_pred, average='binary',
                               zero_division=1)
 
         print("Performances on test")
