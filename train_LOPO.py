@@ -40,6 +40,7 @@ def get_parser():
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
     parser.add_argument("--n_subjects", type=int, default=5)
+    parser.add_argument("--selected_subjects", type=str, nargs="+", default=[])
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
@@ -60,6 +61,7 @@ batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
 n_subjects = args.n_subjects
+selected_subjects = args.selected_subjects
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
@@ -98,10 +100,11 @@ else:
 path_subject_info = (
     "../results/info_subject_{}".format(len_trials)
 )
-selected_subjects = select_subject(n_subjects,
-                                   path_subject_info,
-                                   path_root,
-                                   len_trials)
+if selected_subjects == []:
+    selected_subjects = select_subject(n_subjects,
+                                    path_subject_info,
+                                    path_root,
+                                    len_trials)
 
 dataset = Data(path_root,
                'spikeandwave',
