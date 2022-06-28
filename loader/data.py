@@ -31,8 +31,7 @@ class Data:
                  wanted_event_label,
                  selected_subjects,
                  len_trials=2,
-                 sfreq=128,
-                 n_windows=1):
+                 sfreq=128,):
 
         """
         Args:
@@ -49,7 +48,6 @@ class Data:
         self.selected_subjects = selected_subjects
         self.len_trials = len_trials
         self.sfreq = sfreq
-        self.n_windows = n_windows
 
     def get_trials(self,
                    raw_trial,
@@ -95,6 +93,7 @@ class Data:
                 if len(position_channels) != 0:
                     annotated_channels.append(position_channels[0])
 
+        annotated_channels = np.unique(annotated_channels)
         # Get the data
 
         data = raw_trial[:][0]
@@ -142,11 +141,10 @@ class Data:
         return data, count_spikes, count_bad, annotated_channels
 
     def get_dataset(self,
-                    folder,
+                    run_fname,
                     wanted_event_label,
                     len_trials,
-                    sfreq,
-                    n_windows=1):
+                    sfreq,):
 
         """ Recover trials in .edf format as BIDS dataset.
             Binary labels: 0 if no spike in the trial, 1 otherwise.
@@ -166,27 +164,25 @@ class Data:
             events (array): Labels of dimension [n_trials].
         """
 
-        for trial_fname in folder:
-            raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
-                                            stim_channel=None,
-                                            verbose=False)
-            events = mne.events_from_annotations(raw_trial, verbose=False)
+        raw_run = mne.io.read_raw_edf(run_fname, preload=False,
+                                      stim_channel=None,
+                                      verbose=False)
+        events = mne.events_from_annotations(raw_run, verbose=False)
 
-            dataset = self.get_trials(raw_trial,
-                                      events,
-                                      wanted_event_label,
-                                      len_trials,
-                                      sfreq)
+        dataset = self.get_trials(raw_run,
+                                  events,
+                                  wanted_event_label,
+                                  len_trials,
+                                  sfreq)
+        data, count_spikes, count_bad, annotated_channels = dataset
 
-            data, count_spikes, count_bad, annotated_channels = dataset
+        # Apply binary classificatin
+        labels = 1*(count_spikes > 0)
 
-            # Apply binary classificatin
-            labels = 1*(count_spikes > 0)
-
-            # Remove BAD trials
-            good_trials = np.where(count_bad == 0)[0]
-            data = data[good_trials]
-            labels = labels[good_trials]
+        # Remove BAD trials
+        good_trials = np.where(count_bad == 0)[0]
+        data = data[good_trials]
+        labels = labels[good_trials]
 
         logger.info("Number of spikes {}".format(np.sum(labels)))
 
@@ -237,17 +233,15 @@ class Data:
                 subject_path = path_root+item+'/'
                 sessions = [f.path for f in os.scandir(subject_path)
                             if f.is_dir()]
+                session = sessions[0] + '/eeg/'
+                run_fnames = [session + f for f in listdir(session)
+                              if isfile(join(session, f))]
+                for run_fname in run_fnames:
 
-                for i in range(len(sessions)):
-                    path = sessions[i] + '/'
-                    folder = [path + f for f in listdir(path)
-                              if isfile(join(path, f))]
-
-                    dataset = self.get_dataset(folder,
+                    dataset = self.get_dataset(run_fname,
                                                wanted_event_label,
                                                len_trials,
-                                               sfreq,
-                                               n_windows)
+                                               sfreq,)
                     data, labels, annotated_channels = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)
@@ -268,5 +262,4 @@ class Data:
                                      self.wanted_event_label,
                                      self.selected_subjects,
                                      self.len_trials,
-                                     self.sfreq,
-                                     self.n_windows)
+                                     self.sfreq,)

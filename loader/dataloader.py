@@ -106,7 +106,7 @@ class Loader():
     def pad_loader(self,
                    data,
                    labels,
-                   annotated_channels,
+                   chans,
                    single_channel,
                    shuffle,
                    batch_size,
@@ -128,14 +128,13 @@ class Loader():
         """
 
         # Get dataloader
-        subject_ids = np.asarray(list(annotated_channels.keys()))
         dataset = []
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
                     x = data[id][n_sess][n_trial]
                     y = labels[id][n_sess][n_trial]
-                    chan = annotated_channels[subject_ids[id]][n_sess]
+                    chan = chans[id][n_sess]
                     if single_channel:
                         # Select only the channels where a spike occurs
                         if chan != []:
@@ -199,9 +198,11 @@ class Loader():
         # Training data
         train_data = []
         train_labels = []
+        train_chan = []
         for id in train_subject_ids:
             train_data.append(data[id])
             train_labels.append(labels[id])
+            train_chan.append(annotated_channels[id])
 
         # Z-score normalization
         target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
@@ -214,9 +215,11 @@ class Loader():
         # Validation data
         val_data = []
         val_labels = []
+        val_chan = []
         for id in val_subject_ids:
             val_data.append(data[id])
             val_labels.append(labels[id])
+            val_chan.append(annotated_channels[id])
 
         # Z-score normalization
         val_data = [[np.expand_dims((data-target_mean) / target_std,
@@ -226,8 +229,11 @@ class Loader():
         # Test data
         test_data = []
         test_labels = []
+        test_chan = []
         test_data.append(data[subject_LOPO])
         test_labels.append(labels[subject_LOPO])
+        test_chan.append(annotated_channels[subject_LOPO])
+
 
         # Z-score normalization
         test_data = [[np.expand_dims((data-target_mean) / target_std,
@@ -235,21 +241,21 @@ class Loader():
                       for data in data_id] for data_id in test_data]
         train_loader = self.pad_loader(train_data,
                                        train_labels,
-                                       annotated_channels,
+                                       train_chan,
                                        single_channel,
                                        shuffle=True,
                                        batch_size=batch_size,
                                        num_workers=num_workers)
         val_loader = self.pad_loader(val_data,
                                      val_labels,
-                                     annotated_channels,
-                                     single_channel=False,
+                                     val_chan,
+                                     single_channel,
                                      shuffle=False,
                                      batch_size=batch_size,
                                      num_workers=num_workers)
         test_loader = self.pad_loader(test_data,
                                       test_labels,
-                                      annotated_channels,
+                                      test_chan,
                                       single_channel=False,
                                       shuffle=False,
                                       batch_size=batch_size,
@@ -327,8 +333,17 @@ class Loader():
                 train_data.append((x, y))
 
             train_labels.append(y)
-        for (x, y, _) in val_dataset:
-            val_data.append(((x-target_mean) / target_std, y))
+        for (x, y, chan) in val_dataset:
+            x = (x-target_mean) / target_std
+            if single_channel:
+                # Select only the channels where a spike occurs
+                if chan != []:
+                    x = x[:, chan]
+                for i in range(x.shape[1]):
+                    val_data.append((x[:, i], y))
+            else:
+                val_data.append((x, y))
+
         for (x, y, _) in test_dataset:
             test_data.append(((x-target_mean) / target_std, y))
 

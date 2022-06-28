@@ -238,27 +238,11 @@ class make_model():
                 batch_y = batch_y.to(torch.float).to(device=device)
 
                 # Forward
-                if self.single_channel:
-                    losses = []
-                    preds = np.zeros((batch_x.shape[0], batch_x.shape[2]))
-                    for i in range(batch_x.shape[2]):
-                        output, _ = model.forward(batch_x[:, :, i])
-                        pred = (self.sigmoid(output).cpu().numpy() > 0.5)
-                        # Recover loss and prediction
-                        loss = criterion(output, batch_y)
+                output, _ = model.forward(batch_x)
+                pred = 1*(self.sigmoid(output).cpu().numpy() > 0.5)
 
-                        losses.append(loss)
-                        preds[:, i] = pred
-
-                    pred = 1*(np.sum(preds, axis=1) >= n_good_detection)
-                    loss = torch.mean(torch.tensor(losses))
-                else:
-
-                    output, _ = model.forward(batch_x)
-                    pred = 1*(self.sigmoid(output).cpu().numpy() > 0.5)
-
-                    # Recover loss and prediction
-                    loss = criterion(output, batch_y)
+                # Recover loss and prediction
+                loss = criterion(output, batch_y)
 
                 val_loss[idx_batch] = loss.item()
                 all_preds.append(pred)
@@ -357,7 +341,6 @@ class make_model():
                 batch_y = batch_y.to(torch.float).to(device=device)
                 # Forward
                 if self.single_channel:
-                    losses = []
                     preds = np.zeros((batch_x.shape[0], batch_x.shape[2]))
                     for i in range(batch_x.shape[2]):
                         output, _ = self.best_model.forward(batch_x[:, :, i])

@@ -81,7 +81,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("RNN_self_attention", "transformer_classification",
+assert method in ("RNN_self_attention", "STT",
                   "transformer_detection")
 logger.info(f"Method used: {method}")
 
@@ -130,7 +130,7 @@ for seed in range(5):
     if method == "RNN_self_attention":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = RNN_self_attention(n_time_points=n_time_points)
-    elif method == "transformer_classification":
+    elif method == "STT":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
@@ -209,11 +209,12 @@ for seed in range(5):
                                     "-subjects.csv".format(len(subject_ids))
                                     )
         df_results = pd.DataFrame(results)
+        results = []
 
         if os.path.exists(results_path):
             df_old_results = pd.read_csv(results_path)
             df_results = pd.concat([df_old_results, df_results])
-        df_results.to_csv(results_path)
+        df_results.to_csv(results_path, index=False)
 
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)
