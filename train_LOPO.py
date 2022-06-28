@@ -102,9 +102,9 @@ path_subject_info = (
 )
 if selected_subjects == []:
     selected_subjects = select_subject(n_subjects,
-                                    path_subject_info,
-                                    path_root,
-                                    len_trials)
+                                       path_subject_info,
+                                       path_root,
+                                       len_trials)
 
 dataset = Data(path_root,
                'spikeandwave',
