@@ -24,6 +24,7 @@ from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
 
+
 def get_parser():
 
     """ Set parameters for the experiment."""
@@ -92,9 +93,16 @@ else:
 path_subject_info = (
     "../results/info_subject_{}".format(len_trials)
 )
-selected_subjects = select_subject(n_subjects, path_subject_info, path_root, len_trials)
+selected_subjects = select_subject(n_subjects,
+                                   path_subject_info,
+                                   path_root,
+                                   len_trials)
 
-dataset = Data(path_root, 'spikeandwave', selected_subjects, len_trials=len_trials)
+dataset = Data(path_root,
+               'spikeandwave',
+               selected_subjects,
+               len_trials=len_trials)
+
 data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 

@@ -41,7 +41,7 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 # )
 
 fig = plt.figure()
-sns.boxplot(data=df, x="method", y="f1", palette="Set2" )
+sns.boxplot(data=df, x="method", y="f1", palette="Set2")
 sns.swarmplot(data=df, x="method", y="f1", hue="test_subject_id", palette="tab10")
 plt.tight_layout()
 
@@ -50,9 +50,9 @@ plt.tight_layout()
 #      "../results/images/results_acc_score_{}_subjects.pdf".format(n_subjects),
 #     bbox_inches="tight",
 # )
-g = sns.FacetGrid(df.loc[(df['cost_sensitive'] == False)], row="mix_up", col="weight_loss", margin_titles=True)
-g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
-g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
+g = sns.FacetGrid(df.loc[(df['cost_sensitive'] is False)], row="mix_up", col="weight_loss", margin_titles=True)
+g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10")
+g.map(sns.boxplot, "method", "f1", palette="Set2") 
 g.add_legend()
 # g.fig.suptitle('LOPO')
 g.savefig(
@@ -68,7 +68,7 @@ g.savefig(
 #     bbox_inches="tight",
 # )
 
-g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] == False)], col="weight_loss", margin_titles=True)
+g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] is False)], col="weight_loss", margin_titles=True)
 g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
 g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
 g.add_legend()

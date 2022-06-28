@@ -96,9 +96,16 @@ else:
 path_subject_info = (
     "../results/info_subject_{}".format(len_trials)
 )
-selected_subjects = select_subject(n_subjects, path_subject_info, path_root, len_trials)
+selected_subjects = select_subject(n_subjects,
+                                   path_subject_info,
+                                   path_root,
+                                   len_trials)
 
-dataset = Data(path_root, 'spikeandwave', selected_subjects, len_trials=len_trials)
+dataset = Data(path_root,
+               'spikeandwave',
+               selected_subjects,
+               len_trials=len_trials)
+
 data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
@@ -129,7 +136,7 @@ for train_subject_id in subject_ids:
 
         train_loader, val_loader, test_loader, train_labels = loader.load()
 
-        ## Define architecture
+        # Define architecture
         if method == "RNN_self_attention":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = RNN_self_attention(n_time_points=n_time_points)

@@ -18,7 +18,6 @@ from sklearn.metrics import f1_score, accuracy_score
 from torch import nn
 
 from utils.mix_up import mixup_data, mixup_criterion
-from utils.utils_ import get_next_batch
 
 
 class make_model():
@@ -94,7 +93,6 @@ class make_model():
         train_loss = list()
         all_preds, all_labels = list(), list()
 
-
         # Loop on training samples
         for batch_x, batch_y in loader:
 
@@ -156,7 +154,6 @@ class make_model():
         device = next(model.parameters()).device
         train_loss = list()
         all_preds, all_labels, all_shuffle_labels = list(), list(), list()
-
 
         # Loop on training samples
         for batch_x, batch_y in loader:
@@ -254,7 +251,7 @@ class make_model():
                         preds[:, i] = pred
 
                     pred = 1*(np.sum(preds, axis=1) >= n_good_detection)
-                    loss =  torch.mean(torch.tensor(losses))
+                    loss = torch.mean(torch.tensor(losses))
                 else:
 
                     output, _ = model.forward(batch_x)

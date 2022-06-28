@@ -52,11 +52,11 @@ class Data:
         self.n_windows = n_windows
 
     def get_trials(self,
-                  raw_trial,
-                  events,
-                  wanted_event_label,
-                  len_trials,
-                  sfreq):
+                   raw_trial,
+                   events,
+                   wanted_event_label,
+                   len_trials,
+                   sfreq):
 
         """ Recover trials in .edf format.
 
@@ -79,7 +79,6 @@ class Data:
         # Recover data
         ch_names = raw_trial.info.ch_names
 
-
         annotated_channels = []
         # Get the channels where the spikeandwave is annotated
         for event in events[1].keys():
@@ -99,8 +98,6 @@ class Data:
         # Get the data
 
         data = raw_trial[:][0]
-
-
 
         # split the data in trials
         # TODO deal with overlap and clean this script
@@ -138,7 +135,9 @@ class Data:
 
         # Resample the data to the frequence wanted
         len_data = data.shape[2]
-        data = scipy.signal.resample(data, int(len_data/sfreq_ini*sfreq), axis=2)
+        data = scipy.signal.resample(data,
+                                     int(len_data/sfreq_ini*sfreq),
+                                     axis=2)
 
         return data, count_spikes, count_bad, annotated_channels
 
@@ -224,7 +223,7 @@ class Data:
         all_data = {}
         all_labels = {}
         all_annotated_channels = {}
-        
+
         if selected_subjects == []:
             selected_subjects = os.listdir(path_root)
 
@@ -232,7 +231,9 @@ class Data:
 
             if not isfile(path_root + item):
                 logger.info("Recover data for {}".format(item))
-                subject_data, subject_labels, subject_annotated_channels = [], [], []
+                subject_data = []
+                subject_labels = []
+                subject_annotated_channels = []
                 subject_path = path_root+item+'/'
                 sessions = [f.path for f in os.scandir(subject_path)
                             if f.is_dir()]

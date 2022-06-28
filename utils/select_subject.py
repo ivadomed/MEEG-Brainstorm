@@ -5,6 +5,7 @@ import pandas as pd
 
 from loader.data import Data
 
+
 def select_subject(n_subject, path_subject_info, path_root, len_trials):
     if not os.path.exists(path_subject_info):
         dataset = Data(path_root, 'spikeandwave', [], len_trials=len_trials)
@@ -38,10 +39,12 @@ def select_subject(n_subject, path_subject_info, path_root, len_trials):
             os.mkdir(path_subject_info)
 
         df.to_csv(os.path.join(path_subject_info, "number_of_segment.csv"))
-    
+
     df = pd.read_csv(os.path.join(path_subject_info, "number_of_segment.csv"))
-   
-    df_sort = df[df['type_of_segment']=='ied'].sort_values(by='number_of_segment')
+    df_ied = df[df['type_of_segment'] == 'ied']
+    df_sort = df_ied.sort_values(by='number_of_segment')
     selected_subjects = df_sort["subject_id"].to_numpy()[-n_subject:]
+
+    print("selected subjects are:", selected_subjects)
 
     return selected_subjects

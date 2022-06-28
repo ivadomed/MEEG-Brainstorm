@@ -85,7 +85,8 @@ class Loader():
             data (list): List of EEG trials in .edf format.
             labels (list): Corresponding labels.
             annotated_channels (list): channels where the spike occurs.
-            single_channel (bool): If True, select just one channel in training.
+            single_channel (bool): If True, select just one channel
+                                   in training.
             batch_size (int): Batch size.
             num_workers (int): Number of loader worker processes.
             split_dataset (bool): If True, split dataset into training,
@@ -179,21 +180,20 @@ class Loader():
         subject_ids = np.asarray(list(data.keys()))
 
         train_subject_ids = np.delete(subject_ids,
-                                np.where(subject_ids == subject_LOPO))
+                                      np.where(subject_ids == subject_LOPO))
         size = int(0.20 * train_subject_ids.shape[0])
-
 
         if size > 1:
             val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
-                                                    size))
+                                                       size))
         else:
             val_subject_ids = np.asarray([np.random.choice(train_subject_ids)])
         for id in val_subject_ids:
             train_subject_ids = np.delete(train_subject_ids,
-                                        np.where(train_subject_ids == id))
+                                          np.where(train_subject_ids == id))
         print('Test on: {}, '
-            'Validation on: {}'.format(subject_LOPO,
-                                        val_subject_ids))
+              'Validation on: {}'.format(subject_LOPO,
+                                         val_subject_ids))
 
         # Training data
         train_data = []
@@ -204,11 +204,11 @@ class Loader():
 
         # Z-score normalization
         target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
-                            for data_id in train_data])
+                               for data_id in train_data])
         target_std = np.mean([np.mean([np.std(data) for data in data_id])
-                            for data_id in train_data])
+                              for data_id in train_data])
         train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
-                    for data in data_id] for data_id in train_data]
+                       for data in data_id] for data_id in train_data]
 
         # Validation data
         val_data = []
@@ -230,8 +230,8 @@ class Loader():
 
         # Z-score normalization
         test_data = [[np.expand_dims((data-target_mean) / target_std,
-                                    axis=1)
-                    for data in data_id] for data_id in test_data]
+                                     axis=1)
+                      for data in data_id] for data_id in test_data]
         train_loader = self.pad_loader(train_data,
                                        train_labels,
                                        annotated_channels,
@@ -257,13 +257,13 @@ class Loader():
         return train_loader, val_loader, test_loader, train_labels
 
     def train_val_test_dataloader(self,
-                                data,
-                                labels,
-                                annotated_channels,
-                                single_channel,
-                                batch_size,
-                                num_workers,
-                                seed):
+                                  data,
+                                  labels,
+                                  annotated_channels,
+                                  single_channel,
+                                  batch_size,
+                                  num_workers,
+                                  seed):
 
         """ Split dataset into training, validation, test dataloaders.
             Trials in a given batch have same number of channels
@@ -298,14 +298,14 @@ class Loader():
         test_size = N - train_size
         generator = torch.Generator().manual_seed(seed)
         train_dataset, test_dataset = random_split(dataset,
-                                                [train_size, test_size],
-                                                generator=generator)
+                                                   [train_size, test_size],
+                                                   generator=generator)
         N = len(train_dataset)
         train_size = int(ratio * N)
         val_size = N - train_size
         train_dataset, val_dataset = random_split(train_dataset,
-                                                [train_size, val_size],
-                                                generator=generator)
+                                                  [train_size, val_size],
+                                                  generator=generator)
 
         # Z-score normalization
         target_mean = np.mean([np.mean(data[0]) for data in train_dataset])
@@ -332,14 +332,14 @@ class Loader():
             test_data.append(((x-target_mean) / target_std, y))
 
         train_loader = DataLoader(dataset=train_data, batch_size=batch_size,
-                                    shuffle=True, num_workers=num_workers,
-                                    collate_fn=PadCollate(dim=1))
+                                  shuffle=True, num_workers=num_workers,
+                                  collate_fn=PadCollate(dim=1))
         val_loader = DataLoader(dataset=val_data, batch_size=batch_size,
                                 shuffle=False, num_workers=num_workers,
                                 collate_fn=PadCollate(dim=1))
         test_loader = DataLoader(dataset=test_data, batch_size=batch_size,
-                                    shuffle=False, num_workers=num_workers,
-                                    collate_fn=PadCollate(dim=1))
+                                 shuffle=False, num_workers=num_workers,
+                                 collate_fn=PadCollate(dim=1))
 
         return train_loader, val_loader, test_loader, train_labels
 
