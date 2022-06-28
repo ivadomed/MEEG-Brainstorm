@@ -175,7 +175,6 @@ class Loader():
         Returns:
             tuple: tuple of all dataloaders and the training labels.
         """
-        # TODO add a seed
         # Get dataset of every tuple (data, label)
         subject_ids = np.asarray(list(data.keys()))
 
@@ -184,9 +183,11 @@ class Loader():
         size = int(0.20 * train_subject_ids.shape[0])
 
         if size > 1:
+            random.seed(seed)
             val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
                                                        size))
         else:
+            np.random.seed(seed)
             val_subject_ids = np.asarray([np.random.choice(train_subject_ids)])
         for id in val_subject_ids:
             train_subject_ids = np.delete(train_subject_ids,
