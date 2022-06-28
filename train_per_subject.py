@@ -122,11 +122,13 @@ for train_subject_id in subject_ids:
     print("Train on {}".format(train_subject_id))
     # Training dataloader
     for seed in range(5):
-
+        data_subject = {train_subject_id: data[train_subject_id]} 
+        labels_subject = {train_subject_id: labels[train_subject_id]} 
+        annotated_channels_subject = {train_subject_id: annotated_channels[train_subject_id]} 
         # Labels are the spike events times
-        loader = Loader(data,
-                        labels,
-                        annotated_channels,
+        loader = Loader(data_subject,
+                        labels_subject,
+                        annotated_channels_subject,
                         single_channel=single_channel,
                         batch_size=batch_size,
                         subject_LOPO=None,
