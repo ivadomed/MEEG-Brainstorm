@@ -36,7 +36,6 @@ def get_parser():
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
-    parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -57,7 +56,6 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
-balanced = args.balanced
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -117,7 +115,7 @@ subject_ids = np.asarray(list(data.keys()))
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
-
+seed = 42
 for test_subject_id in subject_ids:
 
     # Labels are the spike events times
@@ -126,8 +124,9 @@ for test_subject_id in subject_ids:
                     annotated_channels,
                     single_channel=single_channel,
                     batch_size=batch_size,
-                    subject_LOPO=test_subject_id,
                     num_workers=num_workers,
+                    subject_LOPO=test_subject_id,
+                    seed=seed,
                     )
 
     train_loader, val_loader, test_loader, train_labels = loader.load()
@@ -178,12 +177,12 @@ for test_subject_id in subject_ids:
     results.append(
         {
             "method": method,
-            "balance": balanced,
             "mix_up": mix_up,
             "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
             "len_trials": len_trials,
             "test_subject_id": test_subject_id,
+            "fold": seed,
             "acc": acc,
             "f1": f1,
             "precision": precision,
@@ -203,25 +202,21 @@ for test_subject_id in subject_ids:
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv_len_trial"
+            "../results/csv_LOPO"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
 
+        results_path = os.path.join(results_path,
+                                    "results_LOPO_spike_detection_{}"
+                                    "-subjects.csv".format(len(subject_ids))
+                                    )
         df_results = pd.DataFrame(results)
-        df_results.to_csv(
-            os.path.join(results_path,
-                         "results_LOPO_spike_detection_method-{}"
-                         "_balance-{}_mix-up-{}_weight-loss-{}_"
-                         "cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method,
-                                                balanced,
-                                                mix_up,
-                                                weight_loss,
-                                                cost_sensitive,
-                                                len(subject_ids))
-                         )
-            )
+
+        if os.path.exists(results_path):
+            df_old_results = pd.read_csv(results_path)
+            df_results = pd.concat([df_old_results, df_results])
+        df_results.to_csv(results_path)
 
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)

@@ -199,23 +199,22 @@ for seed in range(5):
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv_len_trial"
+            "../results/csv_classic"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
 
+        results_path = os.path.join(results_path,
+                                    "results_LOPO_spike_detection_{}"
+                                    "-subjects.csv".format(len(subject_ids))
+                                    )
         df_results = pd.DataFrame(results)
-        df_results.to_csv(
-            os.path.join(results_path,
-                         "accuracy_results_spike_detection_method-{}"
-                         "_mix-up-{}_weight-loss-{}_cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method,
-                                                mix_up,
-                                                weight_loss,
-                                                cost_sensitive,
-                                                len(subject_ids))
-                         )
-            )
+
+        if os.path.exists(results_path):
+            df_old_results = pd.read_csv(results_path)
+            df_results = pd.concat([df_old_results, df_results])
+        df_results.to_csv(results_path)
+
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)
 print(
