@@ -324,22 +324,34 @@ class EEGNet(nn.Module):
         # Block 4: classifier
         self.classifier = nn.Sequential(nn.Linear(64, 1))
 
-    def forward(self, x):
-        print(x.size())
+    def forward(self,
+                x: Tensor):
+
+        """ Apply EEGNet model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_channels x n_time_points].
+
+        Returns:
+            out (tensor): Logits of dimension [batch_size].
+            attention_weights (tensor): Artificial attention weights
+                                        to match other models' outputs.
+        """
+
         # Conv2d
         x = self.block1(x)
-        print(x.size())
+
         # Depthwise Conv2d
         x = self.block2(x)
-        print(x.size())
+
         # Separable Conv2d
         x = self.block3(x)
 
         # Classifier
         x = x.view(x.size(0), -1)
-        x = self.classify(x)
+        out, attention_weights = self.classifier(x), torch.zeros(1)
 
-        return x
+        return out, attention_weights
 
 
 """ ********** Gated Transformer Network ********** """
