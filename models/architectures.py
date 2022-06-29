@@ -391,7 +391,7 @@ class GTN(nn.Module):
                  emb_size=512,
                  positional_encoding=True,
                  channels_kernel=20,
-                 depth=3,
+                 depth=8,
                  num_heads=10,
                  expansion=4,
                  transformer_dropout=0.25):
