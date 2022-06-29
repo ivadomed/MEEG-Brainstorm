@@ -24,6 +24,33 @@ from scipy import signal
 from utils.utils_ import get_spike_events, get_spike_windows
 
 
+class Dataset():
+    """Returns samples from an mne.io.Raw object along with a target.
+    Dataset which serves samples from an mne.io.Raw object along with a target.
+    The target is unique for the dataset, and is obtained through the
+    `description` attribute.
+    Parameters
+    ----------
+    data : Continuous data.
+    labels : labels.
+    transform : callable | None
+        On-the-fly transform applied to the example before it is returned.
+    """
+    def __init__(self, data, labels, transform=None):
+        self.data = data
+        self.labels = labels
+        self.transform = transform
+
+    def __getitem__(self, index):
+        X = self.data[index]
+        y = self.labels[index]
+        if self.transform is not None:
+            X = self.transform(X)
+        return X, y
+
+    def __len__(self):
+        return len(self.x)
+
 class Data:
 
     def __init__(self,

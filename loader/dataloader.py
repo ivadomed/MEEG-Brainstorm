@@ -19,6 +19,33 @@ from torch.utils.data import DataLoader, random_split
 from utils.utils_ import pad_tensor, weighted_sampler
 
 
+class Dataset():
+    """Returns samples from an mne.io.Raw object along with a target.
+    Dataset which serves samples from an mne.io.Raw object along with a target.
+    The target is unique for the dataset, and is obtained through the
+    `description` attribute.
+    Parameters
+    ----------
+    data : Continuous data.
+    labels : labels.
+    transform : callable | None
+        On-the-fly transform applied to the example before it is returned.
+    """
+    def __init__(self, data, labels, transform=None):
+        self.data = data
+        self.labels = labels
+        self.transform = transform
+
+    def __getitem__(self, index):
+        X = self.data[index]
+        y = self.labels[index]
+        if self.transform is not None:
+            X = self.transform(X)
+        return X, y
+
+    def __len__(self):
+        return len(self.data)
+
 class PadCollate():
 
     """ Custom collate_fn that pads according to the longest sequence in
@@ -47,18 +74,20 @@ class PadCollate():
         """
 
         # Find longest sequence
+        print(batch)
+        print(batch[1].shape)
         max_len = max(map(lambda x: x[0].shape[self.dim], batch))
 
         # Pad according to max_len
         data = map(lambda x: pad_tensor(x[0], n_pads=max_len, dim=self.dim),
                    batch)
-        labels = map(lambda x: torch.tensor(x[1]), batch)
+        # labels = map(lambda x: torch.tensor(x[1]), batch)
 
         # Stack all
         xs = torch.stack(list(data), dim=0)
-        ys = torch.stack(list(labels), dim=0)
+        # ys = torch.stack(list(labels), dim=0)
 
-        return xs, ys
+        return xs#, ys
 
     def __call__(self,
                  batch):
@@ -77,6 +106,7 @@ class Loader():
                  single_channel,
                  batch_size,
                  num_workers,
+                 transform=None,
                  subject_LOPO=None,
                  seed=42):
 
@@ -100,6 +130,7 @@ class Loader():
         self.single_channel = single_channel
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.transform = transform
         self.subject_LOPO = subject_LOPO
         self.seed = seed
 
@@ -128,7 +159,8 @@ class Loader():
         """
 
         # Get dataloader
-        dataset = []
+        data = []
+        labels = []
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
@@ -140,10 +172,12 @@ class Loader():
                         if chan != []:
                             x = x[:, chan]
                         for i in range(x.shape[1]):
-                            dataset.append((x[:, i], y))
+                            data.append(x[:, i])
+                            labels.append(y)
                     else:
-                        dataset.append((x, y))
-
+                        data.append(x)
+                        labels.append(y)
+        dataset = Dataset(data, labels, transform=self.transform)
         loader = DataLoader(dataset=dataset, batch_size=batch_size,
                             shuffle=shuffle, num_workers=num_workers,
                             collate_fn=PadCollate(dim=1))
@@ -318,7 +352,7 @@ class Loader():
         target_mean = np.mean([np.mean(data[0]) for data in train_dataset])
         target_std = np.mean([np.std(data[0]) for data in train_dataset])
         train_data, val_data, test_data = [], [], []
-        train_labels = []
+        train_labels, val_labels, test_labels = [], [], []
 
         for (x, y, chan) in train_dataset:
 
@@ -328,11 +362,12 @@ class Loader():
                 if chan != []:
                     x = x[:, chan]
                 for i in range(x.shape[1]):
-                    train_data.append((x[:, i], y))
-            else:
-                train_data.append((x, y))
+                    train_data.append(x[:, i])
+                    train_labels.append(y)
 
-            train_labels.append(y)
+            else:
+                train_data.append(x)
+                train_labels.append(y)
         for (x, y, chan) in val_dataset:
             x = (x-target_mean) / target_std
             if single_channel:
@@ -340,20 +375,27 @@ class Loader():
                 if chan != []:
                     x = x[:, chan]
                 for i in range(x.shape[1]):
-                    val_data.append((x[:, i], y))
+                    val_data.append(x[:, i])
+                    val_labels.append(y)
             else:
-                val_data.append((x, y))
+                val_data.append(x)
+                val_labels.append(y)
 
         for (x, y, _) in test_dataset:
-            test_data.append(((x-target_mean) / target_std, y))
+            test_data.append((x-target_mean) / target_std)
+            test_labels.append(y)
+
+        train_dataset = Dataset(train_data, train_labels, transform=self.transform)
+        val_dataset = Dataset(val_data, val_labels, transform=self.transform)
+        test_dataset = Dataset(test_data, test_labels, transform=self.transform)
 
         train_loader = DataLoader(dataset=train_data, batch_size=batch_size,
                                   shuffle=True, num_workers=num_workers,
                                   collate_fn=PadCollate(dim=1))
-        val_loader = DataLoader(dataset=val_data, batch_size=batch_size,
+        val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size,
                                 shuffle=False, num_workers=num_workers,
                                 collate_fn=PadCollate(dim=1))
-        test_loader = DataLoader(dataset=test_data, batch_size=batch_size,
+        test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=num_workers,
                                  collate_fn=PadCollate(dim=1))
 
