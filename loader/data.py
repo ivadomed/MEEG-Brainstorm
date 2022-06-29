@@ -111,7 +111,6 @@ class Data:
         data = np.array(data)
         count_spikes = np.zeros(n_trials)
         count_bad = np.zeros(n_trials)
-
         for event in events[0]:
             try:
                 if events[1][wanted_event_label] == event[2]:
@@ -120,6 +119,8 @@ class Data:
                         j += 1
                     count_spikes[j] += 1
             except KeyError:
+                continue
+            except IndexError:
                 continue
 
             try:
