@@ -310,7 +310,7 @@ class EEGNet(nn.Module):
                                   out_channels=16,
                                   kernel_size=(1, 16),
                                   padding=(0, 8),
-                                  group=16,
+                                  groups=16,
                                   bias=False),
                         nn.Conv2d(in_channels=16,
                                   out_channels=16,
