@@ -17,7 +17,7 @@ from loguru import logger
 from torch import nn
 from torch.optim import Adam
 
-from models.architectures import RNN_self_attention, STT
+from models.architectures import EEGNet, RNN_self_attention, STT
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
@@ -33,7 +33,8 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection"
     )
-    parser.add_argument("--path_root", type=str, default="../BIDSdataset/Epilepsy dataset/")
+    parser.add_argument("--path_root", type=str,
+                        default="../BIDSdataset/Epilepsy dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
@@ -88,8 +89,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("RNN_self_attention", "STT",
-                  "transformer_detection")
+assert method in ("EEGNet, RNN_self_attention", "STT")
 
 logger.info(f"Method used: {method}")
 if method == 'RNN_self_attention':
@@ -113,8 +113,8 @@ dataset = Data(path_root,
 
 data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
-# Apply Leave-One-Patient-Out strategy
 
+# Apply Leave-One-Patient-Out strategy
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
@@ -135,7 +135,10 @@ for test_subject_id in subject_ids:
     train_loader, val_loader, test_loader, train_labels = loader.load()
 
     # Define architecture
-    if method == "RNN_self_attention":
+    if method == "EEGNet":
+        n_time_points = len(data[subject_ids[0]][0][0][0])
+        architecture = EEGNet(n_time_points=n_time_points)
+    elif method == "RNN_self_attention":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = RNN_self_attention(n_time_points=n_time_points)
     elif method == "STT":

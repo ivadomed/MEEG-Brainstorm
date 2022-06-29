@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 
 from einops import rearrange
-from einops.layers.torch import Rearrange
+from einops.layers.torch import Rearrange, Reduce
 from torch import nn
 from torch import Tensor
 from utils.utils_ import normal_initialization, xavier_initialization
@@ -222,6 +222,7 @@ class TransformerEncoder(nn.Sequential):
         """
 
         super().__init__()
+
         dim = expansion * emb_size
         encoder_layer = nn.TransformerEncoderLayer(d_model=emb_size,
                                                    nhead=num_heads,
@@ -256,6 +257,87 @@ class TransformerEncoder(nn.Sequential):
         return out
 
 
+""" ********** EEGNet ********** """
+
+
+class EEGNet(nn.Module):
+
+    """ EEGNet inspired by:
+        `"EEGNet: A Compact Convolutional Neural Network
+        for EEG-based Brain-Computer Interfaces"
+        <https://arxiv.org/pdf/1611.08024.pdf>`_.
+        Predicts probability of spike occurence in a trial.
+
+    Input (tensor): Batch of trials of dimension
+                    [batch_size x n_channels x n_time_points].
+    Output (tensor): Logits of dimension [batch_size x 1].
+    """
+
+    def __init__(self, n_time_points):
+        super().__init__()
+        self.n_time_points = n_time_points
+
+        # Layer 1
+        self.conv1 = nn.Conv2d(1, 16, (1, 64), padding=0)
+        self.batchnorm1 = nn.BatchNorm2d(16, False)
+
+        # Layer 2
+        self.padding1 = nn.ZeroPad2d((16, 17, 0, 1))
+        self.conv2 = nn.Conv2d(1, 4, (2, 32))
+        self.batchnorm2 = nn.BatchNorm2d(4, False)
+        self.pooling2 = nn.MaxPool2d(2, 4)
+
+        # Layer 3
+        self.padding2 = nn.ZeroPad2d((2, 1, 4, 3))
+        self.conv3 = nn.Conv2d(4, 4, (8, 4))
+        self.batchnorm3 = nn.BatchNorm2d(4, False)
+        self.pooling3 = nn.MaxPool2d((2, 4))
+
+        # FC Layer
+        self.fc = nn.Sequential(Reduce(' b o c t -> b t', reduction='mean'),
+                                nn.Linear(self.n_time_points, 1))
+
+    def forward(self,
+                x: Tensor):
+
+        """ Apply EEGNet model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_channels x n_time_points].
+
+        Returns:
+            out (tensor): Logits of dimension [batch_size].
+            attention_weights (tensor): Artificial attention weights
+                                        to match other models outputs.
+        """
+
+        # Layer 1
+        x = F.elu(self.conv1(x))
+        x = self.batchnorm1(x)
+        x = F.dropout(x, 0.25)
+        x = x.permute(0, 3, 1, 2)
+
+        # Layer 2
+        x = self.padding1(x)
+        x = F.elu(self.conv2(x))
+        x = self.batchnorm2(x)
+        x = F.dropout(x, 0.25)
+        x = self.pooling2(x)
+
+        # Layer 3
+        x = self.padding2(x)
+        x = F.elu(self.conv3(x))
+        x = self.batchnorm3(x)
+        x = F.dropout(x, 0.25)
+        x = self.pooling3(x)
+
+        # FC Layer
+        x = x.view(-1, self.time_points)
+        out, attention_weights = self.fc(x), torch.zeros(1)
+
+        return x, attention_weights
+
+
 """ ********** Gated Transformer Network ********** """
 
 
@@ -265,7 +347,6 @@ class GTN(nn.Module):
         `"Gated Transformer Networks for Multivariate
         Time Series Classification"
         <https://arxiv.org/pdf/2103.14438.pdf>`_.
-        Implementation inspired by
         Predicts probability of spike occurence in a trial.
 
     Input (tensor): Batch of trials of dimension
@@ -273,8 +354,7 @@ class GTN(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self,
-                 n_time_points=201,
+    def __init__(self, n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
                  emb_size=30,
@@ -324,7 +404,7 @@ class GTN(nn.Module):
                                           expansion,
                                           transformer_dropout)
         flatten_size = emb_size * n_time_points
-        self.classifier = nn.Sequential(nn.Linear(flatten_size, 1))
+        self.classifier = nn.Linear(flatten_size, 1)
 
         # Weight initialization
         self.classifier.apply(normal_initialization)
@@ -338,11 +418,8 @@ class GTN(nn.Module):
                         [batch_size x 1 x n_channels x n_time_points].
 
         Returns:
-            x (tensor): Batch of trials with dimension
-                        [batch_size x 1 x n_channels x n_time_points].
+            out (tensor): Logits of dimension [batch_size].
             attention_weights (tensor): Attention weights of channel attention.
-            out (tensor): If n_windows == 1 --> Logits of dimension
-                                               [batch_size].
         """
 
         # Spatial Transforming
@@ -425,7 +502,7 @@ class STT(nn.Module):
                                           expansion,
                                           transformer_dropout)
         flatten_size = emb_size * n_time_points
-        self.classifier = nn.Sequential(nn.Linear(flatten_size, 1))
+        self.classifier = nn.Linear(flatten_size, 1)
 
         # Weight initialization
         self.classifier.apply(normal_initialization)
@@ -439,11 +516,8 @@ class STT(nn.Module):
                         [batch_size x 1 x n_channels x n_time_points].
 
         Returns:
-            x (tensor): Batch of trials with dimension
-                        [batch_size x 1 x n_channels x n_time_points].
+            out (tensor): Logits of dimension [batch_size].
             attention_weights (tensor): Attention weights of channel attention.
-            out (tensor): If n_windows == 1 --> Logits of dimension
-                                               [batch_size].
         """
 
         # Spatial Transforming
