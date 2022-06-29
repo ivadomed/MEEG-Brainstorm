@@ -322,7 +322,7 @@ class EEGNet(nn.Module):
                         )
 
         # Block 4: classifier
-        self.classifier = nn.Sequential(nn.Linear(64, 1))
+        self.classifier = nn.Sequential(nn.Linear(128, 1))
 
     def forward(self,
                 x: Tensor):
@@ -346,10 +346,9 @@ class EEGNet(nn.Module):
 
         # Separable Conv2d
         x = self.block3(x)
-        print(x.size())
+
         # Classifier
         x = x.view(x.size(0), -1)
-        print(x.size())
         out, attention_weights = self.classifier(x), torch.zeros(1)
 
         return out, attention_weights
