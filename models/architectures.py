@@ -349,7 +349,7 @@ class EEGNet(nn.Module):
 
         # Classifier
         x = x.view(x.size(0), -1)
-        out, attention_weights = self.classifier(x), torch.zeros(1)
+        out, attention_weights = self.classifier(x).squeeze(1), torch.zeros(1)
 
         return out, attention_weights
 
