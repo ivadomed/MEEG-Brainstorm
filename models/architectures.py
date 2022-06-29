@@ -489,18 +489,18 @@ class GTN(nn.Module):
             pe[:, 1::2] = torch.cos(temp)
             embedding_1 += pe
         encoder_1 = self.transformer_1(embedding_1)
+        encoder_1 = encoder_1.reshape(encoder_1.shape[0], -1)
 
         # Channel-wise encoder
         embedding_2 = self.embedding_2(x)
         encoder_2 = self.transformer_2(embedding_2)
+        encoder_2 = encoder_2.reshape(encoder_2.shape[0], -1)
 
-        # Merge transformers
-        encoder = torch.cat([encoder_1, encoder_2], dim=-2)
-        print(encoder.size())
-        gate = F.softmax(self.gate(encoder), dim=-1)
+        # gate
+        gate = F.softmax(self.gate(torch.cat([encoder_1, encoder_2], dim=-1)),
+                         dim=-1)
         encoding = torch.cat([encoder_1 * gate[:, 0:1],
-                              encoder_2 * gate[:, 1:2]],
-                             dim=-1)
+                              encoder_2 * gate[:, 1:2]], dim=-1)
 
         # Classifier
         out = self.output_linear(encoding).squeeze(1)
