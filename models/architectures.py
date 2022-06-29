@@ -273,7 +273,7 @@ class EEGNet(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, n_time_points):
+    def __init__(self):
 
         """
         Args:
@@ -281,7 +281,6 @@ class EEGNet(nn.Module):
         """
 
         super().__init__()
-        self.n_time_points = n_time_points
 
         # Block 1: conv2d
         self.block1 = nn.Sequential(
@@ -298,7 +297,7 @@ class EEGNet(nn.Module):
                         nn.Conv2d(in_channels=8,
                                   out_channels=16,
                                   kernel_size=(64, 1),
-                                  group=2,
+                                  groups=2,
                                   bias=False),
                         nn.ELU(),
                         nn.AdaptiveAvgPool2d(output_size=(1, 4)),
@@ -326,13 +325,13 @@ class EEGNet(nn.Module):
         self.classifier = nn.Sequential(nn.Linear(64, 1))
 
     def forward(self, x):
-
+        print(x.size())
         # Conv2d
         x = self.block1(x)
-
+        print(x.size())
         # Depthwise Conv2d
         x = self.block2(x)
-
+        print(x.size())
         # Separable Conv2d
         x = self.block3(x)
 
