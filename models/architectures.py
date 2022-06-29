@@ -264,7 +264,7 @@ class TransformerEncoder(nn.Sequential):
         """
         x = rearrange(x, 'b s e -> s b e')
         if self.src_mask:
-            src_mask = torch.ones_like(x.size(0))
+            src_mask = torch.ones_like(torch.zeros(x.size(0), x.size(0)))
             src_mask = torch.tril(src_mask, diagonal=0)
             out = self.encoder(x, src_mask=src_mask)
         else:
