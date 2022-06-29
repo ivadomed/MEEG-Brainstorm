@@ -265,7 +265,7 @@ class TransformerEncoder(nn.Sequential):
         """
         x = rearrange(x, 'b s e -> s b e')
         if self.src_mask:
-            
+
             # Create tensor of size [b x b]
             artifact = torch.einsum('b c , l d -> b l',
                                     x.squeeze(1)[:, 0],
@@ -273,8 +273,6 @@ class TransformerEncoder(nn.Sequential):
 
             mask = torch.ones_like(artifact)
             mask = torch.tril(mask, diagonal=0)
-            device, available = define_device
-            mask = mask.to(device)
             out = self.encoder(x, mask=mask)
         else:
             out = self.encoder(x)
