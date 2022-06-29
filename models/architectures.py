@@ -312,7 +312,9 @@ class EEGNet(nn.Module):
         """
 
         # Layer 1
+        print(x.size())
         x = F.elu(self.conv1(x))
+        print(x.size())
         x = self.batchnorm1(x)
         x = F.dropout(x, 0.25)
         x = x.permute(0, 3, 1, 2)
