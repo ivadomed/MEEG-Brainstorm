@@ -51,7 +51,7 @@ for training in trainings:
                     options_combo += option
 
                 os.system(' python {}.py'
-                        ' --save{} --method {} --selected_subjects sub-pt0090 sub-pt0013 sub-pt0095 sub-pt0075 sub-pt0093 --len_trials {}'.format(training,
+                        ' --save{} --method {} --selected_subjects sub-pt0078 sub-pt0045 sub-pt0038 sub-pt0066 sub-pt0096 sub-pt0090 sub-pt0013 sub-pt0095 sub-pt0075 sub-pt0093 --len_trials {}'.format(training,
                                                         options_combo,
                                                         method,
                                                         len_trial))

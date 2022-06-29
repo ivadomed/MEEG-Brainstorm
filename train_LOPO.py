@@ -33,7 +33,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection"
     )
-    parser.add_argument("--path_root", type=str, default="../BIDSdataset/Epilepsy dataset/")
+    parser.add_argument("--path_root", type=str, default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
