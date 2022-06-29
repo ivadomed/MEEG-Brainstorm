@@ -22,6 +22,7 @@ from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
+from utils.select_subject import select_subject
 
 
 def get_parser():
@@ -31,15 +32,18 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection using attention layer"
     )
-    parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
+    parser.add_argument("--path_root", type=str, default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--n_subjects", type=int, default=5)
+    parser.add_argument("--selected_subjects", type=str, nargs="+", default=[])
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-4)
+    parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--mix_up", action="store_true")
     parser.add_argument("--beta", type=float, default=0.4)
 
@@ -55,9 +59,12 @@ save = args.save
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+n_subjects = args.n_subjects
+selected_subjects = args.selected_subjects
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
+len_trials = args.len_trials
 mix_up = args.mix_up
 beta = args.beta
 
@@ -76,7 +83,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("RNN_self_attention", "transformer_classification",
+assert method in ("RNN_self_attention", "STT",
                   "transformer_detection")
 logger.info(f"Method used: {method}")
 
@@ -85,53 +92,50 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel)
-data, labels, spikes, sfreq = dataset.all_datasets()
+path_subject_info = (
+    "../results/info_subject_{}".format(len_trials)
+)
+if selected_subjects == []:
+    selected_subjects = select_subject(n_subjects,
+                                       path_subject_info,
+                                       path_root,
+                                       len_trials)
+
+dataset = Data(path_root,
+               'spikeandwave',
+               selected_subjects,
+               len_trials=len_trials)
+
+data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
+
 
 # Define loss
 criterion = nn.BCEWithLogitsLoss().to(device)
 
-# Training dataloader
-data_list = []
-labels_list = []
-spikes_list = []
-for id in subject_ids:
-    data_list.append(data[id])
-    labels_list.append(labels[id])
-    spikes_list.append(spikes[id])
-
 for seed in range(5):
 
     # Dataloader
-    if method == "transformer_detection":
 
-        # Labels are the spike events times
-        loader = Loader(data_list,
-                        spikes_list,
-                        balanced=False,
-                        shuffle=True,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        split_dataset=True,
-                        seed=seed)
-    else:
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        loader = Loader(data_list,
-                        labels_list,
-                        balanced=False,
-                        shuffle=True,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        split_dataset=True,
-                        seed=seed)
+    # Labels are the spike events times
+    loader = Loader(data,
+                    labels,
+                    annotated_channels,
+                    single_channel=single_channel,
+                    batch_size=batch_size,
+                    subject_LOPO=None,
+                    num_workers=num_workers,
+                    )
+
     train_loader, val_loader, test_loader, train_labels = loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
-        architecture = RNN_self_attention()
-    elif method == "transformer_classification":
-        architecture = STT()
+        n_time_points = len(data[subject_ids[0]][0][0][0])
+        architecture = RNN_self_attention(n_time_points=n_time_points)
+    elif method == "STT":
+        n_time_points = len(data[subject_ids[0]][0][0][0])
+        architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 
     if weight_loss:
@@ -158,6 +162,7 @@ for seed in range(5):
                        optimizer,
                        train_criterion,
                        criterion,
+                       single_channel,
                        n_epochs=n_epochs,
                        patience=patience,
                        mix_up=mix_up,
@@ -177,6 +182,7 @@ for seed in range(5):
             "mix_up": mix_up,
             "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
+            "len_trials": len_trials,
             "fold": seed,
             "acc": acc,
             "f1": f1,
@@ -196,23 +202,23 @@ for seed in range(5):
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv"
+            "../results/csv_classic"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
 
+        results_path = os.path.join(results_path,
+                                    "results_LOPO_spike_detection_{}"
+                                    "-subjects.csv".format(len(subject_ids))
+                                    )
         df_results = pd.DataFrame(results)
-        df_results.to_csv(
-            os.path.join(results_path,
-                         "accuracy_results_spike_detection_method-{}"
-                         "_mix-up-{}_weight-loss-{}_cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method,
-                                                mix_up,
-                                                weight_loss,
-                                                cost_sensitive,
-                                                len(subject_ids))
-                         )
-            )
+        results = []
+
+        if os.path.exists(results_path):
+            df_old_results = pd.read_csv(results_path)
+            df_results = pd.concat([df_old_results, df_results])
+        df_results.to_csv(results_path, index=False)
+
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)
 print(

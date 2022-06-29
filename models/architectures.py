@@ -477,8 +477,8 @@ class RNN_self_attention(nn.Module):
     """
 
     def __init__(self,
-                 input_size=1):
-
+                 n_time_points,
+                 input_size=1,):
         """
         Args:
             input_size (int): Input size (here: n_time_points).
@@ -486,6 +486,7 @@ class RNN_self_attention(nn.Module):
 
         super().__init__()
         self.input_size = input_size
+        self.n_time_points = n_time_points
         self.LSTM_1 = nn.LSTM(input_size=input_size,
                               hidden_size=8,
                               num_layers=1,
@@ -495,7 +496,7 @@ class RNN_self_attention(nn.Module):
         self.attention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
         self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1,
                               batch_first=True)
-        self.classifier = nn.Linear(256, 1)
+        self.classifier = nn.Linear(int(n_time_points/2), 1)
 
     def forward(self,
                 x: Tensor):

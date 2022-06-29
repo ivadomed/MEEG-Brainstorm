@@ -29,30 +29,32 @@ class Data:
     def __init__(self,
                  path_root,
                  wanted_event_label,
-                 single_channel,
-                 n_windows=1):
+                 selected_subjects,
+                 len_trials=2,
+                 sfreq=128,):
 
         """
         Args:
             path_root (str): Path to data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            single_channel (bool): If True, only select the channels with
-                                   the event annotation one.
+            len_trials (float): len of the trials in seconds.
+            sfreq (int): Sample frequence of the trial wanted.
             n_windows (int): Number of time windows.
         """
 
         self.path_root = path_root
         self.wanted_event_label = wanted_event_label
-        self.single_channel = single_channel
-        self.n_windows = n_windows
+        self.selected_subjects = selected_subjects
+        self.len_trials = len_trials
+        self.sfreq = sfreq
 
-    def get_trial(self,
-                  raw_trial,
-                  events,
-                  wanted_event_label,
-                  annotated_channels,
-                  single_channel):
+    def get_trials(self,
+                   raw_trial,
+                   events,
+                   wanted_event_label,
+                   len_trials,
+                   sfreq):
 
         """ Recover trials in .edf format.
 
@@ -61,103 +63,89 @@ class Data:
             events (dict): Annotated events on the trial.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            annotated_channels (list): List of channels with spike annotation
-                                       to select if single_channel is True.
-            single_channel (bool): If True, only select the channels with
-                                   the event annotation one.
+            len_trials (float): len of the trials in seconds.
+            sfreq (int): Sample frequence of the trial wanted.
+
 
         Returns:
-            data (array): Trial of dimension [n_channels x n_time_points].
-            cout_spikes (int): Number of seizures in the trial.
-            spike_time_points (array): Spike events times.
-            times (array): Time points.
-            bad_trial (int): If nonzero, trial is further discarded.
-            sfreq (int): Sample frequence of the trial.
+            data (array): Trial of dimension
+                          [n_trials x n_channels x n_time_points].
+            count_spikes (array): Number of spikes in the trials.
+            count_bad (array): Number of BAD in the trials.
         """
 
-        # Load the trial and corresponding channels
-        events_name = events[1].keys()
-
-        # Count seizure events and recover spikes events times
-        count_spikes = 0
-        spike_time_points = []
-        bad_trial = 0
-
-        if wanted_event_label in events_name:
-            events_points = np.where(events[0][:, 2]
-                                     == events[1][wanted_event_label])
-            count_spikes += len(events_points)
-            spike_time_points = events[0][events_points, 0][0]
-
-        if 'BAD' in events_name:
-            bad_trial = 1
-
-        # Recover data and time points
-        if single_channel:
-            data = raw_trial[:][0][annotated_channels, :-49]
-        else:
-            data = raw_trial[:][0][:, :-49]
-
-        times = raw_trial.times[:-49]
-        sfreq = raw_trial.info['sfreq']
-
-        return data, count_spikes, spike_time_points, times, bad_trial, sfreq
-
-    def get_channels(self,
-                     folder,
-                     wanted_event_label):
-
-        """ Recover annotated channels for single channel selection.
-
-        Args:
-            folder (list): Folder with a subject data.
-            wanted_event_label (str): Annotation of wanted event.
-                                      Default: 'spikeandwave'.
-
-        Returns:
-            annotated_channels (list): Channels if ied annotation.
-        """
+        # Recover data
+        ch_names = raw_trial.info.ch_names
 
         annotated_channels = []
-
-        # Loop on trials
-        for trial_fname in folder:
-            try:
-                raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
-                                                stim_channel=None,
-                                                verbose=False)
-                events = mne.events_from_annotations(raw_trial,
-                                                     verbose=False)
-                ch_names = raw_trial.info.ch_names
-                for event in events[1].keys():
-                    len_string_event = len(wanted_event_label)
-                    match = (event[-(len_string_event+1):]
-                             == '_' + wanted_event_label)
-                    if match:
-                        ID = 'EEG '
-                        i = 0
-                        while event[i] != '_':
-                            ID += event[i]
-                            i += 1
-                        ID = ID.upper()
-                        position_channels = np.where(
-                                            np.array(ch_names) == ID)[0]
-                        if len(position_channels) != 0:
-                            annotated_channels.append(position_channels[0])
-
-            except ValueError:
-                continue
+        # Get the channels where the spikeandwave is annotated
+        for event in events[1].keys():
+            len_string_event = len(wanted_event_label)
+            if event[-(len_string_event+1):] == '_' + wanted_event_label:
+                ID = 'EEG '
+                i = 0
+                while event[i] != '_':
+                    ID += event[i]
+                    i += 1
+                ID = ID.upper()
+                position_channels = np.where(
+                                    np.array(ch_names) == ID)[0]
+                if len(position_channels) != 0:
+                    annotated_channels.append(position_channels[0])
 
         annotated_channels = np.unique(annotated_channels)
+        # Get the data
 
-        return annotated_channels
+        data = raw_trial[:][0]
+
+        # split the data in trials
+        # TODO deal with overlap and clean this script
+
+        len_data = data.shape[1]
+        sfreq_ini = raw_trial.info['sfreq']
+        n_trials = int(len_data/sfreq_ini / len_trials)
+        data = data[:, :int(n_trials*len_trials*sfreq_ini)]
+        len_data = data.shape[1]
+        times = np.split(np.linspace(0, len_data-1, len_data), n_trials)
+        data = np.split(data, n_trials, axis=1)
+        data = np.array(data)
+        count_spikes = np.zeros(n_trials)
+        count_bad = np.zeros(n_trials)
+        for event in events[0]:
+            try:
+                if events[1][wanted_event_label] == event[2]:
+                    j = 0
+                    while event[0] >= times[j][-1]:
+                        j += 1
+                    count_spikes[j] += 1
+            except KeyError:
+                continue
+            except IndexError:
+                continue
+
+            try:
+                if events[1]['BAD'] == event[2]:
+                    j = 0
+                    while event[0] >= times[j][-1]:
+                        j += 1
+                    count_bad[j] += 1
+
+            except KeyError:
+                continue
+
+        # Resample the data to the frequence wanted
+        len_data = data.shape[2]
+        data = scipy.signal.resample(data,
+                                     int(len_data/sfreq_ini*sfreq),
+                                     axis=2)
+
+        return data, count_spikes, count_bad, annotated_channels
 
     def get_dataset(self,
-                    folder,
+                    run_fname,
                     wanted_event_label,
-                    annotated_channels,
-                    single_channel,
-                    n_windows=1):
+                    len_trials,
+                    sfreq,):
 
         """ Recover trials in .edf format as BIDS dataset.
             Binary labels: 0 if no spike in the trial, 1 otherwise.
@@ -167,79 +155,46 @@ class Data:
             folder (list): Folder with a subject data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            single_channel (bool): If True, only select the channels with
-                                   the event annotation one.
+            len_trials (float): len of the trials in seconds.
+            sfreq (int): Sample frequence of the trial wanted.
             n_windows (int): Number of time windows.
 
         Returns:
-            all_data (array): Trials of dimension
+            data (array): Trials of dimension
                               [n_trials x n_channels x n_time_points].
-            all_labels (array): Labels of dimension [n_trials].
-            all_spike_events (array): Spike events times of dimension
-                                      [n_trials x n_time_points].
-            sfreq (int): Sample frequence of the trial.
+            events (array): Labels of dimension [n_trials].
         """
 
-        all_data = []
-        all_n_spikes = []
-        all_spike_events = []
+        raw_run = mne.io.read_raw_edf(run_fname, preload=False,
+                                      stim_channel=None,
+                                      verbose=False)
+        events = mne.events_from_annotations(raw_run, verbose=False)
 
-        for trial_fname in folder:
-            try:
-                raw_trial = mne.io.read_raw_edf(trial_fname, preload=False,
-                                                stim_channel=None,
-                                                verbose=False)
-                events = mne.events_from_annotations(raw_trial, verbose=False)
-                dataset = self.get_trial(raw_trial,
-                                         events,
-                                         wanted_event_label,
-                                         annotated_channels,
-                                         single_channel)
+        dataset = self.get_trials(raw_run,
+                                  events,
+                                  wanted_event_label,
+                                  len_trials,
+                                  sfreq)
+        data, count_spikes, count_bad, annotated_channels = dataset
 
-                data, n_spike, spike_time_points, times, bad, sfreq = dataset
+        # Apply binary classificatin
+        labels = 1*(count_spikes > 0)
 
-                # Apply binary classification
-                # label = 1 if at least one spike occurs, label = 0 otherwise
-                n_spike = int((n_spike > 0))
+        # Remove BAD trials
+        good_trials = np.where(count_bad == 0)[0]
+        data = data[good_trials]
+        labels = labels[good_trials]
 
-                # Append data and labels from each good trial
-                if bad == 0:
-                    all_data.append(data)
-                    all_n_spikes.append(n_spike)
+        logger.info("Number of spikes {}".format(np.sum(labels)))
 
-                    # Get vector with 1 when a spike occurs and 0 elsewhere
-                    N = len(times)
-                    spike_events = get_spike_events(spike_time_points, N)
-                    spike_windows = get_spike_windows(spike_events, n_windows)
-                    all_spike_events.append(spike_windows)
-
-            except ValueError:
-                continue
-
-        # Stack Dataset along axis 0
-        all_data = np.stack(all_data, axis=0)
-
-        if single_channel:
-            ntrials, nchan, ntime = all_data.shape
-
-            # Each channels become a trials
-            all_data = all_data.reshape(ntrials*nchan, ntime)
-            all_data = scipy.signal.resample(all_data, 512, axis=1)
-            all_n_spikes = all_n_spikes*nchan
-
-        all_n_spikes = np.asarray(all_n_spikes)
-        all_spike_events = np.array(all_spike_events, dtype='int64')
-
-        logger.info("Label creation: number of spikes {} mapped on "
-                    "labels {}".format(np.unique(all_n_spikes),
-                                       np.unique(all_n_spikes)))
-
-        return all_data, all_n_spikes, all_spike_events, sfreq
+        return data, labels, annotated_channels
 
     def get_all_datasets(self,
                          path_root,
                          wanted_event_label,
-                         single_channel,
+                         selected_subjects,
+                         len_trials,
+                         sfreq,
                          n_windows=1):
 
         """ Recover data and create labels for all subjects.
@@ -247,8 +202,8 @@ class Data:
             path_root (str): Path to data.
             wanted_event_label (str): Annotation of wanted event.
                                       Default: 'spikeandwave'.
-            single_channel (bool): If True, only select the channels with
-                                   the event annotation one.
+            len_trials (float): len of the trials in seconds.
+            sfreq (int): Sample frequence of the trial wanted.
             n_windows (int): Number of time windows.
 
         Returns:
@@ -264,64 +219,41 @@ class Data:
 
         all_data = {}
         all_labels = {}
-        all_spike_events = {}
-        for item in os.listdir(path_root):
+        all_annotated_channels = {}
+
+        if selected_subjects == []:
+            selected_subjects = os.listdir(path_root)
+
+        for item in selected_subjects:
 
             if not isfile(path_root + item):
                 logger.info("Recover data for {}".format(item))
-                subject_data, subject_labels, subject_spike_events = [], [], []
+                subject_data = []
+                subject_labels = []
+                subject_annotated_channels = []
                 subject_path = path_root+item+'/'
                 sessions = [f.path for f in os.scandir(subject_path)
                             if f.is_dir()]
+                session = sessions[0] + '/eeg/'
+                run_fnames = [session + f for f in listdir(session)
+                              if isfile(join(session, f))]
+                for run_fname in run_fnames:
 
-                # Recover trials, labels and spike events
-                annotated_channels = []
-                if single_channel:
-
-                    # Select channels with ied annotation
-                    for i in range(len(sessions)):
-                        path = sessions[i] + '/'
-                        folder = [path + f for f in listdir(path)
-                                  if isfile(join(path, f))]
-                        channel = self.get_channels(folder,
-                                                    wanted_event_label)
-                        if len(channel) != 0:
-                            annotated_channels.append(channel)
-
-                    # Remove duplicates
-                    if annotated_channels:
-                        annotated_channels = np.concatenate(annotated_channels)
-                        annotated_channels = np.unique(annotated_channels)
-                        annotated_channels = annotated_channels.astype('int64')
-
-                    # Select a random channel if none annotated channel
-                    # in the entire session
-                    else:
-                        channel = np.random.randint(0, 20)
-                        annotated_channels = np.unique([channel])
-                        annotated_channels = annotated_channels.astype('int64')
-
-                for i in range(len(sessions)):
-                    path = sessions[i] + '/'
-                    folder = [path + f for f in listdir(path)
-                              if isfile(join(path, f))]
-
-                    dataset = self.get_dataset(folder,
+                    dataset = self.get_dataset(run_fname,
                                                wanted_event_label,
-                                               annotated_channels,
-                                               single_channel,
-                                               n_windows)
-                    data, labels, spike_events, sfreq = dataset
+                                               len_trials,
+                                               sfreq,)
+                    data, labels, annotated_channels = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)
-                    subject_spike_events.append(spike_events)
+                    subject_annotated_channels.append(annotated_channels)
 
                 # Recover trials for each subject
                 all_data[item] = subject_data
                 all_labels[item] = subject_labels
-                all_spike_events[item] = subject_spike_events
+                all_annotated_channels[item] = subject_annotated_channels
 
-        return all_data, all_labels, all_spike_events, sfreq
+        return all_data, all_labels, all_annotated_channels
 
     def all_datasets(self):
 
@@ -329,5 +261,6 @@ class Data:
 
         return self.get_all_datasets(self.path_root,
                                      self.wanted_event_label,
-                                     self.single_channel,
-                                     self.n_windows)
+                                     self.selected_subjects,
+                                     self.len_trials,
+                                     self.sfreq,)

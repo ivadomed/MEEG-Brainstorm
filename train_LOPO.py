@@ -23,6 +23,7 @@ from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
+from utils.select_subject import select_subject
 
 
 def get_parser():
@@ -35,13 +36,15 @@ def get_parser():
     parser.add_argument("--path_root", type=str, default="../BIDSdataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
-    parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
+    parser.add_argument("--n_subjects", type=int, default=5)
+    parser.add_argument("--selected_subjects", type=str, nargs="+", default=[])
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
+    parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--mix_up", action="store_true")
     parser.add_argument("--beta", type=float, default=0.4)
 
@@ -54,13 +57,15 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
-balanced = args.balanced
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
+n_subjects = args.n_subjects
+selected_subjects = args.selected_subjects
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
+len_trials = args.len_trials
 mix_up = args.mix_up
 beta = args.beta
 
@@ -83,7 +88,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("RNN_self_attention", "transformer_classification",
+assert method in ("RNN_self_attention", "STT",
                   "transformer_detection")
 
 logger.info(f"Method used: {method}")
@@ -92,145 +97,50 @@ if method == 'RNN_self_attention':
 else:
     single_channel = False
 
-dataset = Data(path_root, 'spikeandwave', single_channel)
-data, labels, spikes, sfreq = dataset.all_datasets()
-subject_ids = np.asarray(list(data.keys()))
+path_subject_info = (
+    "../results/info_subject_{}".format(len_trials)
+)
+if selected_subjects == []:
+    selected_subjects = select_subject(n_subjects,
+                                       path_subject_info,
+                                       path_root,
+                                       len_trials)
 
+dataset = Data(path_root,
+               'spikeandwave',
+               selected_subjects,
+               len_trials=len_trials)
+
+data, labels, annotated_channels = dataset.all_datasets()
+subject_ids = np.asarray(list(data.keys()))
 # Apply Leave-One-Patient-Out strategy
 
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
-
+seed = 42
 for test_subject_id in subject_ids:
 
-    train_subject_ids = np.delete(subject_ids,
-                                  np.where(subject_ids == test_subject_id))
-    size = int(0.20 * train_subject_ids.shape[0])
-    if size > 1:
-        val_subject_ids = np.asarray(random.sample(list(train_subject_ids),
-                                                   size))
-    else:
-        val_subject_ids = np.asarray([np.random.choice(train_subject_ids)])
-    for id in val_subject_ids:
-        train_subject_ids = np.delete(train_subject_ids,
-                                      np.where(train_subject_ids == id))
-    print('Test on: {}, '
-          'Validation on: {}'.format(test_subject_id,
-                                     val_subject_ids))
+    # Labels are the spike events times
+    loader = Loader(data,
+                    labels,
+                    annotated_channels,
+                    single_channel=single_channel,
+                    batch_size=batch_size,
+                    num_workers=num_workers,
+                    subject_LOPO=test_subject_id,
+                    seed=seed,
+                    )
 
-    # Training dataloader
-    train_data = []
-    train_labels = []
-    train_spikes = []
-    for id in train_subject_ids:
-        train_data.append(data[id])
-        train_labels.append(labels[id])
-        train_spikes.append(spikes[id])
-
-    # Z-score normalization
-    target_mean = np.mean([np.mean([np.mean(data) for data in data_id])
-                           for data_id in train_data])
-    target_std = np.mean([np.mean([np.std(data) for data in data_id])
-                          for data_id in train_data])
-    train_data = [[np.expand_dims((data-target_mean) / target_std, axis=1)
-                   for data in data_id] for data_id in train_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        train_loader = Loader(train_data,
-                              train_spikes,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        train_loader = Loader(train_data,
-                              train_labels,
-                              balanced=balanced,
-                              shuffle=True,
-                              batch_size=batch_size,
-                              num_workers=num_workers)
-    train_dataloader = train_loader.load()
-
-    # Validation dataloader
-    val_data = []
-    val_labels = []
-    val_spikes = []
-    for id in val_subject_ids:
-        val_data.append(data[id])
-        val_labels.append(labels[id])
-        val_spikes.append(spikes[id])
-
-    # Z-score normalization
-    val_data = [[np.expand_dims((data-target_mean) / target_std,
-                                axis=1)
-                for data in data_id] for data_id in val_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        val_loader = Loader(val_data,
-                            val_spikes,
-                            balanced=False,
-                            shuffle=False,
-                            batch_size=batch_size,
-                            num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        val_loader = Loader(val_data,
-                            val_labels,
-                            balanced=False,
-                            shuffle=False,
-                            batch_size=batch_size,
-                            num_workers=num_workers)
-    val_dataloader = val_loader.load()
-
-    # Test dataloader
-    test_data = []
-    test_labels = []
-    test_spikes = []
-    test_data.append(data[test_subject_id])
-    test_labels.append(labels[test_subject_id])
-    test_spikes.append(spikes[test_subject_id])
-
-    # Z-score normalization
-    test_data = [[np.expand_dims((data-target_mean) / target_std,
-                                 axis=1)
-                 for data in data_id] for data_id in test_data]
-
-    # Dataloader
-    if method == "transformer_detection":
-
-        # Labels are the spike events times
-        test_loader = Loader(test_data,
-                             test_spikes,
-                             balanced=False,
-                             shuffle=False,
-                             batch_size=batch_size,
-                             num_workers=num_workers)
-    else:
-
-        # Label is 1 with a spike occurs in the trial, 0 otherwise
-        test_loader = Loader(test_data,
-                             test_labels,
-                             balanced=False,
-                             shuffle=False,
-                             batch_size=batch_size,
-                             num_workers=num_workers)
-    test_dataloader = test_loader.load()
+    train_loader, val_loader, test_loader, train_labels = loader.load()
 
     # Define architecture
     if method == "RNN_self_attention":
-        architecture = RNN_self_attention()
-    elif method == "transformer_classification":
-        architecture = STT()
+        n_time_points = len(data[subject_ids[0]][0][0][0])
+        architecture = RNN_self_attention(n_time_points=n_time_points)
+    elif method == "STT":
+        n_time_points = len(data[subject_ids[0]][0][0][0])
+        architecture = STT(n_time_points=n_time_points)
     architecture.apply(reset_weights)
 
     # Define training loss
@@ -250,12 +160,13 @@ for test_subject_id in subject_ids:
     # Define training pipeline
     architecture = architecture.to(device)
     model = make_model(architecture,
-                       train_dataloader,
-                       val_dataloader,
-                       test_dataloader,
+                       train_loader,
+                       val_loader,
+                       test_loader,
                        optimizer,
                        train_criterion,
                        criterion,
+                       single_channel=single_channel,
                        n_epochs=n_epochs,
                        patience=patience,
                        mix_up=mix_up,
@@ -269,11 +180,12 @@ for test_subject_id in subject_ids:
     results.append(
         {
             "method": method,
-            "balance": balanced,
             "mix_up": mix_up,
             "weight_loss": weight_loss,
             "cost_sensitive": cost_sensitive,
+            "len_trials": len_trials,
             "test_subject_id": test_subject_id,
+            "fold": seed,
             "acc": acc,
             "f1": f1,
             "precision": precision,
@@ -293,25 +205,22 @@ for test_subject_id in subject_ids:
             os.mkdir("../results")
 
         results_path = (
-            "../results/csv"
+            "../results/csv_LOPO"
         )
         if not os.path.exists(results_path):
             os.mkdir(results_path)
 
+        results_path = os.path.join(results_path,
+                                    "results_LOPO_spike_detection_{}"
+                                    "-subjects.csv".format(len(subject_ids))
+                                    )
         df_results = pd.DataFrame(results)
-        df_results.to_csv(
-            os.path.join(results_path,
-                         "results_LOPO_spike_detection_method-{}"
-                         "_balance-{}_mix-up-{}_weight-loss-{}_"
-                         "cost-sensitive-{}_{}"
-                         "-subjects.csv".format(method,
-                                                balanced,
-                                                mix_up,
-                                                weight_loss,
-                                                cost_sensitive,
-                                                len(subject_ids))
-                         )
-            )
+        results = []
+
+        if os.path.exists(results_path):
+            df_old_results = pd.read_csv(results_path)
+            df_results = pd.concat([df_old_results, df_results])
+        df_results.to_csv(results_path, index=False)
 
 print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
 print("-" * 80)
