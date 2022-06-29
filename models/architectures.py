@@ -274,72 +274,73 @@ class EEGNet(nn.Module):
     """
 
     def __init__(self, n_time_points):
+
+        """
+        Args:
+            n_time_points (int): Number of time points in EEF/MEG trials.
+        """
+
         super().__init__()
         self.n_time_points = n_time_points
 
-        # Layer 1
-        self.conv1 = nn.Conv2d(1, 16, (1, 64), padding=0)
-        self.batchnorm1 = nn.BatchNorm2d(16, False)
+        # Block 1: conv2d
+        self.block1 = nn.Sequential(
+                        nn.Conv2d(in_channels=1,
+                                  out_channels=8,
+                                  kernel_size=(1, 64),
+                                  padding=(0, 32),
+                                  bias=False),
+                        nn.BatchNorm2d(8)
+                        )
 
-        # Layer 2
-        self.padding1 = nn.ZeroPad2d((16, 17, 0, 1))
-        self.conv2 = nn.Conv2d(1, 4, (2, 32))
-        self.batchnorm2 = nn.BatchNorm2d(4, False)
-        self.pooling2 = nn.MaxPool2d(2, 4)
+        # Block 2: depthwiseconv2d
+        self.block2 = nn.Sequential(
+                        nn.Conv2d(in_channels=8,
+                                  out_channels=16,
+                                  kernel_size=(64, 1),
+                                  group=2,
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool2d(output_size=(1, 4)),
+                        nn.Dropout()
+                        )
 
-        # Layer 3
-        self.padding2 = nn.ZeroPad2d((2, 1, 4, 3))
-        self.conv3 = nn.Conv2d(4, 4, (8, 4))
-        self.batchnorm3 = nn.BatchNorm2d(4, False)
-        self.pooling3 = nn.MaxPool2d((2, 4))
+        # Block 3: separableconv2d
+        self.block3 = nn.Sequential(
+                        nn.Conv2d(in_channels=16,
+                                  out_channels=16,
+                                  kernel_size=(1, 16),
+                                  padding=(0, 8),
+                                  group=16,
+                                  bias=False),
+                        nn.Conv2d(in_channels=16,
+                                  out_channels=16,
+                                  kernel_size=(1, 1),
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool2d(output_size=(1, 8)),
+                        nn.Dropout()
+                        )
 
-        # FC Layer
-        self.fc = nn.Sequential(Reduce(' b o c t -> b t', reduction='mean'),
-                                nn.Linear(self.n_time_points, 1))
+        # Block 4: classifier
+        self.classifier = nn.Sequential(nn.Linear(64, 1))
 
-    def forward(self,
-                x: Tensor):
+    def forward(self, x):
 
-        """ Apply EEGNet model.
-        Args:
-            x (tensor): Batch of trials with dimension
-                        [batch_size x 1 x n_channels x n_time_points].
+        # Conv2d
+        x = self.block1(x)
 
-        Returns:
-            out (tensor): Logits of dimension [batch_size].
-            attention_weights (tensor): Artificial attention weights
-                                        to match other models outputs.
-        """
+        # Depthwise Conv2d
+        x = self.block2(x)
 
-        # Layer 1
-        print(x.size())
-        x = F.elu(self.conv1(x))
-        print(x.size())
-        x = self.batchnorm1(x)
-        x = F.dropout(x, 0.25)
-        x = x.permute(0, 3, 1, 2)
+        # Separable Conv2d
+        x = self.block3(x)
 
-        # Layer 2
-        print(x.size())
-        x = self.padding1(x)
-        print(x.size())
-        x = F.elu(self.conv2(x))
-        x = self.batchnorm2(x)
-        x = F.dropout(x, 0.25)
-        x = self.pooling2(x)
+        # Classifier
+        x = x.view(x.size(0), -1)
+        x = self.classify(x)
 
-        # Layer 3
-        x = self.padding2(x)
-        x = F.elu(self.conv3(x))
-        x = self.batchnorm3(x)
-        x = F.dropout(x, 0.25)
-        x = self.pooling3(x)
-
-        # FC Layer
-        x = x.view(-1, self.time_points)
-        out, attention_weights = self.fc(x), torch.zeros(1)
-
-        return x, attention_weights
+        return x
 
 
 """ ********** Gated Transformer Network ********** """
