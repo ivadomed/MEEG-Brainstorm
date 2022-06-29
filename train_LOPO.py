@@ -137,7 +137,7 @@ for test_subject_id in subject_ids:
     # Define architecture
     if method == "EEGNet":
         n_time_points = len(data[subject_ids[0]][0][0][0])
-        architecture = EEGNet(n_time_points=n_time_points)
+        architecture = EEGNet()
     elif method == "RNN_self_attention":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = RNN_self_attention(n_time_points=n_time_points)
