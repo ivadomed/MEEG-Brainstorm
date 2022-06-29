@@ -441,6 +441,8 @@ class GTN(nn.Module):
 
         # Channel-wise transformer
         self.embedding_2 = nn.Sequential(
+                                nn.AdaptiveAvgPool2d((channels_kernel,
+                                                      n_time_points)),
                                 Rearrange('b o c t -> b (o c) t'),
                                 nn.Linear(n_time_points, emb_size)
                                 )
@@ -452,7 +454,6 @@ class GTN(nn.Module):
 
         # Gate
         in_features = emb_size * (channels_kernel + n_time_points)
-        self.in_features = in_features
         self.gate = nn.Linear(in_features, 1)
 
         # Classifier
@@ -497,10 +498,10 @@ class GTN(nn.Module):
         encoder_2 = self.transformer_2(embedding_2)
         encoder_2 = encoder_2.reshape(encoder_2.shape[0], -1)
 
-        # gate
+        # Merge encoders
         encoder = torch.cat([encoder_1, encoder_2], dim=-1)
-        print(encoder.size())
-        print(self.in_features)
+
+        # gate
         gate = F.softmax(self.gate(encoder), dim=-1)
         encoding = torch.cat([encoder_1 * gate[:, 0:1],
                               encoder_2 * gate[:, 1:2]], dim=-1)
