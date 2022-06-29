@@ -20,7 +20,8 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
-from utils.utils_ import normal_initialization, xavier_initialization
+from utils.utils_ import define_device, normal_initialization
+from utils.utils_ import xavier_initialization
 
 
 """ ********** Mish activation ********** """
@@ -266,6 +267,8 @@ class TransformerEncoder(nn.Sequential):
         if self.src_mask:
             mask = torch.ones_like(torch.zeros(x.size(0), x.size(0)))
             mask = torch.tril(mask, diagonal=0)
+            device, available = define_device
+            mask = mask.to(device)
             out = self.encoder(x, mask=mask)
         else:
             out = self.encoder(x)
