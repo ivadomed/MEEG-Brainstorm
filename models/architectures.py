@@ -320,7 +320,9 @@ class EEGNet(nn.Module):
         x = x.permute(0, 3, 1, 2)
 
         # Layer 2
+        print(x.size())
         x = self.padding1(x)
+        print(x.size())
         x = F.elu(self.conv2(x))
         x = self.batchnorm2(x)
         x = F.dropout(x, 0.25)
