@@ -11,12 +11,13 @@ Usage: type "from models import <class>" to use one class.
 Contributors: Ambroise Odonnat and Theo Gnassounou.
 """
 
+import math
 import torch
 
 import torch.nn.functional as F
 
 from einops import rearrange
-from einops.layers.torch import Rearrange, Reduce
+from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
 from utils.utils_ import normal_initialization, xavier_initialization
@@ -65,7 +66,8 @@ class ChannelAttention(nn.Module):
 
         super().__init__()
 
-        self.attention = nn.MultiheadAttention(emb_size, num_heads,
+        self.attention = nn.MultiheadAttention(emb_size,
+                                               num_heads,
                                                dropout)
         self.dropout = nn.Dropout(dropout)
         self.norm = nn.LayerNorm(emb_size)
@@ -93,7 +95,9 @@ class ChannelAttention(nn.Module):
         # padded channels are ignored in self-attention
         mask = (temp.mean(dim=-1) == 0) & (temp.std(dim=-1) == 0)
         temp = rearrange(temp, 'b s e -> s b e')
-        temp, attention_weights = self.attention(temp, temp, temp,
+        temp, attention_weights = self.attention(temp,
+                                                 temp,
+                                                 temp,
                                                  key_padding_mask=mask)
         temp = rearrange(temp, 's b e -> b s e')
         x_attention = self.dropout(temp).unsqueeze(1)
@@ -153,20 +157,25 @@ class PatchEmbedding(nn.Module):
 
         # Embedding and positional encoding
         self.embedding = nn.Sequential(
-                            nn.Conv2d(1, n_maps,
+                            nn.Conv2d(1,
+                                      n_maps,
                                       (1, position_kernel),
                                       stride=(1, 1),
                                       padding=(0, position_padding)),
                             nn.BatchNorm2d(n_maps),
                             nn.AdaptiveAvgPool2d(((channels_kernel,
                                                    new_seq_len))),
-                            nn.Conv2d(n_maps, n_maps, (channels_kernel, 1),
+                            nn.Conv2d(n_maps,
+                                      n_maps,
+                                      (channels_kernel, 1),
                                       stride=(channels_stride, 1),
                                       groups=n_maps),
                             nn.BatchNorm2d(n_maps),
                             Mish(),
                             nn.Dropout(dropout),
-                            nn.Conv2d(n_maps, emb_size, (1, time_kernel),
+                            nn.Conv2d(n_maps,
+                                      emb_size,
+                                      (1, time_kernel),
                                       stride=(1, time_stride),
                                       padding=(0, time_padding)),
                             nn.BatchNorm2d(emb_size),
@@ -210,7 +219,8 @@ class TransformerEncoder(nn.Sequential):
                  emb_size,
                  num_heads,
                  expansion,
-                 dropout):
+                 dropout,
+                 src_mask=False):
 
         """
         Args:
@@ -218,11 +228,13 @@ class TransformerEncoder(nn.Sequential):
             emb_size (int): Size of embedding vectors.
             num_heads (int): Number of heads in multi-head block.
             expansion (int): Expansion coefficient in FF block.
-            forward_dropout (float): Dropout value.
+            dropout (float): Dropout value.
+            scr_mask (bool): If True, use self-attention
+                             with mask in MultiHeadAttention.
         """
 
         super().__init__()
-
+        self.src_mask = src_mask
         dim = expansion * emb_size
         encoder_layer = nn.TransformerEncoderLayer(d_model=emb_size,
                                                    nhead=num_heads,
@@ -251,7 +263,12 @@ class TransformerEncoder(nn.Sequential):
                            [batch_size x seq_len x emb_size].
         """
         x = rearrange(x, 'b s e -> s b e')
-        out = self.encoder(x)
+        if self.src_mask:
+            src_mask = torch.ones_like(x.size(0))
+            src_mask = torch.tril(src_mask, diagonal=0)
+            out = self.encoder(x, src_mask=src_mask)
+        else:
+            out = self.encoder(x)
         out = rearrange(out, 's b e -> b s e')
 
         return out
@@ -266,6 +283,8 @@ class EEGNet(nn.Module):
         `"EEGNet: A Compact Convolutional Neural Network
         for EEG-based Brain-Computer Interfaces"
         <https://arxiv.org/pdf/1611.08024.pdf>`_.
+        Implementation inspired by:
+        `<https://github.com/Tammie-Li/RSVP-EEGNet/blob/master/models/eegnet.py>`_
         Predicts probability of spike occurence in a trial.
 
     Input (tensor): Batch of trials of dimension
@@ -274,11 +293,6 @@ class EEGNet(nn.Module):
     """
 
     def __init__(self):
-
-        """
-        Args:
-            n_time_points (int): Number of time points in EEF/MEG trials.
-        """
 
         super().__init__()
 
@@ -370,17 +384,13 @@ class GTN(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, n_time_points=201,
+    def __init__(self,
+                 n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
-                 emb_size=30,
-                 n_maps=5,
-                 position_kernel=50,
+                 emb_size=512,
+                 positional_encoding=True,
                  channels_kernel=20,
-                 channels_stride=1,
-                 time_kernel=20,
-                 time_stride=1,
-                 positional_dropout=0.25,
                  depth=3,
                  num_heads=10,
                  expansion=4,
@@ -392,43 +402,58 @@ class GTN(nn.Module):
             channel_num_heads (int): Number of heads in ChannelAttention.
             channel_dropout (float): Dropout value in ChannelAttention.
             emb_size (int): Size of embedding vectors in Temporal transforming.
-            n_maps (int): Number of feature maps for positional encoding.
-            position_kernel (int): Kernel size for positional encoding.
+            positional_encoding (bool): If True, add positional encoding.
             channels_kernel (int): Kernel size for convolution on channels.
-            channels_stride (int): Stride for convolution on channels.
-            time_kernel (int): Kernel size for convolution on time axis.
-            time_stride (int): Stride for convolution on channel axis.
-            positional_dropout (float): Dropout value for positional encoding.
             depth (int): Depth of the Transformer encoder.
             num_heads (int): Number of heads in multi-attention layer.
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
-            n_windows (int): Number of time windows.
         """
 
         super().__init__()
-        self.spatial_transforming = ChannelAttention(n_time_points,
-                                                     channel_num_heads,
-                                                     channel_dropout)
-        self.embedding = PatchEmbedding(n_time_points, emb_size,
-                                        n_maps, position_kernel,
-                                        channels_kernel,
-                                        channels_stride, time_kernel,
-                                        time_stride, positional_dropout)
-        self.encoder = TransformerEncoder(depth, emb_size,
-                                          num_heads,
-                                          expansion,
-                                          transformer_dropout)
-        flatten_size = emb_size * n_time_points
-        self.classifier = nn.Linear(flatten_size, 1)
+        self.n_time_points = n_time_points
+        self.emb_size = emb_size
+        self.positional_encoding = positional_encoding
+        self.channel_attention = ChannelAttention(n_time_points,
+                                                  channel_num_heads,
+                                                  channel_dropout)
 
-        # Weight initialization
-        self.classifier.apply(normal_initialization)
+        # Step-wise transformer
+        self.embedding_1 = nn.Sequential(
+                                nn.AdaptiveAvgPool2d((channels_kernel,
+                                                      n_time_points)),
+                                Rearrange('b o c t -> b (o t) c'),
+                                nn.Linear(channels_kernel, emb_size)
+                                )
+        self.transformer_1 = TransformerEncoder(depth,
+                                                emb_size,
+                                                num_heads,
+                                                expansion,
+                                                transformer_dropout,
+                                                True)
+
+        # Channel-wise transformer
+        self.embedding_2 = nn.Sequential(
+                                Rearrange('b o c t -> b (o c) t'),
+                                nn.Linear(n_time_points, emb_size)
+                                )
+        self.transformer_2 = TransformerEncoder(depth,
+                                                emb_size,
+                                                num_heads,
+                                                expansion,
+                                                transformer_dropout)
+
+        # Gate
+        in_features = emb_size * (channels_kernel + n_time_points)
+        self.gate = nn.Linear(in_features, 1)
+
+        # Classifier
+        self.classifier = nn.Linear(in_features, 1)
 
     def forward(self,
                 x: Tensor):
 
-        """ Apply STT model.
+        """ Apply GTN model.
         Args:
             x (tensor): Batch of trials with dimension
                         [batch_size x 1 x n_channels x n_time_points].
@@ -438,17 +463,38 @@ class GTN(nn.Module):
             attention_weights (tensor): Attention weights of channel attention.
         """
 
-        # Spatial Transforming
-        attention, attention_weights = self.spatial_transforming(x)
+        # Focus on relevant channels
+        attention, attention_weights = self.channel_attention(x)
 
-        # Embedding
-        embedding = self.embedding(attention)
+        # Step-wise encoder
+        embedding_1 = self.embedding_1(attention)
 
-        # Temporal Transforming
-        code = self.encoder(embedding)
+        if self.positional_encoding:
+            # Add Positional encoding
+            pe = torch.ones_like(self.n_time_points)
+            position = torch.arange(0, self.n_time_points).unsqueeze(-1)
+            temp = torch.Tensor(range(0, self.emb_size, 2))
+            temp = temp * -(math.log(10000) / self.emb_size)
+            temp = torch.exp(temp).unsqueeze(0)
+            temp = torch.matmul(position.float(), temp)
+            pe[:, 0::2] = torch.sin(temp)
+            pe[:, 1::2] = torch.cos(temp)
+            embedding_1 += pe
+        encoder_1 = self.transformer_1(embedding_1)
 
-        # Output
-        out = self.classifier(code.flatten(1)).squeeze(1)
+        # Channel-wise encoder
+        embedding_2 = self.embedding_2(x)
+        encoder_2 = self.transformer_2(embedding_2)
+
+        # Merge transformers
+        gate = F.softmax(self.gate(torch.cat([encoder_1, encoder_2], dim=-1)),
+                         dim=-1)
+        encoding = torch.cat([encoder_1 * gate[:, 0:1],
+                              encoder_2 * gate[:, 1:2]],
+                             dim=-1)
+
+        # Classifier
+        out = self.output_linear(encoding).squeeze(1)
 
         return out, attention_weights
 
@@ -468,7 +514,8 @@ class STT(nn.Module):
     Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self, n_time_points=201,
+    def __init__(self,
+                 n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
                  emb_size=30,
@@ -501,19 +548,23 @@ class STT(nn.Module):
             num_heads (int): Number of heads in multi-attention layer.
             expansion (int): Expansion coefficient in Feed Forward layer.
             transformer_dropout (float): Dropout value after Transformer.
-            n_windows (int): Number of time windows.
         """
 
         super().__init__()
         self.spatial_transforming = ChannelAttention(n_time_points,
                                                      channel_num_heads,
                                                      channel_dropout)
-        self.embedding = PatchEmbedding(n_time_points, emb_size,
-                                        n_maps, position_kernel,
+        self.embedding = PatchEmbedding(n_time_points,
+                                        emb_size,
+                                        n_maps,
+                                        position_kernel,
                                         channels_kernel,
-                                        channels_stride, time_kernel,
-                                        time_stride, positional_dropout)
-        self.encoder = TransformerEncoder(depth, emb_size,
+                                        channels_stride,
+                                        time_kernel,
+                                        time_stride,
+                                        positional_dropout)
+        self.encoder = TransformerEncoder(depth,
+                                          emb_size,
                                           num_heads,
                                           expansion,
                                           transformer_dropout)
@@ -545,7 +596,7 @@ class STT(nn.Module):
         # Temporal Transforming
         code = self.encoder(embedding)
 
-        # Output
+        # Classifier
         out = self.classifier(code.flatten(1)).squeeze(1)
 
         return out, attention_weights
@@ -567,24 +618,25 @@ class RNN_self_attention(nn.Module):
     """
 
     def __init__(self,
-                 n_time_points,
-                 input_size=1,):
+                 n_time_points):
         """
         Args:
-            input_size (int): Input size (here: n_time_points).
+            n_time_points (int): Number of time points in EEF/MEG trials.
         """
 
         super().__init__()
-        self.input_size = input_size
         self.n_time_points = n_time_points
-        self.LSTM_1 = nn.LSTM(input_size=input_size,
+        self.LSTM_1 = nn.LSTM(input_size=1,
                               hidden_size=8,
                               num_layers=1,
                               batch_first=True)
         self.tanh = nn.Tanh()
         self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
-        self.attention = nn.MultiheadAttention(num_heads=1, embed_dim=8)
-        self.LSTM_2 = nn.LSTM(input_size=8, hidden_size=8, num_layers=1,
+        self.attention = nn.MultiheadAttention(num_heads=1,
+                                               embed_dim=8)
+        self.LSTM_2 = nn.LSTM(input_size=8,
+                              hidden_size=8,
+                              num_layers=1,
                               batch_first=True)
         self.classifier = nn.Linear(int(n_time_points/2), 1)
 
