@@ -454,7 +454,7 @@ class GTN(nn.Module):
 
         # Gate
         in_features = emb_size * (channels_kernel + n_time_points)
-        self.gate = nn.Linear(in_features, 1)
+        self.gate = nn.Linear(in_features, 2)
 
         # Classifier
         self.classifier = nn.Linear(in_features, 1)
@@ -503,6 +503,7 @@ class GTN(nn.Module):
 
         # gate
         gate = F.softmax(self.gate(encoder), dim=-1)
+        print(gate.size(), encoder_1.size(), encoder_2.size())
         encoding = torch.cat([encoder_1 * gate[:, 0:1],
                               encoder_2 * gate[:, 1:2]], dim=-1)
 
