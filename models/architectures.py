@@ -470,9 +470,9 @@ class GTN(nn.Module):
         embedding_1 = self.embedding_1(attention)
 
         if self.positional_encoding:
-            
+
             # Add Positional encoding
-            pe = torch.ones_like(torch.zeros(self.n_time_points))
+            pe = torch.ones_like(embedding_1[0])
             position = torch.arange(0, self.n_time_points).unsqueeze(-1)
             temp = torch.Tensor(range(0, self.emb_size, 2))
             temp = temp * -(math.log(10000) / self.emb_size)
