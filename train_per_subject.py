@@ -16,7 +16,7 @@ from loguru import logger
 from torch import nn
 from torch.optim import Adam
 
-from models.architectures import RNN_self_attention, STT
+from models.architectures import EEGNet, RNN_self_attention, STT
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
@@ -32,7 +32,8 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection using attention layer"
     )
-    parser.add_argument("--path_root", type=str, default="../BIDSdataset/Epilepsy_dataset/")
+    parser.add_argument("--path_root", type=str,
+                        default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
@@ -86,8 +87,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("RNN_self_attention", "STT",
-                  "transformer_detection")
+assert method in ("EEGNet", "RNN_self_attention", "STT")
 
 logger.info("Method used: {}".format(method))
 if method == 'RNN_self_attention':
@@ -122,9 +122,11 @@ for train_subject_id in subject_ids:
     print("Train on {}".format(train_subject_id))
     # Training dataloader
     for seed in range(5):
-        data_subject = {train_subject_id: data[train_subject_id]} 
-        labels_subject = {train_subject_id: labels[train_subject_id]} 
-        annotated_channels_subject = {train_subject_id: annotated_channels[train_subject_id]} 
+        data_subject = {train_subject_id: data[train_subject_id]}
+        labels_subject = {train_subject_id: labels[train_subject_id]}
+        annotated_channels_subject = {
+                train_subject_id: annotated_channels[train_subject_id]
+                }
         # Labels are the spike events times
         loader = Loader(data_subject,
                         labels_subject,
@@ -138,7 +140,9 @@ for train_subject_id in subject_ids:
         train_loader, val_loader, test_loader, train_labels = loader.load()
 
         # Define architecture
-        if method == "RNN_self_attention":
+        if method == "EEGNet":
+            architecture = EEGNet()
+        elif method == "RNN_self_attention":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = RNN_self_attention(n_time_points=n_time_points)
         elif method == "STT":
