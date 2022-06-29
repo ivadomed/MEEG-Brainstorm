@@ -495,8 +495,9 @@ class GTN(nn.Module):
         encoder_2 = self.transformer_2(embedding_2)
 
         # Merge transformers
-        gate = F.softmax(self.gate(torch.cat([encoder_1, encoder_2], dim=-2)),
-                         dim=-1)
+        encoder = torch.cat([encoder_1, encoder_2], dim=-2)
+        print(encoder.size())
+        gate = F.softmax(self.gate(encoder), dim=-1)
         encoding = torch.cat([encoder_1 * gate[:, 0:1],
                               encoder_2 * gate[:, 1:2]],
                              dim=-1)
