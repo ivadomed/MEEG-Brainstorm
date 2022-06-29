@@ -89,7 +89,7 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("EEGNet, RNN_self_attention", "STT")
+assert method in ("EEGNet", "RNN_self_attention", "STT")
 
 logger.info(f"Method used: {method}")
 if method == 'RNN_self_attention':
