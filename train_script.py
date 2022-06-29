@@ -1,3 +1,4 @@
+from select import select
 import pandas as pd
 import argparse
 import json
@@ -39,7 +40,6 @@ methods = args.method
 options = args.options
 trainings = args.training
 len_trials = args.len_trials
-
 # load data filtered
 path_root = args.path_root
 for training in trainings:
@@ -50,9 +50,8 @@ for training in trainings:
                 for option in combo:
                     options_combo += option
 
-                os.system(' python {}.py --path_root {}'
-                        ' --save{} --method {} --len_trials {}'.format(training,
-                                                        path_root,
+                os.system(' python {}.py'
+                        ' --save{} --method {} --selected_subjects sub-pt0090 sub-pt0013 sub-pt0095 sub-pt0075 sub-pt0093 --len_trials {}'.format(training,
                                                         options_combo,
                                                         method,
                                                         len_trial))
