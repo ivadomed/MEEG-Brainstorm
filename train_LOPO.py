@@ -90,7 +90,6 @@ steps = 0
 
 # Recover dataset
 assert method in ("EEGNet", "GTN", "RNN_self_attention", "STT")
-
 logger.info(f"Method used: {method}")
 if method == 'RNN_self_attention':
     single_channel = True
