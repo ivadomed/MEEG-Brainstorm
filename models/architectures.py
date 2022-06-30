@@ -508,7 +508,7 @@ class GTN(nn.Module):
                               encoder_2 * gate[:, 1:2]], dim=-1)
 
         # Classifier
-        out = self.output_linear(encoding).squeeze(1)
+        out = self.classifier(encoding).squeeze(1)
 
         return out, attention_weights
 
