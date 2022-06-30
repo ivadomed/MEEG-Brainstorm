@@ -118,8 +118,9 @@ subject_ids = np.asarray(list(data.keys()))
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
-seed = 42
-for test_subject_id in subject_ids:
+np.random.seed(42)
+seed_list = [np.random.randint(0, 100) for _ in range(len(selected_subjects))]
+for i, test_subject_id in enumerate(subject_ids):
 
     # Labels are the spike events times
     loader = Loader(data,
@@ -129,7 +130,7 @@ for test_subject_id in subject_ids:
                     batch_size=batch_size,
                     num_workers=num_workers,
                     subject_LOPO=test_subject_id,
-                    seed=seed,
+                    seed=seed_list[i],
                     )
 
     train_loader, val_loader, test_loader, train_labels = loader.load()
