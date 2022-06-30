@@ -118,8 +118,10 @@ subject_ids = np.asarray(list(data.keys()))
     and validate on the remaining ones.
 """
 seed = 42
-for test_subject_id in subject_ids:
-
+np.random.seed(42)
+seed_list = [np.random.randint(0, 100) for _ in range(len(selected_subjects))]
+for i, test_subject_id in enumerate(subject_ids):
+    seed = seed_list[i]
     # Labels are the spike events times
     loader = Loader(data,
                     labels,
