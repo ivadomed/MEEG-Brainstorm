@@ -503,7 +503,6 @@ class GTN(nn.Module):
 
         # gate
         gate = F.softmax(self.gate(encoder), dim=-1)
-        print(gate.size(), encoder_1.size(), encoder_2.size())
         encoding = torch.cat([encoder_1 * gate[:, 0:1],
                               encoder_2 * gate[:, 1:2]], dim=-1)
 
