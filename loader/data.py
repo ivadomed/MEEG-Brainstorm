@@ -258,12 +258,10 @@ class Data:
                 subject_data = []
                 subject_labels = []
                 subject_annotated_channels = []
-                subject_path = path_root+item+'/'
-                sessions = [f.path for f in os.scandir(subject_path)
-                            if f.is_dir()]
-                session = sessions[0] + '/eeg/'
-                run_fnames = [session + f for f in listdir(session)
-                              if isfile(join(session, f))]
+                subject_path = path_root+item+'/eeg/'
+
+                run_fnames = [subject_path + f for f in listdir(subject_path)
+                              if isfile(join(subject_path, f))]
                 for run_fname in run_fnames:
 
                     dataset = self.get_dataset(run_fname,
