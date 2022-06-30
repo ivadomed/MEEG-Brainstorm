@@ -72,22 +72,19 @@ class PadCollate():
             xs (tensor): Padded data.
             ys (tensor): Labels.
         """
-
         # Find longest sequence
-        print(batch)
-        print(batch[1].shape)
         max_len = max(map(lambda x: x[0].shape[self.dim], batch))
 
         # Pad according to max_len
         data = map(lambda x: pad_tensor(x[0], n_pads=max_len, dim=self.dim),
                    batch)
-        # labels = map(lambda x: torch.tensor(x[1]), batch)
+        labels = map(lambda x: torch.tensor(x[1]), batch)
 
         # Stack all
         xs = torch.stack(list(data), dim=0)
-        # ys = torch.stack(list(labels), dim=0)
+        ys = torch.stack(list(labels), dim=0)
 
-        return xs#, ys
+        return xs, ys
 
     def __call__(self,
                  batch):
@@ -159,8 +156,8 @@ class Loader():
         """
 
         # Get dataloader
-        data = []
-        labels = []
+        data_list = []
+        labels_list = []
         for id in range(len(data)):
             for n_sess in range(len(data[id])):
                 for n_trial in range(len(data[id][n_sess])):
@@ -172,12 +169,12 @@ class Loader():
                         if chan != []:
                             x = x[:, chan]
                         for i in range(x.shape[1]):
-                            data.append(x[:, i])
-                            labels.append(y)
+                            data_list.append(x[:, i])
+                            labels_list.append(y)
                     else:
-                        data.append(x)
-                        labels.append(y)
-        dataset = Dataset(data, labels, transform=self.transform)
+                        data_list.append(x)
+                        labels_list.append(y)
+        dataset = Dataset(data_list, labels_list, transform=self.transform)
         loader = DataLoader(dataset=dataset, batch_size=batch_size,
                             shuffle=shuffle, num_workers=num_workers,
                             collate_fn=PadCollate(dim=1))
@@ -389,7 +386,7 @@ class Loader():
         val_dataset = Dataset(val_data, val_labels, transform=self.transform)
         test_dataset = Dataset(test_data, test_labels, transform=self.transform)
 
-        train_loader = DataLoader(dataset=train_data, batch_size=batch_size,
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size,
                                   shuffle=True, num_workers=num_workers,
                                   collate_fn=PadCollate(dim=1))
         val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size,
