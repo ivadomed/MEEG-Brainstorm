@@ -343,7 +343,10 @@ class EEGNet(nn.Module):
                         )
 
         # Block 4: classifier
-        self.classifier = nn.Sequential(nn.Linear(128, 1))
+        self.classifier = nn.Linear(128, 1)
+
+        # Weight initialization
+        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -458,6 +461,9 @@ class GTN(nn.Module):
 
         # Classifier
         self.classifier = nn.Linear(in_features, 1)
+
+        # Weight initialization
+        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -652,6 +658,9 @@ class RNN_self_attention(nn.Module):
                               num_layers=1,
                               batch_first=True)
         self.classifier = nn.Linear(int(n_time_points/2), 1)
+
+        # Weight initialization
+        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
