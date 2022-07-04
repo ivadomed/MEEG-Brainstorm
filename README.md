@@ -18,7 +18,7 @@ With X being your python3 version, create virtual environment by running in term
 Activate transformer_env by running in terminal: `source transformer_env/bin/activate`.  
 Go to repository location. Install the requirements by running in terminal: `pip install -r requirements.txt`
 
-<<<<<<< HEAD
+## Pipeline
 The general pipeline can be visualized by the following schematic:
 ![image](https://user-images.githubusercontent.com/23224563/144139372-d0592453-7f04-4ad7-a59e-ac5301f28757.png)
 
@@ -107,5 +107,3 @@ Help is needed on the training of the datasets to optimize parameters.
 2. [Detection of mesial temporal lobe epileptiform discharges on intracranial electrodes using deep learning](https://pubmed.ncbi.nlm.nih.gov/31760212/)
 3. [Neurophysiologically interpretable DNN predicts complex movement components from brain activity](https://www.nature.com/articles/s41598-022-05079-0)
 
-=======
->>>>>>> 8eee143ce93f79d3aedf78ed9beefc58ac4bdfae
