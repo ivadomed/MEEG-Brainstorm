@@ -16,6 +16,7 @@ It requires Python >= 3.6 and <3.10.
 With X being your python3 version, create virtual environment by running in terminal: `python3.X -m venv transformer_env`.   
 
 Activate transformer_env by running in terminal: `source transformer_env/bin/activate`.  
+Go to repository location. Install the requirements by running in terminal: `pip install -r requirements.txt`
 
 <<<<<<< HEAD
 The general pipeline can be visualized by the following schematic:
@@ -107,5 +108,4 @@ Help is needed on the training of the datasets to optimize parameters.
 3. [Neurophysiologically interpretable DNN predicts complex movement components from brain activity](https://www.nature.com/articles/s41598-022-05079-0)
 
 =======
-Go to repository location. Install the requirements by running in terminal: `pip install -r requirements.txt`
 >>>>>>> 8eee143ce93f79d3aedf78ed9beefc58ac4bdfae
