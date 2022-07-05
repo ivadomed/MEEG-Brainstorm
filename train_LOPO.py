@@ -22,6 +22,7 @@ from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
+from utils.learning_rate_warmup import NoamOpt
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
 
@@ -161,6 +162,7 @@ for i, test_subject_id in enumerate(subject_ids):
     # Define optimizer
     optimizer = Adam(architecture.parameters(), lr=lr,
                      weight_decay=weight_decay)
+    warm_optimizer = NoamOpt(optimizer)
 
     # Define training pipeline
     architecture = architecture.to(device)
@@ -170,6 +172,7 @@ for i, test_subject_id in enumerate(subject_ids):
                        test_loader,
                        optimizer,
                        warmup,
+                       warm_optimizer,
                        train_criterion,
                        criterion,
                        single_channel=single_channel,

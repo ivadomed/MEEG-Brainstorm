@@ -20,18 +20,15 @@ class NoamOpt():
 
     def __init__(self,
                  optimizer,
-                 model_size=30,
-                 warmup=100):
+                 warmup=2e3):
 
         """
         Args:
-            model_size (int): Size of the Transformer model.
-            warmup (int): Warmup steps value.
             optimizer (Optimizer): Adaptative Optimizer chosen for training.
+            warmup (int): Warmup steps value.
         """
 
         self.optimizer = optimizer
-        self.model_size = model_size
         self.warmup = warmup
         self._step = 0
         self._rate = 0
@@ -57,4 +54,5 @@ class NoamOpt():
 
         if step is None:
             step = self._step
-        return self.model_size ** (-0.5) * min(step ** (-0.5), step * self.warmup ** (-1.5))
+
+        return min(1e-3, step * self.warmup ** (-1.5))

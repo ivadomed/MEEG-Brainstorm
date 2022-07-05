@@ -17,7 +17,6 @@ from sklearn.metrics import precision_score, recall_score
 from sklearn.metrics import f1_score, accuracy_score
 from torch import nn
 
-from utils.learning_rate_warmup import NoamOpt
 
 class make_model():
 
@@ -28,6 +27,7 @@ class make_model():
                  test_loader,
                  optimizer,
                  warmup,
+                 warm_optimizer,
                  train_criterion,
                  val_criterion,
                  single_channel,
@@ -57,6 +57,7 @@ class make_model():
         self.test_loader = test_loader
         self.optimizer = optimizer
         self.warmup = warmup
+        self.warm_optimizer = warm_optimizer
         self.train_criterion = train_criterion
         self.val_criterion = val_criterion
         self.single_channel = single_channel
@@ -69,6 +70,7 @@ class make_model():
                   model,
                   loader,
                   optimizer,
+                  warm_optimizer,
                   criterion):
 
         """
@@ -83,9 +85,6 @@ class make_model():
             train_loss (float): Mean loss on the loaders.
             perf (float): Mean F1-score on the loaders.
         """
-
-        # Define warmup optimizer
-        warm_optimizer = NoamOpt(optimizer, 30, 100)
 
         # Training loop
         model.train()
@@ -207,6 +206,7 @@ class make_model():
             train_loss, train_perf = self._do_train(self.model,
                                                     self.train_loader,
                                                     self.optimizer,
+                                                    self.warm_optimizer,
                                                     self.train_criterion)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
