@@ -10,7 +10,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "spike detection", description="spike detection using attention layer"
     )
-    parser.add_argument("--path_data", type=str, default="../results/csv")
+    parser.add_argument("--path_data", type=str, default="../results/csv_intra_subject")
     parser.add_argument("--n_subjects", type=int, default=1)
 
     return parser
@@ -23,11 +23,20 @@ path_data = args.path_data
 n_subjects = args.n_subjects
 
 fnames = list(
-    Path(path_data).glob("results_intra_subject_spike_detection_method-*_{}-subjects.csv".format(n_subjects))
+    Path(path_data).glob("results_spike_detection_{}-subjects.csv".format(n_subjects))
 )
 df = pd.concat([pd.read_csv(fname) for fname in fnames], axis=0)
-df["method"] = df["method"].replace({"transformer_classification": "STT"})
 
+rectangular_df = df.pivot(index='test_subject_id', columns='train_subject_id', values='f1')
+
+fig = plt.figure(figsize=(10, 8))
+sns.heatmap(data=rectangular_df)
+
+
+fig.savefig(
+     "../results/images/results_f1_score_intra_heatmap_{}_subjects.pdf".format(n_subjects),
+    bbox_inches="tight",
+)
 # fig = plt.figure()
 # sns.boxplot(data=df.groupby(['method', 'subject_id']).mean().reset_index(), x="method", y="f1_macro", palette="Set2")
 # sns.swarmplot(data=df.groupby(['method', 'subject_id']).mean().reset_index(), x="method", y="f1_macro", color=".25")
@@ -40,7 +49,6 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 #      "../results/images/results_f1_score_intra_{}_subjects.pdf".format(n_subjects),
 #     bbox_inches="tight",
 # )
-
 fig = plt.figure()
 sns.boxplot(data=df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] == False) & (df['weight_loss'] == False)], x="method", y="f1", palette="Set2" )
 sns.swarmplot(data=df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] == False) & (df['weight_loss'] == False)], x="method", y="f1", hue="subject_id", palette="tab10")
