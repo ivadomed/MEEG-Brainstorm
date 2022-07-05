@@ -169,7 +169,6 @@ for i, test_subject_id in enumerate(subject_ids):
     model = make_model(architecture,
                        train_loader,
                        val_loader,
-                       test_loader,
                        optimizer,
                        train_criterion,
                        criterion,
@@ -183,7 +182,7 @@ for i, test_subject_id in enumerate(subject_ids):
     history = model.train()
 
     # Compute test performance and save it
-    acc, f1, precision, recall = model.score()
+    acc, f1, precision, recall = model.score(test_loader)
     results.append(
         {
             "method": method,

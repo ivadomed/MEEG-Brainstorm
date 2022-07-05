@@ -26,7 +26,6 @@ class make_model():
                  model,
                  train_loader,
                  val_loader,
-                 test_loader,
                  optimizer,
                  train_criterion,
                  val_criterion,
@@ -328,7 +327,7 @@ class make_model():
 
         return history
 
-    def score(self):
+    def score(self, test_loader):
 
         # Compute performance on test set
         self.best_model.eval()
@@ -336,7 +335,7 @@ class make_model():
 
         all_preds, all_labels = list(), list()
         with torch.no_grad():
-            for batch_x, batch_y in self.test_loader:
+            for batch_x, batch_y in test_loader:
                 batch_x = batch_x.to(torch.float).to(device=device)
                 batch_y = batch_y.to(torch.float).to(device=device)
                 # Forward
