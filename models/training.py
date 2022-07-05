@@ -55,7 +55,6 @@ class make_model():
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.test_loader = test_loader
         self.optimizer = optimizer
         self.train_criterion = train_criterion
         self.val_criterion = val_criterion
