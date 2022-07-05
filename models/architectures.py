@@ -488,7 +488,7 @@ class GTN(nn.Module):
                  n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
-                 emb_size=512,
+                 emb_size=32,
                  positional_encoding=True,
                  channels_kernel=20,
                  depth=3,
@@ -551,10 +551,6 @@ class GTN(nn.Module):
 
         # Classifier
         self.classifier = nn.Linear(in_features, 1)
-
-        # Weight initialization
-        self.gate.apply(normal_initialization)
-        self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
