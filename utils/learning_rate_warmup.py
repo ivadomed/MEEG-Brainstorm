@@ -19,10 +19,9 @@ class NoamOpt():
     """
 
     def __init__(self,
-                 model_size,
-                 factor,
-                 warmup,
-                 optimizer):
+                 optimizer,
+                 model_size=30,
+                 warmup=100):
 
         """
         Args:
@@ -31,10 +30,9 @@ class NoamOpt():
             optimizer (Optimizer): Adaptative Optimizer chosen for training.
         """
 
-        self.model_size = model_size
-        self.factor = factor
-        self.warmup = warmup
         self.optimizer = optimizer
+        self.model_size = model_size
+        self.warmup = warmup
         self._step = 0
         self._rate = 0
 
@@ -51,7 +49,7 @@ class NoamOpt():
         self._rate = rate
         self.optimizer.step()
 
-    def rate(self):
+    def rate(self, step=None):
 
         """
         Compute rate.
@@ -59,6 +57,4 @@ class NoamOpt():
 
         if step is None:
             step = self._step
-        return self.factor * \
-            (self.model_size ** (-0.5) *
-             min(step ** (-0.5), step * self.warmup ** (-1.5)))
+        return self.model_size ** (-0.5) * min(step ** (-0.5), step * self.warmup ** (-1.5))

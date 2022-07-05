@@ -36,6 +36,7 @@ def get_parser():
                         default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
+    parser.add_argument("--warmup", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -57,6 +58,7 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
+warmup = args.warmup
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -66,8 +68,6 @@ weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
-mix_up = args.mix_up
-beta = args.beta
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -142,12 +142,14 @@ for train_subject_id in subject_ids:
         # Define architecture
         if method == "EEGNet":
             architecture = EEGNet()
+            warmp = False
         elif method == "GTN":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = GTN(n_time_points=n_time_points)
         elif method == "RNN_self_attention":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = RNN_self_attention(n_time_points=n_time_points)
+            warmup = False
         elif method == "STT":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = STT(n_time_points=n_time_points)
@@ -175,13 +177,12 @@ for train_subject_id in subject_ids:
                            val_loader,
                            test_loader,
                            optimizer,
+                           warmup,
                            train_criterion,
                            criterion,
                            single_channel,
                            n_epochs=n_epochs,
-                           patience=patience,
-                           mix_up=mix_up,
-                           beta=beta)
+                           patience=patience)
 
         # Train Model
         history = model.train()
@@ -194,7 +195,7 @@ for train_subject_id in subject_ids:
         results.append(
             {
                 "method": method,
-                "mix_up": mix_up,
+                "warmup": warmup,
                 "weight_loss": weight_loss,
                 "cost_sensitive": cost_sensitive,
                 "len_trials": len_trials,
@@ -224,7 +225,7 @@ for train_subject_id in subject_ids:
                 os.mkdir(results_path)
 
             results_path = os.path.join(results_path,
-                                        "results_LOPO_spike_detection_{}-"
+                                        "results_intra_subject_spike_detection_{}-"
                                         "subjects.csv".format(len(subject_ids))
                                         )
             df_results = pd.DataFrame(results)

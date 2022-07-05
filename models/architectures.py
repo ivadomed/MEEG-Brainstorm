@@ -20,7 +20,7 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
-from utils.utils_ import define_device, normal_initialization
+from utils.utils_ import normal_initialization
 from utils.utils_ import xavier_initialization
 
 

@@ -17,8 +17,7 @@ from sklearn.metrics import precision_score, recall_score
 from sklearn.metrics import f1_score, accuracy_score
 from torch import nn
 
-from utils.mix_up import mixup_data, mixup_criterion
-
+from utils.learning_rate_warmup import NoamOpt
 
 class make_model():
 
@@ -28,13 +27,12 @@ class make_model():
                  val_loader,
                  test_loader,
                  optimizer,
+                 warmup,
                  train_criterion,
                  val_criterion,
                  single_channel,
                  n_epochs,
                  patience=None,
-                 mix_up=False,
-                 beta=0.2,
                  n_good_detection=1):
 
         """
@@ -58,13 +56,12 @@ class make_model():
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.optimizer = optimizer
+        self.warmup = warmup
         self.train_criterion = train_criterion
         self.val_criterion = val_criterion
         self.single_channel = single_channel
         self.n_epochs = n_epochs
         self.patience = patience
-        self.mix_up = mix_up
-        self.beta = beta
         self.n_good_detection = n_good_detection
         self.sigmoid = nn.Sigmoid()
 
@@ -87,6 +84,9 @@ class make_model():
             perf (float): Mean F1-score on the loaders.
         """
 
+        # Define warmup optimizer
+        warm_optimizer = NoamOpt(optimizer, 30, 100)
+
         # Training loop
         model.train()
         device = next(model.parameters()).device
@@ -100,7 +100,10 @@ class make_model():
             batch_y = batch_y.to(torch.float).to(device=device)
 
             # Optimizer
-            optimizer.zero_grad()
+            if self.warmup:
+                warm_optimizer.optimizer.zero_grad()
+            else:
+                optimizer.zero_grad()
 
             # Forward
             output, _ = model(batch_x)
@@ -109,7 +112,10 @@ class make_model():
 
             # Backward
             loss.backward()
-            optimizer.step()
+            if self.warmup:
+                warm_optimizer.step()
+            else:
+                optimizer.step()
 
             # Recover loss and prediction
             train_loss.append(loss.item())
@@ -128,89 +134,10 @@ class make_model():
 
         return train_loss, perf
 
-    def _do_mix_up_train(self,
-                         model,
-                         loader,
-                         optimizer,
-                         criterion,
-                         beta):
-
-        """
-        Train model.
-        Args:
-            model (nn.Module): Model.
-            loaders (Sampler): Loaders of EEG samples for training.
-            optimizer (optimizer): Optimizer.
-            criterion (Loss): Loss function.
-            beta (float): Parameter of the Beta Law.
-
-        Returns:
-            train_loss (float): Mean loss on the loaders.
-            perf (float): Mean F1-score on the loaders.
-        """
-
-        # Training loop
-        model.train()
-        device = next(model.parameters()).device
-        train_loss = list()
-        all_preds, all_labels, all_shuffle_labels = list(), list(), list()
-
-        # Loop on training samples
-        for batch_x, batch_y in loader:
-
-            batch_x = batch_x.to(torch.float).to(device=device)
-            batch_y = batch_y.to(torch.float).to(device=device)
-
-            # Optimizer
-            optimizer.zero_grad()
-
-            # Apply mix-up strategy
-            mixed_batch_x, shuffle_batch_y, lambd = mixup_data(batch_x,
-                                                               batch_y,
-                                                               device,
-                                                               beta)
-            mixed_batch_x = mixed_batch_x.to(torch.float)
-            shuffle_batch_y = shuffle_batch_y.to(torch.float)
-
-            # Forward
-            output, _ = model(mixed_batch_x)
-            loss = mixup_criterion(criterion,
-                                   output,
-                                   batch_y,
-                                   shuffle_batch_y,
-                                   lambd)
-            pred = self.sigmoid(output)
-
-            # Backward
-            loss.backward()
-            optimizer.step()
-
-            # Recover loss and prediction
-            train_loss.append(loss.item())
-            all_preds.append(pred.detach().cpu().numpy())
-            all_labels.append(batch_y.detach().cpu().numpy())
-            all_shuffle_labels.append(shuffle_batch_y.detach().cpu().numpy())
-
-        # Recover binary prediction
-        y_pred = np.concatenate(all_preds)
-        y_pred_binary = 1 * (y_pred > 0.5)
-        y_true = np.concatenate(all_labels)
-        shuffle_y_true = np.concatenate(all_shuffle_labels)
-
-        # Recover mean loss and F1-score
-        train_loss = np.mean(train_loss)
-        perf = (lambd * f1_score(y_true, y_pred_binary,
-                                 average='binary', zero_division=1)
-                + (1-lambd) * f1_score(shuffle_y_true, y_pred_binary,
-                                       average='binary', zero_division=1))
-
-        return train_loss, perf
-
     def _validate(self,
                   model,
                   loader,
-                  criterion,
-                  n_good_detection):
+                  criterion):
 
         """
         Evaluate model on validation set.
@@ -277,22 +204,13 @@ class make_model():
         print("-" * 80)
 
         for epoch in range(1, self.n_epochs + 1):
-            if self.mix_up:
-                results = self._do_mix_up_train(self.model,
-                                                self.train_loader,
-                                                self.optimizer,
-                                                self.train_criterion,
-                                                self.beta)
-                train_loss, train_perf = results
-            else:
-                train_loss, train_perf = self._do_train(self.model,
-                                                        self.train_loader,
-                                                        self.optimizer,
-                                                        self.train_criterion)
+            train_loss, train_perf = self._do_train(self.model,
+                                                    self.train_loader,
+                                                    self.optimizer,
+                                                    self.train_criterion)
             val_loss, val_perf = self._validate(self.model,
                                                 self.val_loader,
-                                                self.val_criterion,
-                                                self.n_good_detection)
+                                                self.val_criterion)
 
             history.append(
                 {"epoch": epoch,
