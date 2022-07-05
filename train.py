@@ -22,7 +22,7 @@ from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
-from braindecode.augmentation import GaussianNoise, FTSurrogate, SignFlip, TimeReverse, FrequencyShift, Compose
+from augmentation import AffineScaling, SignFlip, TimeReverse, FrequencyShift, BandstopFilter
 from utils.select_subject import select_subject
 
 def get_parser():
@@ -114,7 +114,6 @@ subject_ids = np.asarray(list(data.keys()))
 
 # Define loss
 criterion = nn.BCEWithLogitsLoss().to(device)
-
 for seed in range(5):
 
     # Dataloader
@@ -168,7 +167,6 @@ for seed in range(5):
     model = make_model(architecture,
                        train_loader,
                        val_loader,
-                       test_loader,
                        optimizer,
                        train_criterion,
                        criterion,
@@ -185,7 +183,7 @@ for seed in range(5):
         os.mkdir("../results")
 
     # Compute test performance and save it
-    acc, f1, precision, recall = model.score()
+    acc, f1, precision, recall = model.score(test_loader)
     results.append(
         {
             "method": method,
