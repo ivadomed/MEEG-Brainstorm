@@ -17,7 +17,7 @@ from loguru import logger
 from torch import nn
 from torch.optim import Adam
 
-from models.architectures import EEGNet, GTN, RNN_self_attention, STT
+from models.architectures import *
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
@@ -86,9 +86,9 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("EEGNet", "GTN", "RNN_self_attention", "STT")
+assert method in ("EEGNet", "EEGNet_1D", "GTN", "RNN_self_attention", "STT")
 logger.info(f"Method used: {method}")
-if method == 'RNN_self_attention':
+if method in ["EEGNet_1D", "RNN_self_attention"]:
     single_channel = True
 else:
     single_channel = False
@@ -136,6 +136,9 @@ for i, test_subject_id in enumerate(subject_ids):
     if method == "EEGNet":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = EEGNet()
+        warmup = False
+    if method == "EEGNet_1D":
+        architecture = EEGNet_1D()
         warmup = False
     elif method == "GTN":
         n_time_points = len(data[subject_ids[0]][0][0][0])
