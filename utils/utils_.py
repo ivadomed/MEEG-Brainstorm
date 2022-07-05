@@ -115,15 +115,6 @@ def get_spike_windows(spike_events,
     return np.asarray(spike_windows, dtype='int64')
 
 
-def normal_initialization(m):
-
-    """ Initialize model weight with normal. """
-    if isinstance(m, torch.nn.Linear):
-        m.weight.data.normal_(mean=0.0, std=0.02)
-        if m.bias is not None:
-            m.bias.data.zero_()
-
-
 def get_pos_weight(labels):
 
     """
@@ -155,6 +146,31 @@ def get_pos_weight(labels):
         pos_weight = torch.ones(1)
 
     return pos_weight
+
+
+def he_initialization(m):
+
+    """ Initialize model weight with He initialization.
+    Args:
+        m (nn.Module): Model.
+    """
+
+    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+        torch.nn.init.kaiming_normal_(m.weight)
+        m.bias.data.fill_(0.01)
+
+
+def normal_initialization(m):
+
+    """ Initialize model weight with normal initialization.
+    Args:
+        m (nn.Module): Model.
+    """
+
+    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+        m.weight.data.normal_(mean=0.0, std=0.02)
+        if m.bias is not None:
+            m.bias.data.zero_()
 
 
 def pad_tensor(x,
@@ -220,6 +236,6 @@ def xavier_initialization(m):
         m (nn.Module): Model.
     """
 
-    if isinstance(m, torch.nn.Linear):
+    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)

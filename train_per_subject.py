@@ -88,7 +88,8 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("EEGNet", "EEGNet_AD", "GTN", "RNN_self_attention", "STT")
+assert method in ("EEGNet", "EEGNet_AD", "GTN",
+                  "RNN_self_attention", "STT", "STTNet")
 logger.info("Method used: {}".format(method))
 if method in ["EEGNet_1D", "RNN_self_attention"]:
     single_channel = True
@@ -157,6 +158,8 @@ for train_subject_id in subject_ids:
         elif method == "STT":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = STT(n_time_points=n_time_points)
+        elif method == "STTNet":
+            architecture = STTNet()
         architecture.apply(reset_weights)
 
         if weight_loss:
