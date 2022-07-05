@@ -173,7 +173,6 @@ for train_subject_id in subject_ids:
         model = make_model(architecture,
                            train_loader,
                            val_loader,
-                           test_loader,
                            optimizer,
                            train_criterion,
                            criterion,
@@ -190,7 +189,7 @@ for train_subject_id in subject_ids:
             os.mkdir("../results")
 
         # Compute test performance and save it
-        acc, f1, precision, recall = model.score()
+        acc, f1, precision, recall = model.score(test_loader)
         results.append(
             {
                 "method": method,
