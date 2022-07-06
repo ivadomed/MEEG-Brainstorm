@@ -156,6 +156,7 @@ def he_initialization(m):
     """
 
     if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+        torch.manual_seed(42)
         torch.nn.init.kaiming_normal_(m.weight)
         m.bias.data.fill_(0.01)
 
@@ -168,6 +169,7 @@ def normal_initialization(m):
     """
 
     if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+        torch.manual_seed(42)
         m.weight.data.normal_(mean=0.0, std=0.02)
         if m.bias is not None:
             m.bias.data.zero_()
@@ -235,7 +237,8 @@ def xavier_initialization(m):
     Args:
         m (nn.Module): Model.
     """
-
+    
     if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+        torch.manual_seed(42)
         torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)
