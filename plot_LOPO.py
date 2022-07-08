@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
@@ -13,7 +14,6 @@ def get_parser():
     parser.add_argument("--path_data", type=str, default="../results/csv")
     parser.add_argument("--metric", type=str, default="f1")
     parser.add_argument("--n_subjects", type=int, default=1)
-
     return parser
 
 
@@ -32,10 +32,9 @@ fnames = list(
 # concatene all the dataframe
 df = pd.concat([pd.read_csv(fname) for fname in fnames], axis=0)
 
-# Create boxplot + swarplot for different method
-fig = plt.figure(figsize=(7, 7))
-sns.boxplot(data=df.loc[(df['transform'] == False)], x="weight_loss", y=metric, palette="Set2")
-sns.swarmplot(data=df.loc[(df['transform'] == False)], x="weight_loss", y=metric, hue="test_subject_id", palette="tab10")
+fig = plt.figure()
+sns.boxplot(data=df, x="method", y=metric, palette="Set2")
+sns.swarmplot(data=df, x="method", y=metric, hue="test_subject_id", palette="tab10")
 plt.tight_layout()
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
@@ -55,6 +54,14 @@ fig.savefig(
 #      "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
 #     bbox_inches="tight",
 # )
+# # g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
+# # g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
+# # g.add_legend()
+# # g.fig.suptitle('LOPO')
+# # g.savefig(
+# #      "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
+# #     bbox_inches="tight",
+# # )
 
 # print results
 print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss', "transform"]).mean().reset_index())

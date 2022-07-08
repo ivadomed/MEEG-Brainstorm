@@ -51,8 +51,7 @@ def get_parser():
     parser.add_argument("--lambd", type=float, default=1e-3)
     parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--transform", action="store_true")
-    parser.add_argument("--mix_up", action="store_true")
-    parser.add_argument("--beta", type=float, default=0.4)
+    parser.add_argument("--patience", type=int, default=10)
 
     return parser
 
@@ -74,13 +73,10 @@ cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
 transform = args.transform
-mix_up = args.mix_up
-beta = args.beta
-
+patience = args.patience
 
 # Recover params
 lr = 1e-3  # Learning rate
-patience = 5
 weight_decay = 0
 gpu_id = 0
 
@@ -97,7 +93,7 @@ steps = 0
 
 # Recover dataset
 assert method in ("EEGNet", "EEGNet_1D", "GTN",
-                  "RNN_self_attention", "STT", "STTNet")
+                  "RNN_self_attention", "STT")
 logger.info(f"Method used: {method}")
 if method in ["EEGNet_1D", "RNN_self_attention"]:
     single_channel = True
@@ -171,10 +167,13 @@ for gen_seed in range(5):
         train_loader, val_loader, test_loader, train_labels = loader.load()
 
         # Define architecture
-
         if method == "EEGNet":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = EEGNet()
+            warmup = False
+        if method == "EEGNet_1D":
+            architecture = EEGNet_1D()
+            warmup = False
         elif method == "GTN":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = GTN(n_time_points=n_time_points)
@@ -199,30 +198,32 @@ for gen_seed in range(5):
         # Define optimizer
         optimizer = Adam(architecture.parameters(), lr=lr,
                          weight_decay=weight_decay)
+        warm_optimizer = NoamOpt(optimizer)
 
         # Define training pipeline
         architecture = architecture.to(device)
         model = make_model(architecture,
                            train_loader,
                            val_loader,
+                           test_loader,
                            optimizer,
+                           warmup,
+                           warm_optimizer,
                            train_criterion,
                            criterion,
                            single_channel=single_channel,
                            n_epochs=n_epochs,
-                           patience=patience,
-                           mix_up=mix_up,
-                           beta=beta)
+                           patience=patience)
 
         # Train Model
         history = model.train()
 
         # Compute test performance and save it
-        acc, f1, precision, recall = model.score(test_loader)
+        acc, f1, precision, recall = model.score()
         results.append(
             {
                 "method": method,
-                "mix_up": mix_up,
+                "warmup": warmup,
                 "weight_loss": weight_loss,
                 "cost_sensitive": cost_sensitive,
                 "len_trials": len_trials,

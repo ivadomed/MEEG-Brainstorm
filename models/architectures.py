@@ -268,8 +268,8 @@ class TransformerEncoder(nn.Sequential):
 
             # Create tensor of size [b x b]
             artifact = torch.einsum('b c , l d -> b l',
-                                    x.squeeze(1)[:, 0],
-                                    x.squeeze(1)[:, 0])
+                                    x[:, 0],
+                                    x[:, 0])
 
             mask = torch.ones_like(artifact)
             mask = torch.tril(mask, diagonal=0)
@@ -302,7 +302,7 @@ class EEGNet(nn.Module):
     def __init__(self):
 
         super().__init__()
-
+   
         # Block 1: conv2d
         self.block1 = nn.Sequential(
                         nn.Conv2d(in_channels=1,
@@ -316,7 +316,7 @@ class EEGNet(nn.Module):
         # Block 2: depthwiseconv2d
         self.block2 = nn.Sequential(
                         nn.Conv2d(in_channels=8,
-                                  out_channels=16,
+                                  out_channels=32,
                                   kernel_size=(20, 1),
                                   groups=2,
                                   bias=False),
@@ -784,109 +784,6 @@ class STT(nn.Module):
 
         # Classifier
         out = self.classifier(code.flatten(1)).squeeze(1)
-
-        return out, attention_weights
-
-
-""" ********** Spatial Temporal Transformers with EEGNet********** """
-
-
-class STTNet(nn.Module):
-
-    """ Transformer model inspired by:
-        `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
-        <https://arxiv.org/pdf/2106.11170.pdf>`_ and 
-        `"EEGNet: A Compact Convolutional Neural Network
-        for EEG-based Brain-Computer Interfaces"
-        <https://arxiv.org/pdf/1611.08024.pdf>`_.
-        Predicts probability of spike occurence in a trial.
-
-    Input (tensor): Batch of trials of dimension
-                    [batch_size x 1 x n_channels x n_time_points].
-    Output (tensor): Logits of dimension [batch_size x 1].
-    """
-
-    def __init__(self):
-
-        super().__init__()
-
-        # Block 1: conv2d
-        self.block1 = nn.Sequential(
-                        nn.Conv2d(in_channels=1,
-                                  out_channels=8,
-                                  kernel_size=(1, 64),
-                                  padding=(0, 32),
-                                  bias=False),
-                        nn.BatchNorm2d(8)
-                        )
-
-        # Block 2: depthwiseconv2d
-        self.block2 = nn.Sequential(
-                        nn.Conv2d(in_channels=8,
-                                  out_channels=32,
-                                  kernel_size=(20, 1),
-                                  groups=2,
-                                  bias=False),
-                        nn.ELU(),
-                        nn.AdaptiveAvgPool2d(output_size=(1, 32)),
-                        nn.Dropout()
-                        )
-
-        # Block 3: separableconv2d
-        self.block3 = nn.Sequential(
-                        nn.Conv2d(in_channels=32,
-                                  out_channels=32,
-                                  kernel_size=(1, 16),
-                                  padding=(0, 8),
-                                  groups=32,
-                                  bias=False),
-                        nn.Conv2d(in_channels=32,
-                                  out_channels=32,
-                                  kernel_size=(1, 1),
-                                  bias=False),
-                        nn.ELU(),
-                        nn.AdaptiveAvgPool2d(output_size=(1, 32)),
-                        nn.Dropout()
-                        )
-
-        self.encoder = nn.Sequential(Rearrange('b o c t -> b (c t) o'),
-                                     TransformerEncoder(3, 32, 8, 4, 0.25)
-                                     )
-        self.classifier = nn.Linear(1024, 1)
-
-        # Weight initialization
-        for block in [self.block1, self.block2, self.block3]:
-            block.apply(normal_initialization)
-        self.classifier.apply(normal_initialization)
-
-    def forward(self,
-                x: Tensor):
-
-        """ Apply STT+EEGNet model.
-        Args:
-            x (tensor): Batch of trials with dimension
-                        [batch_size x 1 x n_channels x n_time_points].
-
-        Returns:
-            out (tensor): Logits of dimension [batch_size].
-            attention_weights (tensor): Attention weights of channel attention.
-        """
-        
-        # Conv2d
-        embedding = self.block1(x)
-
-        # Depthwise Conv2d
-        embedding = self.block2(embedding)
-
-        # Separable Conv2d
-        embedding = self.block3(embedding)
-
-        # Temporal Transforming
-        code = self.encoder(embedding)
-
-        # Classifier
-        out = self.classifier(code.flatten(1)).squeeze(1)
-        attention_weights = torch.zeros(1)
 
         return out, attention_weights
 
