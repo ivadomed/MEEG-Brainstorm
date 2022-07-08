@@ -24,8 +24,6 @@ from scipy import signal
 from utils.utils_ import get_spike_events, get_spike_windows
 
 
-
-
 class Data:
 
     def __init__(self,
