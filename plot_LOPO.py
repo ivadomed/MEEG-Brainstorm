@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
@@ -10,9 +11,9 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "spike detection", description="spike detection using attention layer"
     )
-    parser.add_argument("--path_data", type=str, default="../results/csv")
+    parser.add_argument("--path_data", type=str, default="../results/csv_LOPO")
     parser.add_argument("--n_subjects", type=int, default=1)
-
+    parser.add_argument("--metric", type=str, default="f1")
     return parser
 
 
@@ -21,12 +22,13 @@ parser = get_parser()
 args = parser.parse_args()  # you can modify this namespace for quick iterations
 path_data = args.path_data
 n_subjects = args.n_subjects
+metric = args.metric
 
 fnames = list(
-    Path(path_data).glob("results_LOPO_spike_detection_method-*_{}-subjects.csv".format(n_subjects))
+    Path(path_data).glob("results_LOPO_spike_detection_10-subjects.csv".format(n_subjects))
 )
 df = pd.concat([pd.read_csv(fname) for fname in fnames], axis=0)
-df["method"] = df["method"].replace({"transformer_classification": "STT"})
+
 # fig = plt.figure()
 # sns.boxplot(data=df, x="balance", y="f1", palette="Set2")
 # sns.swarmplot(data=df, x="balance", y="f1", hue="test_subj_id", palette="Spectral")
@@ -41,42 +43,44 @@ df["method"] = df["method"].replace({"transformer_classification": "STT"})
 # )
 
 fig = plt.figure()
-sns.boxplot(data=df, x="method", y="f1", palette="Set2")
-sns.swarmplot(data=df, x="method", y="f1", hue="test_subject_id", palette="tab10")
+sns.boxplot(data=df, x="method", y=metric, palette="Set2")
+sns.swarmplot(data=df, x="method", y=metric, hue="test_subject_id", palette="tab10")
 plt.tight_layout()
 
-
-# fig.savefig(
-#      "../results/images/results_acc_score_{}_subjects.pdf".format(n_subjects),
-#     bbox_inches="tight",
-# )
-g = sns.FacetGrid(df.loc[(df['cost_sensitive'] is False)], row="mix_up", col="weight_loss", margin_titles=True)
-g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10")
-g.map(sns.boxplot, "method", "f1", palette="Set2") 
-g.add_legend()
-# g.fig.suptitle('LOPO')
-g.savefig(
-     "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
-    bbox_inches="tight",
+# Save results file as csv
+if not os.path.exists("results/images"):
+    os.mkdir("results/images")
+fig.savefig(
+      "results/images/results_robust_metric_{}_GTN_weight_loss_{}_{}_subjects.pdf".format(metric, "True", n_subjects),
+     bbox_inches="tight",
 )
-# g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
-# g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
+# g = sns.FacetGrid(df.loc[(df['cost_sensitive'] is False)], row="mix_up", col="weight_loss", margin_titles=True)
+# g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10")
+# g.map(sns.boxplot, "method", "f1", palette="Set2") 
 # g.add_legend()
-# g.fig.suptitle('LOPO')
+# # g.fig.suptitle('LOPO')
 # g.savefig(
 #      "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
 #     bbox_inches="tight",
 # )
+# # g = sns.FacetGrid(df, row="mix_up", col="cost_sensitive", margin_titles=True)
+# # g.map(sns.boxplot, "weight_loss", "f1", "method", palette="Set2") #, fit_reg=False, x_jitter=.1)
+# # g.add_legend()
+# # g.fig.suptitle('LOPO')
+# # g.savefig(
+# #      "../results/images/results_LOPO_F1_score_{}_subjects.pdf".format(n_subjects),
+# #     bbox_inches="tight",
+# # )
 
-g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] is False)], col="weight_loss", margin_titles=True)
-g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
-g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
-g.add_legend()
-# g.fig.suptitle('LOPO')
-g.savefig(
-     "../results/images/results_LOPO_F1_score_swarmplot_{}_subjects.pdf".format(n_subjects),
-    bbox_inches="tight",
-)
+# g = sns.FacetGrid(df.loc[(df['mix_up'] == False) & (df['cost_sensitive'] is False)], col="weight_loss", margin_titles=True)
+# g.map(sns.boxplot, "method", "f1", palette="Set2") #, fit_reg=False, x_jitter=.1)
+# g.map(sns.swarmplot, "method", "f1", "test_subject_id", palette="tab10") #, fit_reg=False, x_jitter=.1)
+# g.add_legend()
+# # g.fig.suptitle('LOPO')
+# g.savefig(
+#      "../results/images/results_LOPO_F1_score_swarmplot_{}_subjects.pdf".format(n_subjects),
+#     bbox_inches="tight",
+# )
 
-print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss']).mean().reset_index())
-print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss']).std().reset_index())
+print(df.groupby(['method', 'cost_sensitive', 'weight_loss']).mean().reset_index())
+print(df.groupby(['method', 'cost_sensitive', 'weight_loss']).std().reset_index())
