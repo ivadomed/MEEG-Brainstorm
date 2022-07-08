@@ -24,7 +24,7 @@ from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
-from augmentation import AffineScaling, SignFlip, TimeReverse, FrequencyShift, BandstopFilter
+from augmentation import AffineScaling, SignFlip, TimeReverse, FrequencyShift, BandstopFilter, ChannelsShuffle
 
 
 def get_parser():
@@ -75,7 +75,7 @@ beta = args.beta
 
 # Recover params
 lr = 1e-3  # Learning rate
-patience = 10
+patience = 5
 weight_decay = 0
 gpu_id = 0
 
@@ -119,11 +119,27 @@ subject_ids = np.asarray(list(data.keys()))
 
 # Define transform for data augmentation
 if transform:
-    transform = AffineScaling(
-                probability=0.5,  # defines the probability of actually modifying the input
-            )
+
+    affine_scaling = AffineScaling(
+        probability=.5,  # defines the probability of actually modifying the input
+        a_min=0.7,
+        a_max=1.3,
+    )
+
+    frequency_shift = FrequencyShift(
+        probability=.5,  # defines the probability of actually modifying the input
+        sfreq=128,
+        max_delta_freq=.2  # the frequency shifts are sampled now between -2 and 2 Hz
+    )
+
+    channels_shuffle = ChannelsShuffle(
+        probability=.5,  # defines the probability of actually modifying the input
+        p_shuffle=0.2
+    )
+
+    transforms = [affine_scaling, frequency_shift, channels_shuffle]
 else:
-    transform = None
+    transforms = None
 
 # Apply Leave-One-Patient-Out strategy
 
@@ -142,7 +158,7 @@ for gen_seed in range(5):
                         single_channel=single_channel,
                         batch_size=batch_size,
                         num_workers=num_workers,
-                        transform=transform,
+                        transforms=transforms,
                         subject_LOPO=test_subject_id,
                         seed=seed,
                         )
