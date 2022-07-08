@@ -145,8 +145,6 @@ for seed in range(5):
     elif method == "STT":
         n_time_points = len(data[subject_ids[0]][0][0][0])
         architecture = STT(n_time_points=n_time_points)
-    elif method == "STTNet":
-        architecture = STTNet()
     architecture.apply(reset_weights)
 
     if weight_loss:

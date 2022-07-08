@@ -47,7 +47,8 @@ def get_parser():
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
-    parser.add_argument("--len_trials", type=float, default=2)
+    parser.add_argument("--len_trials", type=int, default=2)
+    parser.add_argument("--patience", type=int, default=10)
 
     return parser
 
@@ -67,10 +68,10 @@ weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
+patience = args.patience
 
 # Recover params
 lr = 1e-3  # Learning rate
-patience = 10
 weight_decay = 0
 gpu_id = 0
 
@@ -115,8 +116,8 @@ subject_ids = np.asarray(list(data.keys()))
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
-for _ in range(5):
-    np.random.seed(42)
+for gen_seed in range(5):
+    np.random.seed(gen_seed)
     seed_list = [np.random.randint(0, 100) for _ in range(len(selected_subjects))]
     for i, test_subject_id in enumerate(subject_ids):
         seed = seed_list[i]
