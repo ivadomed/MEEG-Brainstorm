@@ -17,11 +17,12 @@ from loguru import logger
 from torch import nn
 from torch.optim import Adam
 
-from models.architectures import EEGNet, GTN, RNN_self_attention, STT
+from models.architectures import *
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
+from utils.learning_rate_warmup import NoamOpt
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
 from augmentation import AffineScaling, FrequencyShift, ChannelsShuffle
@@ -39,6 +40,7 @@ def get_parser():
                         default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
+    parser.add_argument("--warmup", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -61,6 +63,7 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
+warmup = args.warmup
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -93,9 +96,10 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("EEGNet", "GTN", "RNN_self_attention", "STT")
+assert method in ("EEGNet", "EEGNet_1D", "GTN",
+                  "RNN_self_attention", "STT", "STTNet")
 logger.info(f"Method used: {method}")
-if method == 'RNN_self_attention':
+if method in ["EEGNet_1D", "RNN_self_attention"]:
     single_channel = True
 else:
     single_channel = False
