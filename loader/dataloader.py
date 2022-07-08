@@ -31,16 +31,17 @@ class Dataset():
     transform : callable | None
         On-the-fly transform applied to the example before it is returned.
     """
-    def __init__(self, data, labels, transform=None):
+    def __init__(self, data, labels, transforms=None):
         self.data = data
         self.labels = labels
-        self.transform = transform
+        self.transforms = transforms
 
     def __getitem__(self, index):
         X = self.data[index]
         y = self.labels[index]
-        if self.transform is not None:
-            X = self.transform(X)
+        if self.transforms is not None:
+            for transform in self.transforms:
+                X = transform(X)
         return X, y
 
     def __len__(self):
@@ -103,7 +104,7 @@ class Loader():
                  single_channel,
                  batch_size,
                  num_workers,
-                 transform=None,
+                 transforms=None,
                  subject_LOPO=None,
                  seed=42):
 
@@ -127,7 +128,7 @@ class Loader():
         self.single_channel = single_channel
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.transform = transform
+        self.transforms = transforms
         self.subject_LOPO = subject_LOPO
         self.seed = seed
 
@@ -138,6 +139,7 @@ class Loader():
                    single_channel,
                    shuffle,
                    batch_size,
+                   transforms,
                    num_workers):
 
         """ Create dataloader of data.
@@ -174,7 +176,7 @@ class Loader():
                     else:
                         data_list.append(x)
                         labels_list.append(y)
-        dataset = Dataset(data_list, labels_list, transform=self.transform)
+        dataset = Dataset(data_list, labels_list, transforms=transforms)
         loader = DataLoader(dataset=dataset, batch_size=batch_size,
                             shuffle=shuffle, num_workers=num_workers,
                             collate_fn=PadCollate(dim=1))
@@ -276,6 +278,7 @@ class Loader():
                                        single_channel,
                                        shuffle=True,
                                        batch_size=batch_size,
+                                       transforms=self.transforms,
                                        num_workers=num_workers)
         val_loader = self.pad_loader(val_data,
                                      val_labels,
@@ -283,6 +286,7 @@ class Loader():
                                      single_channel,
                                      shuffle=False,
                                      batch_size=batch_size,
+                                     transforms=None,
                                      num_workers=num_workers)
         test_loader = self.pad_loader(test_data,
                                       test_labels,
@@ -290,6 +294,7 @@ class Loader():
                                       single_channel=False,
                                       shuffle=False,
                                       batch_size=batch_size,
+                                      transforms=None,
                                       num_workers=num_workers)
 
         return train_loader, val_loader, test_loader, train_labels
@@ -383,8 +388,8 @@ class Loader():
             test_labels.append(y)
 
         train_dataset = Dataset(train_data, train_labels, transform=self.transform)
-        val_dataset = Dataset(val_data, val_labels, transform=self.transform)
-        test_dataset = Dataset(test_data, test_labels, transform=self.transform)
+        val_dataset = Dataset(val_data, val_labels, transform=None)
+        test_dataset = Dataset(test_data, test_labels, transform=None)
 
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size,
                                   shuffle=True, num_workers=num_workers,
