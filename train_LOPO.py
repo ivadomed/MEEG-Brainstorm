@@ -24,6 +24,7 @@ from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
+from augmentation import AffineScaling, FrequencyShift, ChannelsShuffle
 
 
 def get_parser():
@@ -33,8 +34,9 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "Spike detection", description="Spike detection"
     )
-    parser.add_argument("--path_root", type=str,
-                        default="../BIDSdataset/Epilepsy dataset/")
+    parser.add_argument("--path_root",
+                        type=str,
+                        default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
@@ -46,6 +48,7 @@ def get_parser():
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
     parser.add_argument("--len_trials", type=float, default=2)
+    parser.add_argument("--transform", action="store_true")
     parser.add_argument("--mix_up", action="store_true")
     parser.add_argument("--beta", type=float, default=0.4)
 
@@ -67,13 +70,14 @@ weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
+transform = args.transform
 mix_up = args.mix_up
 beta = args.beta
 
 
 # Recover params
 lr = 1e-3  # Learning rate
-patience = 10
+patience = 5
 weight_decay = 0
 gpu_id = 0
 
@@ -113,124 +117,154 @@ dataset = Data(path_root,
 data, labels, annotated_channels = dataset.all_datasets()
 subject_ids = np.asarray(list(data.keys()))
 
+# Define transform for data augmentation
+if transform:
+
+    affine_scaling = AffineScaling(
+        probability=.5,  # defines the probability of modifying the input
+        a_min=0.7,
+        a_max=1.3,
+    )
+
+    frequency_shift = FrequencyShift(
+        probability=.5,  # defines the probability of modifying the input
+        sfreq=128,
+        max_delta_freq=.2
+    )
+
+    channels_shuffle = ChannelsShuffle(
+        probability=.5,  # defines the probability of modifying the input
+        p_shuffle=0.2
+    )
+
+    transforms = [affine_scaling, frequency_shift, channels_shuffle]
+else:
+    transforms = None
+
 # Apply Leave-One-Patient-Out strategy
+
 """ Each subject is chosen once as test set while the model is trained
     and validate on the remaining ones.
 """
-seed = 42
-np.random.seed(42)
-seed_list = [np.random.randint(0, 100) for _ in range(len(selected_subjects))]
-for i, test_subject_id in enumerate(subject_ids):
-    seed = seed_list[i]
-    # Labels are the spike events times
-    loader = Loader(data,
-                    labels,
-                    annotated_channels,
-                    single_channel=single_channel,
-                    batch_size=batch_size,
-                    num_workers=num_workers,
-                    subject_LOPO=test_subject_id,
-                    seed=seed,
-                    )
+for gen_seed in range(5):
+    np.random.seed(gen_seed)
+    seed_list = [np.random.randint(0, 100)
+                 for _ in range(len(selected_subjects))]
+    for i, test_subject_id in enumerate(subject_ids):
+        seed = seed_list[i]
+        # Labels are the spike events times
+        loader = Loader(data,
+                        labels,
+                        annotated_channels,
+                        single_channel=single_channel,
+                        batch_size=batch_size,
+                        num_workers=num_workers,
+                        transforms=transforms,
+                        subject_LOPO=test_subject_id,
+                        seed=seed,
+                        )
 
-    train_loader, val_loader, test_loader, train_labels = loader.load()
+        train_loader, val_loader, test_loader, train_labels = loader.load()
 
-    # Define architecture
-    if method == "EEGNet":
-        n_time_points = len(data[subject_ids[0]][0][0][0])
-        architecture = EEGNet()
-    elif method == "GTN":
-        n_time_points = len(data[subject_ids[0]][0][0][0])
-        architecture = GTN(n_time_points=n_time_points)
-    elif method == "RNN_self_attention":
-        n_time_points = len(data[subject_ids[0]][0][0][0])
-        architecture = RNN_self_attention(n_time_points=n_time_points)
-    elif method == "STT":
-        n_time_points = len(data[subject_ids[0]][0][0][0])
-        architecture = STT(n_time_points=n_time_points)
-    architecture.apply(reset_weights)
+        # Define architecture
 
-    # Define training loss
-    if weight_loss:
-        pos_weight = get_pos_weight(train_labels).to(device)
-        train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        train_criterion = train_criterion.to(device)
-    else:
-        train_criterion = criterion
-    train_criterion = get_criterion(train_criterion,
-                                    cost_sensitive,
-                                    lambd)
-    # Define optimizer
-    optimizer = Adam(architecture.parameters(), lr=lr,
-                     weight_decay=weight_decay)
+        if method == "EEGNet":
+            n_time_points = len(data[subject_ids[0]][0][0][0])
+            architecture = EEGNet()
+        elif method == "GTN":
+            n_time_points = len(data[subject_ids[0]][0][0][0])
+            architecture = GTN(n_time_points=n_time_points)
+        elif method == "RNN_self_attention":
+            n_time_points = len(data[subject_ids[0]][0][0][0])
+            architecture = RNN_self_attention(n_time_points=n_time_points)
+        elif method == "STT":
+            n_time_points = len(data[subject_ids[0]][0][0][0])
+            architecture = STT(n_time_points=n_time_points)
+        architecture.apply(reset_weights)
 
-    # Define training pipeline
-    architecture = architecture.to(device)
-    model = make_model(architecture,
-                       train_loader,
-                       val_loader,
-                       optimizer,
-                       train_criterion,
-                       criterion,
-                       single_channel=single_channel,
-                       n_epochs=n_epochs,
-                       patience=patience,
-                       mix_up=mix_up,
-                       beta=beta)
+        # Define training loss
+        if weight_loss:
+            pos_weight = get_pos_weight(train_labels).to(device)
+            train_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            train_criterion = train_criterion.to(device)
+        else:
+            train_criterion = criterion
+        train_criterion = get_criterion(train_criterion,
+                                        cost_sensitive,
+                                        lambd)
+        # Define optimizer
+        optimizer = Adam(architecture.parameters(), lr=lr,
+                         weight_decay=weight_decay)
 
-    # Train Model
-    history = model.train()
+        # Define training pipeline
+        architecture = architecture.to(device)
+        model = make_model(architecture,
+                           train_loader,
+                           val_loader,
+                           optimizer,
+                           train_criterion,
+                           criterion,
+                           single_channel=single_channel,
+                           n_epochs=n_epochs,
+                           patience=patience,
+                           mix_up=mix_up,
+                           beta=beta)
 
-    # Compute test performance and save it
-    acc, f1, precision, recall = model.score(test_loader)
-    results.append(
-        {
-            "method": method,
-            "mix_up": mix_up,
-            "weight_loss": weight_loss,
-            "cost_sensitive": cost_sensitive,
-            "len_trials": len_trials,
-            "test_subject_id": test_subject_id,
-            "fold": seed,
-            "acc": acc,
-            "f1": f1,
-            "precision": precision,
-            "recall": recall
-        }
-    )
-    mean_acc += acc
-    mean_f1 += f1
-    mean_precision += precision
-    mean_recall += recall
-    steps += 1
+        # Train Model
+        history = model.train()
 
-    if save:
-
-        # Save results file as csv
-        if not os.path.exists("../results"):
-            os.mkdir("../results")
-
-        results_path = (
-            "../results/csv_LOPO"
+        # Compute test performance and save it
+        acc, f1, precision, recall = model.score(test_loader)
+        results.append(
+            {
+                "method": method,
+                "mix_up": mix_up,
+                "weight_loss": weight_loss,
+                "cost_sensitive": cost_sensitive,
+                "len_trials": len_trials,
+                "test_subject_id": test_subject_id,
+                "transform": transform,
+                "fold": seed,
+                "acc": acc,
+                "f1": f1,
+                "precision": precision,
+                "recall": recall
+            }
         )
-        if not os.path.exists(results_path):
-            os.mkdir(results_path)
+        mean_acc += acc
+        mean_f1 += f1
+        mean_precision += precision
+        mean_recall += recall
+        steps += 1
 
-        results_path = os.path.join(results_path,
-                                    "results_LOPO_spike_detection_{}"
-                                    "-subjects.csv".format(len(subject_ids))
-                                    )
-        df_results = pd.DataFrame(results)
-        results = []
+        if save:
 
-        if os.path.exists(results_path):
-            df_old_results = pd.read_csv(results_path)
-            df_results = pd.concat([df_old_results, df_results])
-        df_results.to_csv(results_path, index=False)
+            # Save results file as csv
+            if not os.path.exists("../results"):
+                os.mkdir("../results")
 
-print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
-print("-" * 80)
-print(
-    f"{mean_acc/steps:0.4f} \t {mean_f1/steps:0.4f} \t"
-    f"{mean_precision/steps:0.4f} \t {mean_recall/steps:0.4f}\n"
-)
+            results_path = (
+                "../results/csv_LOPO"
+            )
+            if not os.path.exists(results_path):
+                os.mkdir(results_path)
+
+            results_path = os.path.join(results_path,
+                                        "results_LOPO_spike_detection_{}"
+                                        "-subjects.csv".format(
+                                                        len(subject_ids))
+                                        )
+            df_results = pd.DataFrame(results)
+            results = []
+
+            if os.path.exists(results_path):
+                df_old_results = pd.read_csv(results_path)
+                df_results = pd.concat([df_old_results, df_results])
+            df_results.to_csv(results_path, index=False)
+
+    print("Mean accuracy \t Mean F1-score \t Mean precision \t Mean recall")
+    print("-" * 80)
+    print(
+        f"{mean_acc/steps:0.4f} \t {mean_f1/steps:0.4f} \t"
+        f"{mean_precision/steps:0.4f} \t {mean_recall/steps:0.4f}\n"
+    )

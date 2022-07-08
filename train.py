@@ -22,8 +22,8 @@ from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
 from utils.utils_ import define_device, get_pos_weight, reset_weights
+from augmentation import AffineScaling, SignFlip, TimeReverse, FrequencyShift, BandstopFilter
 from utils.select_subject import select_subject
-
 
 def get_parser():
 
@@ -45,6 +45,7 @@ def get_parser():
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-4)
     parser.add_argument("--len_trials", type=float, default=2)
+    parser.add_argument("--transform", action="store_true")
     parser.add_argument("--mix_up", action="store_true")
     parser.add_argument("--beta", type=float, default=0.4)
 
@@ -66,6 +67,7 @@ weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
+transform = args.transform
 mix_up = args.mix_up
 beta = args.beta
 
@@ -111,17 +113,24 @@ subject_ids = np.asarray(list(data.keys()))
 
 # Define loss
 criterion = nn.BCEWithLogitsLoss().to(device)
-
 for seed in range(5):
 
     # Dataloader
 
-    # Labels are the spike events times
+    # Define transform for data augmentation
+    if transform:
+        transform = SignFlip(
+                    probability=0.5,  # defines the probability of actually modifying the input
+                )
+    else:
+        transform = None
+
     loader = Loader(data,
                     labels,
                     annotated_channels,
                     single_channel=single_channel,
                     batch_size=batch_size,
+                    transform=transform,
                     subject_LOPO=None,
                     num_workers=num_workers,
                     )
