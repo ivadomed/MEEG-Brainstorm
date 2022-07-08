@@ -16,11 +16,12 @@ from loguru import logger
 from torch import nn
 from torch.optim import Adam
 
-from models.architectures import EEGNet, GTN, RNN_self_attention, STT
+from models.architectures import *
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
 from utils.cost_sensitive_loss import get_criterion
+from utils.learning_rate_warmup import NoamOpt
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
 
@@ -36,6 +37,7 @@ def get_parser():
                         default="../BIDSdataset/Epilepsy_dataset/")
     parser.add_argument("--method", type=str, default="RNN_self_attention")
     parser.add_argument("--save", action="store_true")
+    parser.add_argument("--warmup", action="store_true")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--n_epochs", type=int, default=100)
@@ -57,6 +59,7 @@ args = parser.parse_args()
 path_root = args.path_root
 method = args.method
 save = args.save
+warmup = args.warmup
 batch_size = args.batch_size
 num_workers = args.num_workers
 n_epochs = args.n_epochs
@@ -66,8 +69,6 @@ weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 len_trials = args.len_trials
-mix_up = args.mix_up
-beta = args.beta
 
 # Recover params
 lr = 1e-3  # Learning rate
@@ -87,9 +88,10 @@ mean_acc, mean_f1, mean_precision, mean_recall = 0, 0, 0, 0
 steps = 0
 
 # Recover dataset
-assert method in ("EEGNet", "GTN", "RNN_self_attention", "STT")
+assert method in ("EEGNet", "EEGNet_AD", "GTN",
+                  "RNN_self_attention", "STT", "STTNet")
 logger.info("Method used: {}".format(method))
-if method == 'RNN_self_attention':
+if method in ["EEGNet_1D", "RNN_self_attention"]:
     single_channel = True
 else:
     single_channel = False
@@ -142,15 +144,22 @@ for train_subject_id in subject_ids:
         # Define architecture
         if method == "EEGNet":
             architecture = EEGNet()
+            warmp = False
+        if method == "EEGNet_1D":
+            architecture = EEGNet_1D()
+            warmup = False
         elif method == "GTN":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = GTN(n_time_points=n_time_points)
         elif method == "RNN_self_attention":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = RNN_self_attention(n_time_points=n_time_points)
+            warmup = False
         elif method == "STT":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = STT(n_time_points=n_time_points)
+        elif method == "STTNet":
+            architecture = STTNet()
         architecture.apply(reset_weights)
 
         if weight_loss:
@@ -166,6 +175,7 @@ for train_subject_id in subject_ids:
         # Define optimizer
         optimizer = Adam(architecture.parameters(), lr=lr,
                          weight_decay=weight_decay)
+        warm_optimizer = NoamOpt(optimizer)
 
         # Define training pipeline
         architecture = architecture.to(device)
@@ -174,13 +184,13 @@ for train_subject_id in subject_ids:
                            train_loader,
                            val_loader,
                            optimizer,
+                           warmup,
+                           warm_optimizer,
                            train_criterion,
                            criterion,
                            single_channel,
                            n_epochs=n_epochs,
-                           patience=patience,
-                           mix_up=mix_up,
-                           beta=beta)
+                           patience=patience)
 
         # Train Model
         history = model.train()
@@ -193,7 +203,7 @@ for train_subject_id in subject_ids:
         results.append(
             {
                 "method": method,
-                "mix_up": mix_up,
+                "warmup": warmup,
                 "weight_loss": weight_loss,
                 "cost_sensitive": cost_sensitive,
                 "len_trials": len_trials,
@@ -223,7 +233,7 @@ for train_subject_id in subject_ids:
                 os.mkdir(results_path)
 
             results_path = os.path.join(results_path,
-                                        "results_LOPO_spike_detection_{}-"
+                                        "results_intra_subject_spike_detection_{}-"
                                         "subjects.csv".format(len(subject_ids))
                                         )
             df_results = pd.DataFrame(results)

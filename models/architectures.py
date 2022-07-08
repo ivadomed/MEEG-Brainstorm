@@ -20,8 +20,7 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from torch import Tensor
-from utils.utils_ import define_device, normal_initialization
-from utils.utils_ import xavier_initialization
+from utils.utils_ import *
 
 
 """ ********** Mish activation ********** """
@@ -184,6 +183,7 @@ class PatchEmbedding(nn.Module):
                             nn.Dropout(dropout),
                             Rearrange('b o c t -> b (c t) o')
                             )
+        self.embedding.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
@@ -345,9 +345,6 @@ class EEGNet(nn.Module):
         # Block 4: classifier
         self.classifier = nn.Linear(128, 1)
 
-        # Weight initialization
-        self.classifier.apply(normal_initialization)
-
     def forward(self,
                 x: Tensor):
 
@@ -378,6 +375,99 @@ class EEGNet(nn.Module):
         return out, attention_weights
 
 
+""" ********** EEGNet-1D ********** """
+
+
+class EEGNet_1D(nn.Module):
+
+    """ EEGNet inspired by:
+        `"EEGNet: A Compact Convolutional Neural Network
+        for EEG-based Brain-Computer Interfaces"
+        <https://arxiv.org/pdf/1611.08024.pdf>`_.
+        Implementation inspired by:
+        `<https://github.com/Tammie-Li/RSVP-EEGNet/blob/master/models/eegnet.py>`_
+        Predicts probability of spike occurence in a trial.
+        Takes single-channel trial as input.
+    Input (tensor): Batch of trials of dimension
+                    [batch_size x 1 x n_time_points]
+    Output (tensor): Logits of dimension [batch_size].
+    """
+
+    def __init__(self):
+
+        super().__init__()
+
+        # Block 1: conv1d
+        self.block1 = nn.Sequential(
+                        nn.Conv1d(in_channels=1,
+                                  out_channels=8,
+                                  kernel_size=64,
+                                  padding=32,
+                                  bias=False),
+                        nn.BatchNorm1d(8)
+                        )
+
+        # Block 2: depthwiseconv1d
+        self.block2 = nn.Sequential(
+                        nn.Conv1d(in_channels=8,
+                                  out_channels=16,
+                                  kernel_size=1,
+                                  groups=2,
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool1d(output_size=4),
+                        nn.Dropout()
+                        )
+
+        # Block 3: separableconv1d
+        self.block3 = nn.Sequential(
+                        nn.Conv1d(in_channels=16,
+                                  out_channels=16,
+                                  kernel_size=16,
+                                  padding=8,
+                                  groups=16,
+                                  bias=False),
+                        nn.Conv1d(in_channels=16,
+                                  out_channels=16,
+                                  kernel_size=1,
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool1d(output_size=8),
+                        nn.Dropout()
+                        )
+
+        # Block 4: classifier
+        self.classifier = nn.Linear(128, 1)
+
+    def forward(self,
+                x: Tensor):
+
+        """ Apply EEGNet model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x 1 x n_time_points].
+        Returns:
+            out (tensor): Logits of dimension [batch_size].
+            attention_weights (tensor): Artificial attention weights
+                                        to match other models' outputs.
+        """
+
+        # Conv1d
+        x = self.block1(x)
+
+        # Depthwise Conv1d
+        x = self.block2(x)
+
+        # Separable Conv1d
+        x = self.block3(x)
+
+        # Classifier
+        x = x.view(x.size(0), -1)
+        out, attention_weights = self.classifier(x).squeeze(1), torch.zeros(1)
+
+        return out, attention_weights
+
+
 """ ********** Gated Transformer Network ********** """
 
 
@@ -398,7 +488,7 @@ class GTN(nn.Module):
                  n_time_points=201,
                  channel_num_heads=1,
                  channel_dropout=0.1,
-                 emb_size=512,
+                 emb_size=32,
                  positional_encoding=True,
                  channels_kernel=20,
                  depth=3,
@@ -462,9 +552,6 @@ class GTN(nn.Module):
         # Classifier
         self.classifier = nn.Linear(in_features, 1)
 
-        # Weight initialization
-        self.classifier.apply(normal_initialization)
-
     def forward(self,
                 x: Tensor):
 
@@ -514,6 +601,86 @@ class GTN(nn.Module):
 
         # Classifier
         out = self.classifier(encoding).squeeze(1)
+
+        return out, attention_weights
+
+
+""" ********** RNN self-attention ********** """
+
+
+class RNN_self_attention(nn.Module):
+
+    """ RNN self-attention inspired by:
+        `"Epileptic spike detection by recurrent neural
+        networks with self-attention mechanism"
+        <https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9747560>`_.
+
+    Input (tensor): Batch of trials of dimension
+                    [batch_size x n_time_points x 1].
+    Output (tensor): Logits of dimension [batch_size].
+    """
+
+    def __init__(self,
+                 n_time_points):
+        """
+        Args:
+            n_time_points (int): Number of time points in EEF/MEG trials.
+        """
+
+        super().__init__()
+        self.n_time_points = n_time_points
+        self.LSTM_1 = nn.LSTM(input_size=1,
+                              hidden_size=8,
+                              num_layers=1,
+                              batch_first=True)
+        self.tanh = nn.Tanh()
+        self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
+        self.attention = nn.MultiheadAttention(num_heads=1,
+                                               embed_dim=8)
+        self.LSTM_2 = nn.LSTM(input_size=8,
+                              hidden_size=8,
+                              num_layers=1,
+                              batch_first=True)
+        self.classifier = nn.Linear(int(n_time_points/2), 1)
+
+        # Weight initialization
+        self.classifier.apply(normal_initialization)
+
+    def forward(self,
+                x: Tensor):
+
+        """ Apply 1D-RNN with self-attention model.
+        Args:
+            x (tensor): Batch of trials with dimension
+                        [batch_size x n_time_points x 1].
+
+        Returns:
+            out (tensor): Logits of dimension [batch_size].
+            attention_weights (tensor): Attention weights of channel attention.
+        """
+
+        # First LSTM
+        self.LSTM_1.flatten_parameters()
+        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
+        x = self.avgPool(x.transpose(1, 2))
+        x = x.transpose(1, 2)
+        x = x.transpose(0, 1)
+
+        # Self-attention Layer
+        x_attention, attention_weights = self.attention(x, x, x)
+
+        x = x + x_attention
+        x = x.transpose(0, 1)
+
+        # Second LSTM
+        self.LSTM_2.flatten_parameters()
+        x, (_, _) = self.LSTM_2(x)
+        x = self.tanh(x)
+        x = self.avgPool(x.transpose(1, 2))
+        x = x.transpose(1, 2)
+
+        # Classifier
+        out = self.classifier(x.flatten(1)).squeeze(1)
 
         return out, attention_weights
 
@@ -621,81 +788,107 @@ class STT(nn.Module):
         return out, attention_weights
 
 
-""" ********** RNN self-attention ********** """
+""" ********** Spatial Temporal Transformers with EEGNet********** """
 
 
-class RNN_self_attention(nn.Module):
+class STTNet(nn.Module):
 
-    """ RNN self-attention inspired by:
-        `"Epileptic spike detection by recurrent neural
-        networks with self-attention mechanism"
-        <https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9747560>`_.
+    """ Transformer model inspired by:
+        `"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
+        <https://arxiv.org/pdf/2106.11170.pdf>`_ and 
+        `"EEGNet: A Compact Convolutional Neural Network
+        for EEG-based Brain-Computer Interfaces"
+        <https://arxiv.org/pdf/1611.08024.pdf>`_.
+        Predicts probability of spike occurence in a trial.
 
     Input (tensor): Batch of trials of dimension
-                    [batch_size x n_time_points x 1].
-    Output (tensor): Logits of dimension [batch_size].
+                    [batch_size x 1 x n_channels x n_time_points].
+    Output (tensor): Logits of dimension [batch_size x 1].
     """
 
-    def __init__(self,
-                 n_time_points):
-        """
-        Args:
-            n_time_points (int): Number of time points in EEF/MEG trials.
-        """
+    def __init__(self):
 
         super().__init__()
-        self.n_time_points = n_time_points
-        self.LSTM_1 = nn.LSTM(input_size=1,
-                              hidden_size=8,
-                              num_layers=1,
-                              batch_first=True)
-        self.tanh = nn.Tanh()
-        self.avgPool = nn.AvgPool1d(kernel_size=4, stride=4)
-        self.attention = nn.MultiheadAttention(num_heads=1,
-                                               embed_dim=8)
-        self.LSTM_2 = nn.LSTM(input_size=8,
-                              hidden_size=8,
-                              num_layers=1,
-                              batch_first=True)
-        self.classifier = nn.Linear(int(n_time_points/2), 1)
+
+        # Block 1: conv2d
+        self.block1 = nn.Sequential(
+                        nn.Conv2d(in_channels=1,
+                                  out_channels=8,
+                                  kernel_size=(1, 64),
+                                  padding=(0, 32),
+                                  bias=False),
+                        nn.BatchNorm2d(8)
+                        )
+
+        # Block 2: depthwiseconv2d
+        self.block2 = nn.Sequential(
+                        nn.Conv2d(in_channels=8,
+                                  out_channels=32,
+                                  kernel_size=(20, 1),
+                                  groups=2,
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool2d(output_size=(1, 32)),
+                        nn.Dropout()
+                        )
+
+        # Block 3: separableconv2d
+        self.block3 = nn.Sequential(
+                        nn.Conv2d(in_channels=32,
+                                  out_channels=32,
+                                  kernel_size=(1, 16),
+                                  padding=(0, 8),
+                                  groups=32,
+                                  bias=False),
+                        nn.Conv2d(in_channels=32,
+                                  out_channels=32,
+                                  kernel_size=(1, 1),
+                                  bias=False),
+                        nn.ELU(),
+                        nn.AdaptiveAvgPool2d(output_size=(1, 32)),
+                        nn.Dropout()
+                        )
+
+        self.encoder = nn.Sequential(Rearrange('b o c t -> b (c t) o'),
+                                     TransformerEncoder(3, 32, 8, 4, 0.25)
+                                     )
+        self.classifier = nn.Linear(1024, 1)
 
         # Weight initialization
+        for block in [self.block1, self.block2, self.block3]:
+            block.apply(normal_initialization)
         self.classifier.apply(normal_initialization)
 
     def forward(self,
                 x: Tensor):
 
-        """ Apply 1D-RNN with self-attention model.
+        """ Apply STT+EEGNet model.
         Args:
             x (tensor): Batch of trials with dimension
-                        [batch_size x n_time_points x 1].
+                        [batch_size x 1 x n_channels x n_time_points].
 
         Returns:
             out (tensor): Logits of dimension [batch_size].
             attention_weights (tensor): Attention weights of channel attention.
         """
+        
+        # Conv2d
+        embedding = self.block1(x)
 
-        # First LSTM
-        self.LSTM_1.flatten_parameters()
-        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
-        x = self.avgPool(x.transpose(1, 2))
-        x = x.transpose(1, 2)
-        x = x.transpose(0, 1)
+        # Depthwise Conv2d
+        embedding = self.block2(embedding)
 
-        # Self-attention Layer
-        x_attention, attention_weights = self.attention(x, x, x)
+        # Separable Conv2d
+        embedding = self.block3(embedding)
 
-        x = x + x_attention
-        x = x.transpose(0, 1)
-
-        # Second LSTM
-        self.LSTM_2.flatten_parameters()
-        x, (_, _) = self.LSTM_2(x)
-        x = self.tanh(x)
-        x = self.avgPool(x.transpose(1, 2))
-        x = x.transpose(1, 2)
+        # Temporal Transforming
+        code = self.encoder(embedding)
 
         # Classifier
-        out = self.classifier(x.flatten(1)).squeeze(1)
+        out = self.classifier(code.flatten(1)).squeeze(1)
+        attention_weights = torch.zeros(1)
 
         return out, attention_weights
+
+
+
