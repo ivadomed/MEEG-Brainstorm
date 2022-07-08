@@ -41,6 +41,7 @@ class CostSensitiveLoss(nn.Module):
 
         self.criterion = criterion
         self.lambd = lambd
+        self.sigmoid = nn.Sigmoid()
 
         # Compute cost-sensitive matrix
         M = np.array([[0, 0], [1, 0]])
@@ -63,7 +64,7 @@ class CostSensitiveLoss(nn.Module):
         loss = self.criterion(logits, targets)
 
         # Recover prediction
-        preds = 1 * (logits > 0.5)
+        preds = 1 * (self.sigmoid(logits) > 0.5)
 
         # Compute cost-sensitive regularization
         CS = self.M[targets.long(), preds.long()].float()
