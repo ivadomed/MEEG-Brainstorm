@@ -11,6 +11,7 @@ def get_parser():
         "spike detection", description="spike detection using attention layer"
     )
     parser.add_argument("--path_data", type=str, default="../results/csv")
+    parser.add_argument("--metric", type=str, default="f1")
     parser.add_argument("--n_subjects", type=int, default=1)
 
     return parser
@@ -21,6 +22,7 @@ parser = get_parser()
 args = parser.parse_args()  # you can modify this namespace for quick iterations
 path_data = args.path_data
 n_subjects = args.n_subjects
+metric = args.metric
 
 fnames = list(
     Path(path_data).glob("results_intra_subject_spike_detection_method-*_{}-subjects.csv".format(n_subjects))
