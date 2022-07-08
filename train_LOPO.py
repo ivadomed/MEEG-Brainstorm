@@ -8,8 +8,7 @@ Contributors: Ambroise Odonnat and Theo Gnassounou.
 
 import argparse
 import os
-import random
-
+import augmentation
 import numpy as np
 import pandas as pd
 

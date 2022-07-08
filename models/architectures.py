@@ -316,7 +316,7 @@ class EEGNet(nn.Module):
         # Block 2: depthwiseconv2d
         self.block2 = nn.Sequential(
                         nn.Conv2d(in_channels=8,
-                                  out_channels=32,
+                                  out_channels=16,
                                   kernel_size=(20, 1),
                                   groups=2,
                                   bias=False),

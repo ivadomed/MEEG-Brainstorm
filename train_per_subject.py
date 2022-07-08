@@ -158,8 +158,6 @@ for train_subject_id in subject_ids:
         elif method == "STT":
             n_time_points = len(data[subject_ids[0]][0][0][0])
             architecture = STT(n_time_points=n_time_points)
-        elif method == "STTNet":
-            architecture = STTNet()
         architecture.apply(reset_weights)
 
         if weight_loss:
@@ -183,6 +181,7 @@ for train_subject_id in subject_ids:
         model = make_model(architecture,
                            train_loader,
                            val_loader,
+                           test_loader,
                            optimizer,
                            warmup,
                            warm_optimizer,
