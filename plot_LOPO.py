@@ -11,7 +11,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         "spike detection", description="spike detection using attention layer"
     )
-    parser.add_argument("--path_data", type=str, default="../results/csv")
+    parser.add_argument("--path_data", type=str, default="../results/csv_LOPO")
     parser.add_argument("--metric", type=str, default="f1")
     parser.add_argument("--n_subjects", type=int, default=1)
     return parser
@@ -26,20 +26,21 @@ metric = args.metric
 
 # Choose where to load the data
 fnames = list(
-    Path(path_data).glob("results_LOPO_spike_detection_{}-subjects.csv".format(n_subjects))
+    Path(path_data).glob("results_new_weight_loss.csv".format(n_subjects))
 )
 
 # concatene all the dataframe
 df = pd.concat([pd.read_csv(fname) for fname in fnames], axis=0)
 
 fig = plt.figure()
-sns.boxplot(data=df, x="method", y=metric, palette="Set2")
-sns.swarmplot(data=df, x="method", y=metric, hue="test_subject_id", palette="tab10")
+data = df
+sns.boxplot(data=data, x="weight_loss", y=metric, palette="Set2")
+sns.swarmplot(data=data, x="weight_loss", y=metric, hue="test_subject_id", palette="tab10")
 plt.tight_layout()
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
 fig.savefig(
-            "../results/images/results_{}_score_{}_subjects.pdf".format(metric,
+            "results/images/results_new_weight_loss_{}_{}_subjects.pdf".format(metric,
                                                                         n_subjects),
             bbox_inches="tight",
            )
@@ -64,5 +65,5 @@ fig.savefig(
 # # )
 
 # print results
-print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss', "transform"]).mean().reset_index())
-print(df.groupby(['method', 'mix_up', 'cost_sensitive', 'weight_loss', "transform"]).std().reset_index())
+print(df.groupby(['method', 'warmup', 'cost_sensitive', 'weight_loss', "transform"]).mean().reset_index())
+print(df.groupby(['method', 'warmup', 'cost_sensitive', 'weight_loss', "transform"]).std().reset_index())
