@@ -20,7 +20,7 @@ from models.architectures import *
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
-from utils.cost_sensitive_loss import get_criterion
+from utils.losses import get_criterion
 from utils.learning_rate_warmup import NoamOpt
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from utils.select_subject import select_subject
@@ -48,6 +48,8 @@ def get_parser():
     parser.add_argument("--weight_loss", action="store_true")
     parser.add_argument("--cost_sensitive", action="store_true")
     parser.add_argument("--lambd", type=float, default=1e-3)
+    parser.add_argument("--focal", action="store_true")
+    parser.add_argument("--gamma", type=float, default=2)
     parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--transform", action="store_true")
     parser.add_argument("--patience", type=int, default=10)
@@ -70,6 +72,8 @@ selected_subjects = args.selected_subjects
 weight_loss = args.weight_loss
 cost_sensitive = args.cost_sensitive
 lambd = args.lambd
+focal = args.focal
+gamma = args.gamma
 len_trials = args.len_trials
 transform = args.transform
 patience = args.patience
@@ -191,9 +195,14 @@ for gen_seed in range(5):
             train_criterion = train_criterion.to(device)
         else:
             train_criterion = criterion
+        if focal:
+            alpha = get_alpha(train_labels)
         train_criterion = get_criterion(train_criterion,
                                         cost_sensitive,
-                                        lambd)
+                                        lambd,
+                                        focal,
+                                        alpha,
+                                        gamma)
         # Define optimizer
         optimizer = Adam(architecture.parameters(), lr=lr,
                          weight_decay=weight_decay)
@@ -204,7 +213,6 @@ for gen_seed in range(5):
         model = make_model(architecture,
                            train_loader,
                            val_loader,
-                           test_loader,
                            optimizer,
                            warmup,
                            warm_optimizer,
@@ -218,13 +226,14 @@ for gen_seed in range(5):
         history = model.train()
 
         # Compute test performance and save it
-        acc, f1, precision, recall = model.score()
+        acc, f1, precision, recall = model.score(test_loader)
         results.append(
             {
                 "method": method,
                 "warmup": warmup,
                 "weight_loss": weight_loss,
                 "cost_sensitive": cost_sensitive,
+                "focal": focal,
                 "len_trials": len_trials,
                 "test_subject_id": test_subject_id,
                 "transform": transform,

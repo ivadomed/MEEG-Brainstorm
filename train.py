@@ -20,7 +20,7 @@ from models.architectures import *
 from models.training import make_model
 from loader.dataloader import Loader
 from loader.data import Data
-from utils.cost_sensitive_loss import get_criterion
+from utils.losses import get_criterion
 from utils.learning_rate_warmup import NoamOpt
 from utils.utils_ import define_device, get_pos_weight, reset_weights
 from augmentation import AffineScaling, ChannelsShuffle, FrequencyShift
@@ -198,7 +198,6 @@ for seed in range(5):
     model = make_model(architecture,
                        train_loader,
                        val_loader,
-                       test_loader,
                        optimizer,
                        warmup,
                        warm_optimizer,
