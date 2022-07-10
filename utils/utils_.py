@@ -46,6 +46,39 @@ def define_device(gpu_id):
     return cuda_available, device
 
 
+def get_alpha(labels):
+
+    """
+    Compute inverse class frequency.
+    If no positive examples in the dataset, return 1.
+
+    Args:
+        labels (list): Labels in the training dataset recovered
+                       with labels[subject][session][trial].
+
+    Return:
+        pos_weight (tensor): Positive class weight.
+    """
+
+    neg, pos = 0, 0
+    for id in range(len(labels)):
+        for n_sess in range(len(labels[id])):
+            for n_trial in range(len(labels[id][n_sess])):
+                label = labels[id][n_sess][n_trial]
+                if label == 1:
+                    pos += 1
+                else:
+                    neg += 1
+
+    maj = max(pos, neg)
+    mino = min(pos, neg)
+
+    # Compute the corresponding weights
+    alpha = maj / (maj+mino)
+    print(maj, mino, alpha)
+    return alpha
+
+
 def get_next_batch(id,
                    iter_loader,
                    loaders):
@@ -168,12 +201,11 @@ def normal_initialization(m):
         m (nn.Module): Model.
     """
 
-    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d): 
         torch.manual_seed(42)
         m.weight.data.normal_(mean=0.0, std=0.02)
         if m.bias is not None:
             m.bias.data.zero_()
-
 
 def pad_tensor(x,
                n_pads,
