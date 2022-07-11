@@ -75,7 +75,7 @@ def get_alpha(labels):
 
     # Compute the corresponding weights
     alpha = maj / (maj+mino)
-    print(maj, mino, alpha)
+  
     return alpha
 
 

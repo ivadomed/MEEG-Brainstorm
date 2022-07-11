@@ -50,6 +50,7 @@ def get_parser():
     parser.add_argument("--lambd", type=float, default=1e-3)
     parser.add_argument("--focal", action="store_true")
     parser.add_argument("--gamma", type=float, default=2)
+    parser.add_argument("--alpha", type=float, default=0.7)
     parser.add_argument("--len_trials", type=float, default=2)
     parser.add_argument("--transform", action="store_true")
     parser.add_argument("--patience", type=int, default=10)
@@ -74,6 +75,7 @@ cost_sensitive = args.cost_sensitive
 lambd = args.lambd
 focal = args.focal
 gamma = args.gamma
+alpha = args.alpha
 len_trials = args.len_trials
 transform = args.transform
 patience = args.patience
